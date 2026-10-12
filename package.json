@@ -1,0 +1,51 @@
+{
+  "name": "ctxsize",
+  "version": "0.0.0",
+  "description": "See what every coding agent loads before your first prompt, in tokens, and what each one silently drops.",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "cursor",
+    "copilot",
+    "gemini-cli",
+    "agents-md",
+    "context",
+    "tokens",
+    "skills",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Chirag Jain",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chiragjain7254/ctxsize.git"
+  },
+  "homepage": "https://github.com/Chiragjain7254/ctxsize#readme",
+  "bugs": "https://github.com/Chiragjain7254/ctxsize/issues",
+  "type": "module",
+  "bin": {
+    "ctxsize": "dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "node --experimental-strip-types src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^24.19.2",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}
