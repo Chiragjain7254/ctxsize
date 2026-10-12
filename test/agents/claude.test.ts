@@ -1,3 +1,4 @@
+import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from 'vitest';
 import { load } from '../../src/agents/claude.ts';
@@ -273,4 +274,14 @@ test('every path is POSIX and order is a single counter', async () => {
   }
   expect(byPath(r, 'docs/guide.md')?.path).toBe('docs/guide.md');
   expect(r.items.map((i) => i.order)).toEqual([0, 1, 2, 3, 4]);
+});
+
+test('rules: symlinked folders inside .claude/rules are followed', async () => {
+  const root = tmpRepo({ '.git/': '', 'shared/style.md': 'style', '.claude/rules/x.md': 'x' });
+  // A junction needs no admin rights on Windows; elsewhere it is a plain symlink.
+  symlinkSync(path.join(root, 'shared'), path.join(root, '.claude', 'rules', 'linked'), 'junction');
+  expect(summary(await run(root))).toEqual([
+    ['.claude/rules/linked/style.md', 'startup'],
+    ['.claude/rules/x.md', 'startup'],
+  ]);
 });

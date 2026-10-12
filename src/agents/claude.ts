@@ -64,7 +64,8 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
   let hasClaudeFile = false;
 
   const collectRules = (rulesDir: string): void => {
-    for (const abs of walkFiles(rulesDir)) {
+    // The rules dir supports symlinked folders (shared rule sets), so follow them here only.
+    for (const abs of walkFiles(rulesDir, { followSymlinks: true })) {
       if (path.extname(abs) !== '.md') continue;
       if (collected.has(path.resolve(abs))) continue;
       const text = read(abs);
