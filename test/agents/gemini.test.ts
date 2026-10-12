@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test } from 'vitest';
-import { load as rawLoad } from '../../src/agents/gemini.ts';
+import { load } from '../../src/agents/gemini.ts';
 import type { LoaderContext } from '../../src/core/types.ts';
 import { fakeHome, tmpRepo } from '../helpers.ts';
 
@@ -10,13 +10,6 @@ const ctxFor = (root: string, opts: { cwd?: string; home?: string } = {}): Loade
   env: {},
   ...(opts.home ? { home: opts.home } : {}),
 });
-
-// With a home the walk goes up to the filesystem root, so a stray GEMINI.md above the temp dir
-// on the test machine would show up with an absolute path. Keep only repo and home items.
-const load = async (ctx: LoaderContext) => {
-  const result = await rawLoad(ctx);
-  return { ...result, items: result.items.filter((i) => !/^(\/|[A-Za-z]:)/.test(i.path)) };
-};
 
 const summary = (items: { path: string; load: string; order: number }[]) =>
   [...items].sort((a, b) => a.order - b.order).map((i) => [i.path, i.load]);
@@ -28,7 +21,7 @@ test('GEMINI.md at root and in cwd both load, outermost first', async () => {
     ['GEMINI.md', 'startup'],
     ['pkg/GEMINI.md', 'startup'],
   ]);
-  expect(items.map((i) => i.reason)).toEqual(['GEMINI.md in ancestor', 'GEMINI.md in workspace']);
+  expect(items.map((i) => i.reason)).toEqual(['GEMINI.md in repo root', 'GEMINI.md in cwd']);
   expect(items[0]).toMatchObject({
     category: 'instructions',
     scope: 'project',
@@ -96,7 +89,7 @@ test('GEMINI.md in a subdirectory is on-demand', async () => {
     ['GEMINI.md', 'startup'],
     ['src/lib/GEMINI.md', 'on-demand'],
   ]);
-  expect(items[1]?.reason).toBe('loaded just-in-time when a tool touches src/lib');
+  expect(items[1]?.reason).toBe('on demand: loads when working in src/lib');
 });
 
 test('imports expand after their importer with importedFrom set', async () => {
@@ -154,7 +147,7 @@ test('global ~/.gemini/GEMINI.md loads first, only with a home', async () => {
     ['~/.gemini/GEMINI.md', 'startup'],
     ['GEMINI.md', 'startup'],
   ]);
-  expect(items[0]).toMatchObject({ scope: 'user', reason: 'global context file' });
+  expect(items[0]).toMatchObject({ scope: 'user', reason: 'user GEMINI.md (~/.gemini)' });
 });
 
 test('lowercase gemini.md is not loaded', async () => {
@@ -175,14 +168,23 @@ test('skills: .agents beats .gemini in the workspace, workspace beats user', asy
     '.gemini/skills/lint/SKILL.md': skill('lint it'),
   });
   const { items } = await load(ctxFor(root, { home }));
+  // Discovery order, lowest precedence first: user .gemini, user .agents, then workspace.
   expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
-    ['~/.gemini/skills/deploy/SKILL.md', 'ignored', 'overridden by .agents/skills/deploy/SKILL.md'],
-    ['.gemini/skills/deploy/SKILL.md', 'ignored', 'overridden by .agents/skills/deploy/SKILL.md'],
-    ['.agents/skills/deploy/SKILL.md', 'startup', 'skill name and description injected at startup'],
-    ['.gemini/skills/lint/SKILL.md', 'startup', 'skill name and description injected at startup'],
-    ['~/.agents/skills/solo/SKILL.md', 'startup', 'skill name and description injected at startup'],
+    [
+      '~/.gemini/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by .agents/skills/deploy/SKILL.md',
+    ],
+    ['~/.agents/skills/solo/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      '.gemini/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by .agents/skills/deploy/SKILL.md',
+    ],
+    ['.gemini/skills/lint/SKILL.md', 'startup', 'skill listing entry'],
+    ['.agents/skills/deploy/SKILL.md', 'startup', 'skill listing entry'],
   ]);
-  const winner = items[2];
+  const winner = items[4];
   expect(winner).toMatchObject({
     category: 'skills',
     text: '- deploy: agents deploy\n',
@@ -210,8 +212,7 @@ test('order is one counter and every path is POSIX', async () => {
     'a/b/c/GEMINI.md': 'abc',
   });
   const { items } = await load(ctxFor(root, { cwd: 'a/b', home }));
-  const raw = (await rawLoad(ctxFor(root, { cwd: 'a/b', home }))).items;
-  expect(raw.map((i) => i.order)).toEqual(raw.map((_, n) => n));
+  expect(items.map((i) => i.order)).toEqual(items.map((_, n) => n));
   expect(summary(items)).toEqual([
     ['~/.gemini/GEMINI.md', 'startup'],
     ['GEMINI.md', 'startup'],
@@ -225,4 +226,109 @@ test('order is one counter and every path is POSIX', async () => {
     expect(item.importedFrom ?? '').not.toContain('\\');
     expect(item.skill?.bodyPath ?? '').not.toContain('\\');
   }
+});
+
+test('with a home the upward walk still stops at the repo root', async () => {
+  const outer = tmpRepo({ 'GEMINI.md': 'above the repo', 'repo/.git/': '', 'repo/GEMINI.md': 'r' });
+  const root = path.join(outer, 'repo');
+  const home = fakeHome({ '.gemini/GEMINI.md': 'global' });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(summary(items)).toEqual([
+    ['~/.gemini/GEMINI.md', 'startup'],
+    ['GEMINI.md', 'startup'],
+  ]);
+});
+
+test('imports outside the repo are skipped with a warning unless a home is given', async () => {
+  const outer = tmpRepo({
+    'shared.md': 'outside',
+    'repo/.git/': '',
+    'repo/GEMINI.md': '@../shared.md',
+  });
+  const root = path.join(outer, 'repo');
+  const without = await load(ctxFor(root));
+  expect(summary(without.items)).toEqual([['GEMINI.md', 'startup']]);
+  expect(without.warnings).toEqual([
+    {
+      agent: 'gemini',
+      path: 'GEMINI.md',
+      message: 'import outside the repo not counted: @../shared.md (use --include-user)',
+    },
+  ]);
+  const withHome = await load(ctxFor(root, { home: fakeHome() }));
+  expect(withHome.items.map((i) => [i.load, i.reason])).toEqual([
+    ['startup', expect.any(String)],
+    ['startup', 'imported by GEMINI.md'],
+  ]);
+  expect(withHome.items[1]).toMatchObject({ scope: 'user', text: 'outside' });
+});
+
+test('reasons name the repo root, intermediate directories and cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'GEMINI.md': 'r',
+    'a/GEMINI.md': 'a',
+    'a/b/GEMINI.md': 'ab',
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'a/b' }));
+  expect(items.map((i) => [i.path, i.reason])).toEqual([
+    ['GEMINI.md', 'GEMINI.md in repo root'],
+    ['a/GEMINI.md', 'GEMINI.md in a'],
+    ['a/b/GEMINI.md', 'GEMINI.md in cwd'],
+  ]);
+  const atRoot = await load(ctxFor(root));
+  expect(atRoot.items[0]?.reason).toBe('GEMINI.md in repo root');
+});
+
+test('skills are read from cwd and from the repo root; cwd wins on a name collision', async () => {
+  const skill = (desc: string) => `---\ndescription: ${desc}\n---\nbody`;
+  const root = tmpRepo({
+    '.git/': '',
+    '.agents/skills/deploy/SKILL.md': skill('root deploy'),
+    '.gemini/skills/root-only/SKILL.md': skill('root only'),
+    'pkg/.gemini/skills/deploy/SKILL.md': skill('pkg deploy'),
+    'pkg/.agents/skills/pkg-only/SKILL.md': skill(''),
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'pkg' }));
+  expect(items.map((i) => [i.path, i.load, i.reason, i.text])).toEqual([
+    [
+      '.gemini/skills/root-only/SKILL.md',
+      'startup',
+      'skill listing entry',
+      '- root-only: root only\n',
+    ],
+    [
+      '.agents/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by pkg/.gemini/skills/deploy/SKILL.md',
+      '- deploy: root deploy\n',
+    ],
+    [
+      'pkg/.gemini/skills/deploy/SKILL.md',
+      'startup',
+      'skill listing entry',
+      '- deploy: pkg deploy\n',
+    ],
+    ['pkg/.agents/skills/pkg-only/SKILL.md', 'startup', 'skill listing entry', '- pkg-only\n'],
+  ]);
+});
+
+test('skills keep discovery order instead of sorting by name', async () => {
+  const skill = '---\ndescription: d\n---\n';
+  const home = fakeHome({ '.gemini/skills/zeta/SKILL.md': skill });
+  const root = tmpRepo({ '.git/': '', '.gemini/skills/alpha/SKILL.md': skill });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(items.map((i) => i.skill?.name)).toEqual(['zeta', 'alpha']);
+});
+
+test('project settings are read from the repo root, not cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.gemini/settings.json': '{"context":{"fileName":"ROOT.md"}}',
+    'pkg/.gemini/settings.json': '{"context":{"fileName":"PKG.md"}}',
+    'ROOT.md': 'r',
+    'pkg/PKG.md': 'p',
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'pkg' }));
+  expect(summary(items)).toEqual([['ROOT.md', 'startup']]);
 });
