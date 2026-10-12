@@ -214,6 +214,12 @@ export interface AgentReport {
   warnings: Warning[];
 }
 
+/** Startup tokens per tool when the agent starts in this folder ("." is the repo root). */
+export interface TreeRow {
+  dir: string;
+  tools: Record<ToolId, number>;
+}
+
 export interface Report {
   schemaVersion: 2;
   tool: { name: 'ctxsize'; version: string };
@@ -222,4 +228,6 @@ export interface Report {
   /** Messages used for every tool's overhead figure. */
   messages: number;
   agents: AgentReport[];
+  /** Set by --tree: startup load per starting folder. */
+  tree?: TreeRow[];
 }

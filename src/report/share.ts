@@ -45,7 +45,7 @@ export function renderMarkdown(report: Report): string {
   }
   const top = [...files].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
   if (top.length > 0) {
-    lines.push('**Biggest files:** ' + top.map(([p, t]) => `\`${p}\` ${num(t)}`).join(', '), '');
+    lines.push(`**Biggest files:** ${top.map(([p, t]) => `\`${p}\` ${num(t)}`).join(', ')}`, '');
   }
 
   const dropped = report.agents.filter((a) => willDrops(a) > 0);

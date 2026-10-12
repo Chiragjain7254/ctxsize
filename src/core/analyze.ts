@@ -19,6 +19,8 @@ import { DEFAULT_MESSAGES, topFiles, usageFor } from './usage.ts';
 export interface AnalyzeOptions {
   /** Directory the agents start in. */
   cwd: string;
+  /** Repo root; default: the nearest ancestor of cwd with a .git. */
+  root?: string;
   /** Tool ids to measure; default: every tool. */
   agents?: readonly ToolId[];
   /** Tools to choose from; default: the built-ins plus those in the repo's ctxsize.json. */
@@ -43,7 +45,7 @@ export interface ModelSelection {
 export async function analyze(opts: AnalyzeOptions): Promise<Report> {
   const cwd = path.resolve(opts.cwd);
   clearWalkCache();
-  const root = findRoot(cwd);
+  const root = opts.root ? path.resolve(opts.root) : findRoot(cwd);
   const env = opts.env ?? {};
   const tools = opts.tools ?? buildTools(loadConfig(root));
   const agents: AgentReport[] = [];

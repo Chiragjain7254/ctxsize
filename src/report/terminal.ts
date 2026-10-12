@@ -30,6 +30,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   out.push(...table(report.agents, c));
   out.push(...costLines(report, c));
   out.push(...biggestFiles(report, c));
+  out.push(...treeLines(report, c));
 
   const dropped = report.agents.filter((a) => a.drops.length > 0);
   if (dropped.length > 0) {
@@ -233,5 +234,42 @@ function biggestFiles(report: Report, c: Colors): string[] {
       const who = v.tools.size > 3 ? `${v.tools.size} tools` : [...v.tools].join(', ');
       return `  ${p.length > pathWidth ? `…${p.slice(-(pathWidth - 1))}` : p.padEnd(pathWidth)}  ${num(v.tokens).padStart(tokenWidth)}  ${c.dim(who)}`;
     }),
+  ];
+}
+
+function treeLines(report: Report, c: Colors): string[] {
+  const rows = report.tree;
+  if (!rows) return [];
+  const head = ['', c.bold('By starting folder')];
+  if (rows.length <= 1) return [...head, c.dim('  No nested instruction files found.')];
+  const rootTotals = rows[0]?.tools ?? {};
+  // Only tools whose load changes somewhere get a column; the rest are listed once.
+  const varying = report.agents.filter((a) =>
+    rows.some((r) => (r.tools[a.agent] ?? 0) !== (rootTotals[a.agent] ?? 0)),
+  );
+  if (varying.length === 0) {
+    return [...head, c.dim(`  All ${rows.length} folders load the same as the repo root.`)];
+  }
+  const cell = (row: (typeof rows)[number], id: string) => {
+    const n = row.tools[id] ?? 0;
+    const delta = n - (rootTotals[id] ?? 0);
+    if (row === rows[0] || delta === 0) return num(n);
+    return `${num(n)} (${delta > 0 ? '+' : '-'}${num(Math.abs(delta))})`;
+  };
+  const dirWidth = Math.min(36, Math.max(6, ...rows.map((r) => r.dir.length)));
+  const body = rows.map((row) => varying.map((a) => cell(row, a.agent)));
+  const widths = varying.map((a, i) =>
+    Math.max(a.label.length, ...body.map((b) => b[i]?.length ?? 0)),
+  );
+  const shorten = (dir: string) =>
+    dir.length > dirWidth ? `…${dir.slice(-(dirWidth - 1))}` : dir.padEnd(dirWidth);
+  const same = report.agents.length - varying.length;
+  return [
+    ...head,
+    `  ${c.dim('Folder'.padEnd(dirWidth))}  ${varying.map((a, i) => c.dim(a.label.padStart(widths[i] ?? 0))).join('  ')}`.trimEnd(),
+    ...rows.map((row, ri) =>
+      `  ${shorten(row.dir)}  ${(body[ri] ?? []).map((text, i) => text.padStart(widths[i] ?? 0)).join('  ')}`.trimEnd(),
+    ),
+    ...(same > 0 ? [c.dim(`  ${same} other tool(s) load the same in every folder.`)] : []),
   ];
 }

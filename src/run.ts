@@ -42,6 +42,7 @@ Options:
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
+  --tree               Also show the startup load when the agent starts in each nested folder
   --out <file>         Where to write --html
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
   --card <file.svg>    Write an SVG summary card (--title sets its heading)
@@ -114,8 +115,10 @@ Run ctxsize --help for usage.
     agents = ids.filter((id) => parsed.agentNames?.includes(id));
   }
 
-  const report = await analyze({
-    cwd: parsed.dir,
+  const root = findRoot(parsed.dir);
+  const analyzeOptions = (cwd: string) => ({
+    cwd,
+    root,
     agents,
     tools,
     messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
@@ -124,6 +127,16 @@ Run ctxsize --help for usage.
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   });
+  const report = await analyze(analyzeOptions(parsed.dir));
+  if (parsed.tree) {
+    const { analyzeTree } = await import('./tree.ts');
+    const tree = await analyzeTree(report, root, (cwd) => analyze(analyzeOptions(cwd)));
+    report.tree = tree.rows;
+    if (tree.skipped > 0) {
+      io.stderr(`ctxsize: --tree lists ${tree.rows.length} folders; ${tree.skipped} more were skipped
+`);
+    }
+  }
 
   // Sharing outputs load lazily: most runs never use them.
   const share =
@@ -190,6 +203,7 @@ function parse(argv: string[], io: Io) {
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
       out: { type: 'string' },
+      tree: { type: 'boolean', default: false },
       markdown: { type: 'string' },
       card: { type: 'string' },
       badge: { type: 'string' },
@@ -235,6 +249,7 @@ function parse(argv: string[], io: Io) {
     includeUser: values['include-user'],
     json: values.json,
     html: values.html,
+    tree: values.tree,
     out: path.resolve(io.cwd, values.out ?? 'ctxsize-report.html'),
     markdown:
       values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),
