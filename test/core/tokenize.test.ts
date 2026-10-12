@@ -21,3 +21,22 @@ test('byteLength counts UTF-8 bytes', () => {
   expect(byteLength('é')).toBe(2);
   expect(byteLength('abc')).toBe(3);
 });
+
+describe('long input', () => {
+  test('a 100 KB run of one character counts quickly', () => {
+    const start = performance.now();
+    expect(countTokens('x'.repeat(100 * 1024))).toBe(12_800);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
+  test('text around a repeated run is still counted', () => {
+    const run = '='.repeat(300);
+    expect(countTokens(`intro ${run} outro`)).toBeGreaterThan(countTokens(run) + 1);
+  });
+
+  test('90 KB of prose counts quickly', () => {
+    const start = performance.now();
+    expect(countTokens('The quick brown fox jumps over the lazy dog.\n'.repeat(2000))).toBe(20_000);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+});
