@@ -21,7 +21,7 @@ test('GEMINI.md at root and in cwd both load, outermost first', async () => {
     ['GEMINI.md', 'startup'],
     ['pkg/GEMINI.md', 'startup'],
   ]);
-  expect(items.map((i) => i.reason)).toEqual(['GEMINI.md in ancestor', 'GEMINI.md in workspace']);
+  expect(items.map((i) => i.reason)).toEqual(['GEMINI.md in repo root', 'GEMINI.md in cwd']);
   expect(items[0]).toMatchObject({
     category: 'instructions',
     scope: 'project',
@@ -89,7 +89,7 @@ test('GEMINI.md in a subdirectory is on-demand', async () => {
     ['GEMINI.md', 'startup'],
     ['src/lib/GEMINI.md', 'on-demand'],
   ]);
-  expect(items[1]?.reason).toBe('loaded just-in-time when a tool touches src/lib');
+  expect(items[1]?.reason).toBe('on demand: loads when working in src/lib');
 });
 
 test('imports expand after their importer with importedFrom set', async () => {
@@ -147,7 +147,7 @@ test('global ~/.gemini/GEMINI.md loads first, only with a home', async () => {
     ['~/.gemini/GEMINI.md', 'startup'],
     ['GEMINI.md', 'startup'],
   ]);
-  expect(items[0]).toMatchObject({ scope: 'user', reason: 'global context file' });
+  expect(items[0]).toMatchObject({ scope: 'user', reason: 'user GEMINI.md (~/.gemini)' });
 });
 
 test('lowercase gemini.md is not loaded', async () => {
@@ -252,4 +252,21 @@ test('imports outside the repo are skipped with a warning unless a home is given
     ['startup', 'imported by GEMINI.md'],
   ]);
   expect(withHome.items[1]).toMatchObject({ scope: 'user', text: 'outside' });
+});
+
+test('reasons name the repo root, intermediate directories and cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'GEMINI.md': 'r',
+    'a/GEMINI.md': 'a',
+    'a/b/GEMINI.md': 'ab',
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'a/b' }));
+  expect(items.map((i) => [i.path, i.reason])).toEqual([
+    ['GEMINI.md', 'GEMINI.md in repo root'],
+    ['a/GEMINI.md', 'GEMINI.md in a'],
+    ['a/b/GEMINI.md', 'GEMINI.md in cwd'],
+  ]);
+  const atRoot = await load(ctxFor(root));
+  expect(atRoot.items[0]?.reason).toBe('GEMINI.md in repo root');
 });

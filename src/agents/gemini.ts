@@ -5,6 +5,7 @@ import {
   displayPath,
   fileExists,
   readText,
+  toPosixRel,
   walkFiles,
 } from '../core/fs.ts';
 import { expandImports } from '../core/imports.ts';
@@ -48,15 +49,16 @@ export const load: Loader = async (ctx) => {
   if (ctx.home) {
     const dir = path.join(ctx.home, '.gemini');
     for (const name of names)
-      if (fileExists(dir, name)) add(path.join(dir, name), 'startup', 'global context file');
+      if (fileExists(dir, name)) add(path.join(dir, name), 'startup', `user ${name} (~/.gemini)`);
   }
 
   // Workspace and ancestors, outermost first. Gemini stops the upward walk at the project
   // (.git) root, so even with --include-user nothing above the repo is read; only the global
   // ~/.gemini file above comes from home.
   const cwd = path.resolve(ctx.cwd);
-  for (const dir of ancestors(cwd, ctx.root).reverse()) {
-    const where = dir === cwd ? 'workspace' : 'ancestor';
+  const root = path.resolve(ctx.root);
+  for (const dir of ancestors(cwd, root).reverse()) {
+    const where = dir === root ? 'repo root' : dir === cwd ? 'cwd' : toPosixRel(root, dir);
     for (const name of names) {
       if (fileExists(dir, name)) add(path.join(dir, name), 'startup', `${name} in ${where}`);
     }
@@ -67,7 +69,7 @@ export const load: Loader = async (ctx) => {
   for (const abs of walkFiles(cwd)) {
     const dir = path.dirname(abs);
     if (dir === cwd || !nameSet.has(path.basename(abs))) continue;
-    add(abs, 'on-demand', `loaded just-in-time when a tool touches ${displayPath(dir, ctx)}`);
+    add(abs, 'on-demand', `on demand: loads when working in ${displayPath(dir, ctx)}`);
   }
 
   // @imports, at most profiles.gemini.importMaxDepth hops; imported files follow their importer.
