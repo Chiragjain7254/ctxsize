@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { VERSION } from './version.ts';
+import { run } from './run.ts';
 
-const args = process.argv.slice(2);
-if (args.includes('--version') || args.includes('-v')) {
-  console.log(VERSION);
-} else {
-  console.log(`ctxsize ${VERSION}`);
-}
+process.exitCode = await run(process.argv.slice(2), {
+  stdout: (text) => process.stdout.write(text),
+  stderr: (text) => process.stderr.write(text),
+  env: process.env,
+  isTTY: process.stdout.isTTY === true,
+  cwd: process.cwd(),
+});
