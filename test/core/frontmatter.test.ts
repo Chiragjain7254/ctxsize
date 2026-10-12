@@ -30,6 +30,7 @@ describe('parseFrontmatter', () => {
   test('bad YAML is an error, not a throw', () => {
     const fm = parseFrontmatter('---\nname: [unclosed\n---\nBody');
     expect(fm.error).toMatch(/invalid YAML/);
+    expect(fm.error).not.toContain('\n');
     expect(fm.body).toBe('Body');
   });
 

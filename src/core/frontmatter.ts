@@ -37,7 +37,8 @@ export function parseFrontmatter(text: string, opts: FrontmatterOptions = {}): F
       const data = parseLines(block);
       if (Object.keys(data).length > 0) return { data, body };
     }
-    return { data: {}, body, error: `invalid YAML frontmatter: ${(err as Error).message}` };
+    const reason = (err as Error).message.split('\n')[0];
+    return { data: {}, body, error: `invalid YAML frontmatter: ${reason}` };
   }
 }
 
