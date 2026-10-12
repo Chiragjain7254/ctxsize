@@ -244,6 +244,9 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (isInside(ctx.root, dir)) skillDirs.push(path.join(dir, '.claude', 'skills'));
   }
   const seenSkills = new Set<string>();
+  // Same name: personal beats project, and within the project the first found wins.
+  // skillDirs is already in that order, so the first skill with a name keeps it.
+  const skillOwner = new Map<string, string>();
   for (const dir of skillDirs) {
     const found = readSkillsDir(ctx, AGENT, dir);
     warnings.push(...found.warnings);
@@ -253,16 +256,24 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
       seenSkills.add(key);
       // Claude Code lists description and when_to_use together.
       const text = skillEntry(s.name, [s.description, s.whenToUse].filter(Boolean).join(' '));
+      const winner = skillOwner.get(s.name);
+      if (winner === undefined) skillOwner.set(s.name, s.abs);
       // A skill only the user can invoke is left out of the listing entirely.
       const disabled = boolField(
         parseFrontmatter(read(s.abs) ?? '').data,
         'disable-model-invocation',
       );
+      const reason =
+        winner !== undefined
+          ? `ignored: overridden by ${displayPath(winner, ctx)}`
+          : disabled
+            ? 'ignored: disable-model-invocation'
+            : 'skill listing entry';
       items.push(
         makeItem(ctx, AGENT, s.abs, text, {
           category: 'skills',
-          load: disabled ? 'ignored' : 'startup',
-          reason: disabled ? 'ignored: disable-model-invocation' : 'skill listing entry',
+          load: reason.startsWith('ignored') ? 'ignored' : 'startup',
+          reason,
           order: order++,
           skill: {
             name: s.name,

@@ -313,6 +313,31 @@ test('skills: disable-model-invocation keeps a skill out of the listing', async 
   );
 });
 
+test('skills: same name, personal beats project and the first project one wins', async () => {
+  const home = fakeHome({ '.claude/skills/deploy/SKILL.md': '---\ndescription: Mine\n---\n' });
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/deploy/SKILL.md': '---\ndescription: Project\n---\n',
+    '.claude/skills/lint/SKILL.md': '---\ndescription: Root lint\n---\n',
+    'pkg/.claude/skills/lint2/SKILL.md': '---\nname: lint\ndescription: Pkg lint\n---\n',
+  });
+  const r = await run(root, 'pkg', home);
+  expect(r.items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['~/.claude/skills/deploy/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      '.claude/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by ~/.claude/skills/deploy/SKILL.md',
+    ],
+    ['.claude/skills/lint/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      'pkg/.claude/skills/lint2/SKILL.md',
+      'ignored',
+      'ignored: overridden by .claude/skills/lint/SKILL.md',
+    ],
+  ]);
+});
+
 test('skills: an empty description lists the name alone', async () => {
   const root = tmpRepo({
     '.git/': '',
