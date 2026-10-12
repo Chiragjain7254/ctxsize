@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { parseFrontmatter, stringField } from '../core/frontmatter.ts';
+import { boolField, parseFrontmatter, stringField } from '../core/frontmatter.ts';
 import {
   ancestors,
   displayPath,
@@ -253,11 +253,16 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
       seenSkills.add(key);
       // Claude Code lists description and when_to_use together.
       const text = skillEntry(s.name, [s.description, s.whenToUse].filter(Boolean).join(' '));
+      // A skill only the user can invoke is left out of the listing entirely.
+      const disabled = boolField(
+        parseFrontmatter(read(s.abs) ?? '').data,
+        'disable-model-invocation',
+      );
       items.push(
         makeItem(ctx, AGENT, s.abs, text, {
           category: 'skills',
-          load: 'startup',
-          reason: 'skill listing entry',
+          load: disabled ? 'ignored' : 'startup',
+          reason: disabled ? 'ignored: disable-model-invocation' : 'skill listing entry',
           order: order++,
           skill: {
             name: s.name,

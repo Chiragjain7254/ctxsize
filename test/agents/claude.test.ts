@@ -295,6 +295,24 @@ test('skills: exact listing entries, cwd-level dirs, no truncation', async () =>
   expect(skills[2]?.skill).not.toHaveProperty('whenToUse');
 });
 
+test('skills: disable-model-invocation keeps a skill out of the listing', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/manual/SKILL.md':
+      '---\ndescription: By hand\ndisable-model-invocation: true\n---\nbody',
+    '.claude/skills/auto/SKILL.md':
+      '---\ndescription: Auto\ndisable-model-invocation: false\n---\n',
+  });
+  const r = await run(root);
+  expect(summary(r)).toEqual([
+    ['.claude/skills/auto/SKILL.md', 'startup'],
+    ['.claude/skills/manual/SKILL.md', 'ignored'],
+  ]);
+  expect(byPath(r, '.claude/skills/manual/SKILL.md')?.reason).toBe(
+    'ignored: disable-model-invocation',
+  );
+});
+
 test('skills: an empty description lists the name alone', async () => {
   const root = tmpRepo({
     '.git/': '',
