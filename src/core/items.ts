@@ -98,3 +98,8 @@ export function readSkillsDir(
   }
   return { skills, warnings };
 }
+
+/** One line of a skill listing, as every agent shows it: "- name: description". */
+export function skillEntry(name: string, description: string): string {
+  return description ? `- ${name}: ${description}\n` : `- ${name}\n`;
+}
