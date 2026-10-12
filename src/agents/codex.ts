@@ -121,10 +121,33 @@ function fallbackNames(codexHome: string | undefined): string[] {
   if (!match) return [];
   const names: string[] = [];
   for (const m of (match[1] ?? '').matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g)) {
-    const name = (m[1] ?? m[2] ?? '').trim();
-    if (name) names.push(name);
+    const name = (m[1] !== undefined ? unescapeBasic(m[1]) : (m[2] ?? '')).trim();
+    if (validFallbackName(name)) names.push(name);
   }
   return names;
+}
+
+/**
+ * Codex skips fallback names that are not a single file name in the directory:
+ * empty, ".", "..", or containing "/" or NUL (on Windows also "\" or ":").
+ */
+export function validFallbackName(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (name === '' || name === '.' || name === '..') return false;
+  if (name.includes('/') || name.includes('\0')) return false;
+  if (platform === 'win32' && (name.includes('\\') || name.includes(':'))) return false;
+  return true;
+}
+
+/** Decodes TOML basic-string escapes; JSON covers all but \U and \e, kept literal then. */
+function unescapeBasic(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw;
+  }
 }
 
 function skillDirs(ctx: LoaderContext): string[] {

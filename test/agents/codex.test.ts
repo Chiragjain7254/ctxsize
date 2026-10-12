@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test } from 'vitest';
-import { load } from '../../src/agents/codex.ts';
+import { load, validFallbackName } from '../../src/agents/codex.ts';
 import type { LoaderContext, LoaderItem } from '../../src/core/types.ts';
 import { fakeHome, tmpRepo } from '../helpers.ts';
 
@@ -94,6 +94,27 @@ test('fallback filenames come from the home config.toml, and only with home', as
   ]);
   const without = await load(ctxFor(root, { cwd: 'sub' }));
   expect(without.items).toEqual([]);
+});
+
+test('fallback names that are not one file name, or repeat the defaults, are dropped', async () => {
+  const config =
+    'project_doc_fallback_filenames = ["", ".", "..", "sub/X.md", "N\\u0000UL.md", ' +
+    '"AGENTS.md", "AGENTS.override.md", "TEAM.md", "TEAM.md"]\n';
+  const home = fakeHome({ '.codex/config.toml': config });
+  const root = tmpRepo({ '.git/': '', 'TEAM.md': 'team', 'sub/X.md': 'x' });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(items.map((i) => [i.path, i.load])).toEqual([['TEAM.md', 'startup']]);
+});
+
+test('validFallbackName also rejects "\\" and ":" on Windows only', () => {
+  for (const bad of ['', '.', '..', 'a/b.md', 'a\0b.md']) {
+    expect(validFallbackName(bad, 'linux'), bad).toBe(false);
+  }
+  expect(validFallbackName('a\\b.md', 'linux')).toBe(true);
+  expect(validFallbackName('a:b.md', 'darwin')).toBe(true);
+  expect(validFallbackName('a\\b.md', 'win32')).toBe(false);
+  expect(validFallbackName('a:b.md', 'win32')).toBe(false);
+  expect(validFallbackName('TEAM.md', 'win32')).toBe(true);
 });
 
 test('fallback names in a TOML table are not top-level config', async () => {
