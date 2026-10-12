@@ -276,6 +276,26 @@ test('every path is POSIX and order is a single counter', async () => {
   expect(r.items.map((i) => i.order)).toEqual([0, 1, 2, 3, 4]);
 });
 
+test('imports outside the repo are skipped with a warning unless home is set', async () => {
+  const outer = tmpRepo({
+    'shared.md': 'shared',
+    'repo/.git/': '',
+    'repo/CLAUDE.md': '@../shared.md',
+  });
+  const root = path.join(outer, 'repo');
+  const r = await run(root);
+  expect(summary(r)).toEqual([['CLAUDE.md', 'startup']]);
+  expect(r.warnings).toEqual([
+    {
+      agent: 'claude',
+      path: 'CLAUDE.md',
+      message: 'import outside the repo not counted: @../shared.md (use --include-user)',
+    },
+  ]);
+  const withHome = await run(root, '', fakeHome());
+  expect(withHome.items.map((i) => i.importedFrom)).toEqual([undefined, 'CLAUDE.md']);
+});
+
 test('rules: symlinked folders inside .claude/rules are followed', async () => {
   const root = tmpRepo({ '.git/': '', 'shared/style.md': 'style', '.claude/rules/x.md': 'x' });
   // A junction needs no admin rights on Windows; elsewhere it is a plain symlink.

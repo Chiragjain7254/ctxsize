@@ -171,7 +171,8 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (c.load === 'ignored') return;
     const result = expandImports(c.abs, c.text, {
       maxDepth,
-      ...(ctx.home ? { home: ctx.home } : {}),
+      // Without --include-user, imports outside the repo are skipped (reproducible output).
+      ...(ctx.home ? { home: ctx.home } : { boundary: ctx.root }),
       seen,
     });
     for (const f of result.files) {
