@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import { type AnalyzeOptions, analyze } from './core/analyze.ts';
-import { matchGlob } from './core/glob.ts';
+import { globToRegExp } from './core/glob.ts';
 import type { Report, ToolId } from './core/types.ts';
 import type { Tool } from './tools.ts';
 
@@ -162,38 +162,73 @@ export async function resolveCommit(repo: Repo, ref: string): Promise<string> {
   }
 }
 
-/** Every regular, small file a commit holds. Symlinks and submodules are skipped. */
-async function listTree(repo: Repo, rev: string): Promise<Map<string, string>> {
-  const out = await git(repo.top, ['ls-tree', '-r', '-z', '-l', rev]);
-  const files = new Map<string, string>();
+const isRegular = (mode: string | undefined) => mode === '100644' || mode === '100755';
+
+/** path -> blob id of every regular file a commit holds. Symlinks and submodules are skipped. */
+type Tree = Map<string, string>;
+
+async function listTree(repo: Repo, rev: string): Promise<Tree> {
+  const out = await git(repo.top, ['ls-tree', '-r', '-z', rev]);
+  const files: Tree = new Map();
   for (const record of out.toString('utf8').split('\0')) {
     const tab = record.indexOf('\t');
     if (tab === -1) continue;
-    const [mode, type, sha, size] = record.slice(0, tab).split(/\s+/);
-    if (type !== 'blob' || (mode !== '100644' && mode !== '100755') || !sha) continue;
-    if (Number(size) > MAX_BLOB_BYTES) continue;
-    files.set(record.slice(tab + 1), sha);
+    const [mode, type, sha] = record.slice(0, tab).split(' ');
+    if (type === 'blob' && isRegular(mode) && sha) files.set(record.slice(tab + 1), sha);
   }
   return files;
+}
+
+/**
+ * The tree of `to` given the tree of `from`: only the paths git reports as different are
+ * touched, which is far cheaper than listing a big repository again.
+ */
+async function nextTree(repo: Repo, from: string, to: string, tree: Tree): Promise<Tree> {
+  const out = await git(repo.top, ['diff-tree', '-r', '-z', '--no-renames', '--raw', from, to]);
+  const next: Tree = new Map(tree);
+  const tokens = out.toString('utf8').split('\0');
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    const [, newMode, , newSha, status] = (tokens[i] ?? '').split(' ');
+    const file = tokens[i + 1] ?? '';
+    if (status !== 'D' && isRegular(newMode) && newSha) next.set(file, newSha);
+    else next.delete(file);
+  }
+  return next;
 }
 
 /** Blob contents by id, read with one `git cat-file --batch` process per request. */
 class BlobStore {
   private readonly blobs = new Map<string, Buffer>();
-  constructor(private readonly repo: Repo) {}
+  /** Blobs that are too big or not blobs; not asked for again. */
+  private readonly skipped = new Set<string>();
+  private readonly repo: Repo;
+  constructor(repo: Repo) {
+    this.repo = repo;
+  }
 
   async load(shas: Iterable<string>): Promise<void> {
-    const wanted = [...new Set(shas)].filter((s) => !this.blobs.has(s));
+    const wanted = [...new Set(shas)].filter((s) => !this.blobs.has(s) && !this.skipped.has(s));
     if (wanted.length === 0) return;
-    const out = await git(this.repo.top, ['cat-file', '--batch'], `${wanted.join('\n')}\n`);
+    // Sizes first, so a huge blob is never read.
+    const sizes = (
+      await git(this.repo.top, ['cat-file', '--batch-check'], `${wanted.join('\n')}\n`)
+    )
+      .toString('utf8')
+      .split('\n');
+    const small: string[] = [];
+    wanted.forEach((sha, i) => {
+      const [, type, size] = (sizes[i] ?? '').split(' ');
+      if (type === 'blob' && Number(size) <= MAX_BLOB_BYTES) small.push(sha);
+      else this.skipped.add(sha);
+    });
+    if (small.length === 0) return;
+    const out = await git(this.repo.top, ['cat-file', '--batch'], `${small.join('\n')}\n`);
     let at = 0;
-    for (const sha of wanted) {
+    for (const sha of small) {
       const eol = out.indexOf(0x0a, at);
       if (eol === -1) break;
-      const header = out.toString('utf8', at, eol).split(' ');
+      const size = Number(out.toString('utf8', at, eol).split(' ')[2]);
       at = eol + 1;
-      if (header[1] === 'missing') continue;
-      const size = Number(header[2]);
       this.blobs.set(sha, out.subarray(at, at + size));
       at += size + 1;
     }
@@ -260,21 +295,31 @@ export function candidateMatcher(tools: readonly Tool[]): (file: string) => bool
     for (const dir of spec.skills?.dirs ?? []) addDir(dir);
   }
   const dirList = [...dirs];
-  const patternList = [...patterns];
+  const patternList = [...patterns].map((p) => globToRegExp(p));
+  // Consecutive commits share almost every path, so each path is judged once per run.
+  const memo = new Map<string, boolean>();
   return (file) => {
+    const known = memo.get(file);
+    if (known !== undefined) return known;
+    const answer = judge(file);
+    memo.set(file, answer);
+    return answer;
+  };
+
+  function judge(file: string): boolean {
     const segments = file.split('/');
     const base = segments[segments.length - 1] ?? '';
     if (segments.includes('node_modules') || segments.includes('.git')) return false;
     if (names.has(base)) return true;
     const wrapped = `/${file}`;
     if (dirList.some((d) => wrapped.includes(`/${d}/`))) return true;
-    return patternList.some((pattern) => {
+    return patternList.some((re) => {
       for (let i = 0; i < segments.length; i++) {
-        if (matchGlob(pattern, segments.slice(i).join('/'))) return true;
+        if (re.test(segments.slice(i).join('/'))) return true;
       }
       return false;
     });
-  };
+  }
 }
 
 /** Targets of `@path` imports, close to what the Claude and Gemini loaders accept. */
@@ -298,12 +343,10 @@ interface Selection {
 }
 
 async function select(
-  repo: Repo,
-  rev: string,
+  tree: Tree,
   isCandidate: (file: string) => boolean,
   store: BlobStore,
 ): Promise<Selection> {
-  const tree = await listTree(repo, rev);
   const files = new Map<string, string>();
   for (const [file, sha] of tree) if (isCandidate(file)) files.set(file, sha);
   await store.load(files.values());
@@ -400,7 +443,7 @@ async function analyzeCommit(
   isCandidate: (file: string) => boolean,
   store: BlobStore,
 ): Promise<{ report: Report; signature: string }> {
-  const selection = await select(repo, rev, isCandidate, store);
+  const selection = await select(await listTree(repo, rev), isCandidate, store);
   const report = await withSnapshot(repo, selection, store, (cwd) => analyze({ ...opts, cwd }));
   return { report, signature: selection.signature };
 }
@@ -540,8 +583,13 @@ export async function computeHistory(
   const entries: HistoryEntry[] = [];
   let previous: { signature: string; startup: Record<ToolId, number> } | undefined;
 
+  let tree: Tree | undefined;
+  let treeOf = '';
   for (const c of commits) {
-    const selection = await select(repo, c.commit, isCandidate, store);
+    // The first commit lists the whole tree; the rest only apply what changed since.
+    tree = tree ? await nextTree(repo, treeOf, c.commit, tree) : await listTree(repo, c.commit);
+    treeOf = c.commit;
+    const selection = await select(tree, isCandidate, store);
     let startup: Record<ToolId, number>;
     if (previous && previous.signature === selection.signature) {
       // No file any tool reads changed since the last commit: same answer.
