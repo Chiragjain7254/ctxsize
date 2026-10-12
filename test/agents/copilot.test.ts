@@ -89,10 +89,25 @@ test('frontmatter is excluded from text, including CRLF files', async () => {
   expect(items[0]?.bytes).toBe(9);
 });
 
+test('unquoted applyTo globs are read', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.github/instructions/tsx.instructions.md': '---\napplyTo: *.tsx\n---\nTSX',
+    '.github/instructions/all.instructions.md': '---\napplyTo: **/*\n---\nAll',
+  });
+  const { items, warnings } = await load(ctxFor(root));
+  expect(warnings).toEqual([]);
+  expect(items.map((i) => [i.path, i.load, i.reason, i.text])).toEqual([
+    ['.github/instructions/all.instructions.md', 'startup', 'applyTo: **/* (all files)', 'All'],
+    ['.github/instructions/tsx.instructions.md', 'on-demand', 'applyTo: *.tsx', 'TSX'],
+  ]);
+});
+
 test('invalid frontmatter warns instead of throwing', async () => {
   const root = tmpRepo({
     '.git/': '',
-    '.github/instructions/bad.instructions.md': '---\napplyTo: [unclosed\n---\nx',
+    // Not even a `key: value` line, so lenient parsing cannot rescue it.
+    '.github/instructions/bad.instructions.md': '---\n[applyTo, unclosed\n---\nx',
   });
   const { items, warnings } = await load(ctxFor(root));
   expect(items.map((i) => i.load)).toEqual(['ignored']);

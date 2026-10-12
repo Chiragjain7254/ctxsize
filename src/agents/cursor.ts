@@ -92,7 +92,7 @@ export const load: Loader = async (ctx: LoaderContext) => {
         );
         continue;
       }
-      const fm = parseFrontmatter(text);
+      const fm = parseFrontmatter(text, { lenient: true });
       if (fm.error) warnings.push(warn(ctx, AGENT, abs, fm.error));
       // Frontmatter is metadata; Cursor injects only the rule body.
       items.push(

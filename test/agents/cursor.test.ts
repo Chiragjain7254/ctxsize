@@ -109,9 +109,10 @@ test('CRLF frontmatter parses and the body excludes it', async () => {
   expect(item.text).not.toContain('alwaysApply');
 });
 
-test('bad YAML frontmatter warns and treats the rule as manual', async () => {
+// Lenient parsing rescues plain `key: value` lines, so only a block with none of them warns.
+test('unreadable frontmatter warns and treats the rule as manual', async () => {
   const { items, warnings } = await loadRepo({
-    '.cursor/rules/bad.mdc': '---\nalwaysApply: [true\n---\nBody',
+    '.cursor/rules/bad.mdc': '---\n[alwaysApply, true\n---\nBody',
   });
   expect(byPath(items, '.cursor/rules/bad.mdc')).toMatchObject({
     load: 'on-demand',
@@ -174,6 +175,23 @@ test('.cursorrules is emitted as a legacy startup rule after AGENTS.md', async (
     reason: 'legacy .cursorrules (no longer documented)',
     text: 'old rules',
     order: 1,
+  });
+});
+
+test('unquoted globs as in the Cursor docs are read', async () => {
+  const { items, warnings } = await loadRepo({
+    '.cursor/rules/tsx.mdc': '---\nglobs: *.tsx\n---\nTSX',
+    '.cursor/rules/both.mdc': '---\nalwaysApply: true\nglobs: **/*.ts\n---\nTS',
+  });
+  expect(warnings).toEqual([]);
+  const tsx = byPath(items, '.cursor/rules/tsx.mdc');
+  expect(tsx).toMatchObject({ load: 'on-demand', text: 'TSX' });
+  expect(tsx.reason).toContain('globs');
+  expect(tsx.reason).toContain('*.tsx');
+  expect(byPath(items, '.cursor/rules/both.mdc')).toMatchObject({
+    load: 'startup',
+    reason: 'alwaysApply',
+    text: 'TS',
   });
 });
 

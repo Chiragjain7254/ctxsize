@@ -63,7 +63,7 @@ export const load: Loader = async (ctx) => {
     if (!path.basename(abs).endsWith(INSTRUCTIONS_SUFFIX)) continue;
     const raw = readText(abs);
     if (raw === undefined) continue;
-    const fm = parseFrontmatter(raw);
+    const fm = parseFrontmatter(raw, { lenient: true });
     if (fm.error) warnings.push(warn(ctx, AGENT, abs, fm.error));
     const { load, reason } = classifyInstructions(fm.data);
     push(abs, fm.body, 'rules', load, reason);
