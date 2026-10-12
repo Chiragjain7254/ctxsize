@@ -5,13 +5,14 @@ import { parseArgs } from 'node:util';
 import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
-import type { ToolId } from './core/types.ts';
+import type { Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
 import { allModels, type ModelChoice, presets } from './models.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
 import { buildTools } from './tools.ts';
 import { VERSION } from './version.ts';
+import { watchLoop } from './watch.ts';
 
 export const EXIT = { ok: 0, overBudget: 1, usage: 2 } as const;
 
@@ -21,6 +22,8 @@ export interface Io {
   env: Record<string, string | undefined>;
   isTTY: boolean;
   cwd: string;
+  /** Stops --watch; by default Ctrl+C does. */
+  signal?: AbortSignal | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -43,6 +46,8 @@ Options:
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
   --out <file>         Where to write --html
+  --watch              Re-run when files in the repo change (Ctrl+C to stop). With --html, the
+                       open page updates itself from a .data.js file written next to it
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
@@ -55,6 +60,9 @@ Tokens are estimates (o200k_base). Nothing is sent anywhere.
 `;
 
 class UsageError extends Error {}
+
+/** ctxsize-report.html -> ctxsize-report.data.js, the file the page polls in watch mode. */
+const dataFileFor = (html: string) => `${html.replace(/.html?$/i, '')}.data.js`;
 
 export async function run(argv: string[], io: Io): Promise<number> {
   let parsed: ReturnType<typeof parse>;
@@ -110,29 +118,57 @@ Run ctxsize --help for usage.
     agents = ids.filter((id) => parsed.agentNames?.includes(id));
   }
 
-  const report = await analyze({
-    cwd: parsed.dir,
-    agents,
-    tools,
-    messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
-    models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
-    env: io.env,
-    ...(parsed.includeUser ? { home: os.homedir() } : {}),
-    ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
-  });
+  // One analysis plus its output; --watch calls it again after every change.
+  const once = async (rerun: boolean): Promise<Report> => {
+    const report = await analyze({
+      cwd: parsed.dir,
+      agents,
+      tools,
+      messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
+      models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
+      env: io.env,
+      ...(parsed.includeUser ? { home: os.homedir() } : {}),
+      ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
+    });
 
-  if (parsed.json) {
-    io.stdout(toJson(report));
-  } else {
-    io.stdout(renderTerminal(report, { color: parsed.color }));
-  }
+    if (rerun && io.isTTY) io.stdout('\u001b[2J\u001b[3J\u001b[H');
+    if (parsed.json) {
+      io.stdout(toJson(report));
+    } else {
+      io.stdout(renderTerminal(report, { color: parsed.color }));
+    }
 
-  if (parsed.html) {
-    // Loaded lazily: most runs never write HTML.
-    const { renderHtml } = await import('./report/html.ts');
-    writeFileSync(parsed.out, renderHtml(report, { models }));
-    io.stderr(`Wrote ${parsed.out}\n`);
+    if (parsed.html) {
+      // Loaded lazily: most runs never write HTML.
+      const { renderHtml, renderDataJs } = await import('./report/html.ts');
+      const live = parsed.watch
+        ? { watch: { file: path.basename(dataFileFor(parsed.out)) }, generated: String(Date.now()) }
+        : {};
+      writeFileSync(parsed.out, renderHtml(report, { models, ...live }));
+      // Only in watch mode: the open page polls this file for new data.
+      if (parsed.watch)
+        writeFileSync(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
+      io.stderr(`Wrote ${parsed.out}\n`);
+    }
+    return report;
+  };
+
+  if (parsed.watch) {
+    const root = findRoot(parsed.dir);
+    io.stderr(`ctxsize: watching ${root} (Ctrl+C to stop)\n`);
+    await watchLoop({
+      root,
+      ignorePaths: [parsed.out, dataFileFor(parsed.out)],
+      signal: io.signal,
+      once: async (rerun) => {
+        await once(rerun);
+        io.stderr(`ctxsize: updated ${new Date().toLocaleTimeString()}, watching for changes\n`);
+      },
+      onError: (err) => io.stderr(`ctxsize: ${err instanceof Error ? err.message : String(err)}\n`),
+    });
+    return EXIT.ok;
   }
+  const report = await once(false);
 
   if (parsed.maxTokens !== undefined) {
     const over = report.agents.filter((a) => a.startup.total > (parsed.maxTokens ?? 0));
@@ -163,6 +199,7 @@ function parse(argv: string[], io: Io) {
       html: { type: 'boolean', default: false },
       out: { type: 'string' },
       'max-tokens': { type: 'string' },
+      watch: { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -185,6 +222,11 @@ function parse(argv: string[], io: Io) {
           .filter(Boolean);
 
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
+  if (values.watch && values['max-tokens'] !== undefined) {
+    throw new UsageError(
+      '--watch cannot be combined with --max-tokens (it never exits on its own)',
+    );
+  }
 
   const color =
     !values['no-color'] &&
@@ -203,6 +245,7 @@ function parse(argv: string[], io: Io) {
     includeUser: values['include-user'],
     json: values.json,
     html: values.html,
+    watch: values.watch,
     out: path.resolve(io.cwd, values.out ?? 'ctxsize-report.html'),
     color,
     help: values.help,
