@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { type Dirent, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 type PathApi = typeof path.posix;
@@ -86,36 +86,87 @@ export function readText(file: string): string | undefined {
   }
 }
 
-const SKIP_DIRS = new Set(['.git', 'node_modules']);
+/**
+ * Directories no agent reads instructions from, skipped so a walk of a big repo stays
+ * fast: VCS data, dependencies, build output, and agents' own worktree copies of the repo.
+ */
+const SKIP_DIRS = new Set([
+  '.git',
+  '.hg',
+  '.svn',
+  'node_modules',
+  'bower_components',
+  'vendor',
+  '.venv',
+  'venv',
+  '__pycache__',
+  'dist',
+  'build',
+  'out',
+  'target',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '.turbo',
+  '.cache',
+  '.gradle',
+]);
 
-/** All files under dir, recursively, in stable code-point order. Symlink loops are skipped. */
-export function walkFiles(dir: string): string[] {
+function skipDir(parent: string, name: string): boolean {
+  if (SKIP_DIRS.has(name)) return true;
+  // .claude/worktrees and similar hold full copies of the repo.
+  return name === 'worktrees' && path.basename(parent) === '.claude';
+}
+
+export interface WalkOptions {
+  /** Follow symlinked directories (Claude Code's .claude/rules allows them). Default false. */
+  followSymlinks?: boolean;
+}
+
+const walkCache = new Map<string, string[]>();
+
+/** Forget cached walks; analyze() calls this once per run so loaders share one walk. */
+export function clearWalkCache(): void {
+  walkCache.clear();
+}
+
+/** All files under dir, recursively, in stable code-point order. Cached per run. */
+export function walkFiles(dir: string, opts: WalkOptions = {}): string[] {
+  const key = `${opts.followSymlinks ? 'L' : 'P'}:${path.resolve(dir)}`;
+  const cached = walkCache.get(key);
+  if (cached) return cached;
   const out: string[] = [];
   const seen = new Set<string>();
   const visit = (current: string): void => {
-    const key = dirKey(current);
-    if (key === undefined || seen.has(key)) return;
-    seen.add(key);
-    let names: string[];
+    const id = dirKey(current);
+    if (id === undefined || seen.has(id)) return;
+    seen.add(id);
+    let entries: Dirent[];
     try {
-      names = readdirSync(current).sort(compareCodePoints);
+      entries = readdirSync(current, { withFileTypes: true });
     } catch {
       return;
     }
-    for (const name of names) {
-      const full = path.join(current, name);
-      let isDir = false;
-      try {
-        const st = statSync(full);
-        if (st.isFile()) out.push(full);
-        isDir = st.isDirectory();
-      } catch {
-        continue;
+    entries.sort((a, b) => compareCodePoints(a.name, b.name));
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isFile()) {
+        out.push(full);
+      } else if (entry.isDirectory()) {
+        if (!skipDir(current, entry.name)) visit(full);
+      } else if (entry.isSymbolicLink() && opts.followSymlinks) {
+        try {
+          const st = statSync(full);
+          if (st.isFile()) out.push(full);
+          else if (st.isDirectory() && !skipDir(current, entry.name)) visit(full);
+        } catch {
+          // Broken link.
+        }
       }
-      if (isDir && !SKIP_DIRS.has(name)) visit(full);
     }
   };
   visit(dir);
+  walkCache.set(key, out);
   return out;
 }
 

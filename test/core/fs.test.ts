@@ -1,8 +1,10 @@
+import { symlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
   ancestors,
+  clearWalkCache,
   displayPath,
   fileExists,
   findRoot,
@@ -90,6 +92,29 @@ describe('real file system', () => {
     });
     const files = walkFiles(path.join(repo, 'r')).map((f) => toPosixRel(repo, f));
     expect(files).toEqual(['r/C.md', 'r/a/z.md', 'r/b.md']);
+  });
+
+  test('walkFiles skips build output and agent worktrees', () => {
+    const repo = tmpRepo({
+      'dist/CLAUDE.md': '',
+      'target/x.md': '',
+      '.claude/worktrees/agent-1/CLAUDE.md': '',
+      '.claude/rules/a.md': '',
+      'src/worktrees/keep.md': '',
+    });
+    const files = walkFiles(repo).map((f) => toPosixRel(repo, f));
+    expect(files).toEqual(['.claude/rules/a.md', 'src/worktrees/keep.md']);
+  });
+
+  test('walkFiles follows symlinked dirs only when asked', () => {
+    const repo = tmpRepo({ 'shared/rule.md': '', 'r/own.md': '' });
+    // A junction needs no admin rights on Windows; elsewhere it is a plain symlink.
+    symlinkSync(path.join(repo, 'shared'), path.join(repo, 'r', 'linked'), 'junction');
+    const rel = (opts?: { followSymlinks: boolean }) =>
+      walkFiles(path.join(repo, 'r'), opts).map((f) => toPosixRel(repo, f));
+    expect(rel()).toEqual(['r/own.md']);
+    clearWalkCache();
+    expect(rel({ followSymlinks: true })).toEqual(['r/linked/rule.md', 'r/own.md']);
   });
 
   test('fakeHome is never the real home', () => {

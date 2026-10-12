@@ -3,7 +3,7 @@ import { loaders } from '../agents/index.ts';
 import { profiles } from '../profiles.ts';
 import { simulate } from '../simulate.ts';
 import { VERSION } from '../version.ts';
-import { findRoot } from './fs.ts';
+import { clearWalkCache, findRoot } from './fs.ts';
 import { countTokens } from './tokenize.ts';
 import {
   type AgentId,
@@ -26,6 +26,7 @@ export interface AnalyzeOptions {
 
 export async function analyze(opts: AnalyzeOptions): Promise<Report> {
   const cwd = path.resolve(opts.cwd);
+  clearWalkCache();
   const root = findRoot(cwd);
   const env = opts.env ?? {};
   const agents: AgentReport[] = [];
