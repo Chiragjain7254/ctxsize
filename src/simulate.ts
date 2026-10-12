@@ -184,10 +184,13 @@ function claudeMemory(result: SimulateResult): void {
 
 function codexInstructions(result: SimulateResult): void {
   // Files load root to cwd; the one that crosses the limit is cut, later ones are not read.
+  // Only project docs share the budget; the global ~/.codex file is carried separately.
   let remaining: number = profiles.codex.projectDocMaxBytes;
+  const limitLabel = `over ${remaining / 1024} KiB of AGENTS.md`;
   for (const item of startup(result.items, 'instructions')) {
+    if (item.scope !== 'project') continue;
     if (remaining <= 0) {
-      const lost = dropItem(item, 'over 32 KiB of AGENTS.md');
+      const lost = dropItem(item, limitLabel);
       result.drops.push({
         agent: 'codex',
         kind: 'file-dropped',
