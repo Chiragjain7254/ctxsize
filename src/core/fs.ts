@@ -138,9 +138,12 @@ export function walkFiles(dir: string, opts: WalkOptions = {}): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const visit = (current: string): void => {
-    const id = dirKey(current);
-    if (id === undefined || seen.has(id)) return;
-    seen.add(id);
+    // Symlinks are only followed on request, so only then can a walk loop back on itself.
+    if (opts.followSymlinks) {
+      const id = dirKey(current);
+      if (id === undefined || seen.has(id)) return;
+      seen.add(id);
+    }
     let entries: Dirent[];
     try {
       entries = readdirSync(current, { withFileTypes: true });
