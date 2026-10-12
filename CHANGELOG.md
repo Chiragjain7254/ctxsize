@@ -5,6 +5,8 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
 ### Added
 - Loaders for Claude Code, Codex, Cursor, GitHub Copilot (cloud agent) and Gemini CLI.
 - Truncation simulator: Codex 32 KiB and skill budgets, Claude skill listing and MEMORY.md limits, Cursor size advice.

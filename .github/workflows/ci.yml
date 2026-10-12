@@ -37,3 +37,13 @@ jobs:
           node dist/cli.mjs --version
           node dist/cli.mjs .
           node dist/cli.mjs --json --max-tokens 100000 . > report.json
+      - name: Install the packed tarball and run it
+        shell: bash
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/fresh"
+          cd "$RUNNER_TEMP/fresh"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/ctxsize-*.tgz
+          npx ctxsize --version
+          npx ctxsize "$GITHUB_WORKSPACE" --max-tokens 100000

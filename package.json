@@ -1,6 +1,6 @@
 {
   "name": "ctxsize",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "See what every coding agent loads before your first prompt, in tokens, and what each one silently drops.",
   "keywords": [
     "claude-code",

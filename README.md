@@ -7,7 +7,7 @@ instruction files, rules and skills at startup, and each one has limits that cut
 without telling you. `ctxsize` models that statically: it reads your repo, never runs an agent
 and never touches the network.
 
-> v0.1 is not released yet. Run it from a clone for now (see [Development](#development)).
+> v0.1.0 is not published to npm yet. Run it from a clone for now (see [Development](#development)).
 
 ## Usage
 
@@ -38,7 +38,7 @@ Exit codes: `0` ok, `1` over `--max-tokens`, `2` usage error.
 `vercel/next.js` at commit `500ed3f24097a522decee5bf669ceb0c01320efc`:
 
 ```text
-ctxsize v0.0.0  what each agent loads before your first prompt
+ctxsize v0.1.0  what each agent loads before your first prompt
 
   Agent           Instructions  Rules  Skills  Startup   On demand
   Claude Code            6,819      0   2,000    8,819  1,420 (10)
