@@ -1,0 +1,20 @@
+name: An agent limit changed
+description: An agent's documented loading rules or limits differ from ctxsize's profiles
+labels: [profiles]
+body:
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      placeholder: Codex
+    validations: { required: true }
+  - type: textarea
+    id: change
+    attributes:
+      label: What changed?
+    validations: { required: true }
+  - type: input
+    id: source
+    attributes:
+      label: Link to the official docs or changelog
+    validations: { required: true }

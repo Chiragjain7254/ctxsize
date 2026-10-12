@@ -1,0 +1,21 @@
+name: Bug report
+description: ctxsize reported something wrong or crashed
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Command and output
+      description: The exact command, and --json output if you can share it.
+      render: shell
+  - type: input
+    id: env
+    attributes:
+      label: ctxsize version, Node version, OS
+      placeholder: ctxsize 0.1.0, Node 24, Windows 11
+    validations: { required: true }
