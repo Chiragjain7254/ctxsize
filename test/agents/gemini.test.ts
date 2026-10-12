@@ -229,3 +229,27 @@ test('with a home the upward walk still stops at the repo root', async () => {
     ['GEMINI.md', 'startup'],
   ]);
 });
+
+test('imports outside the repo are skipped with a warning unless a home is given', async () => {
+  const outer = tmpRepo({
+    'shared.md': 'outside',
+    'repo/.git/': '',
+    'repo/GEMINI.md': '@../shared.md',
+  });
+  const root = path.join(outer, 'repo');
+  const without = await load(ctxFor(root));
+  expect(summary(without.items)).toEqual([['GEMINI.md', 'startup']]);
+  expect(without.warnings).toEqual([
+    {
+      agent: 'gemini',
+      path: 'GEMINI.md',
+      message: 'import outside the repo not counted: @../shared.md (use --include-user)',
+    },
+  ]);
+  const withHome = await load(ctxFor(root, { home: fakeHome() }));
+  expect(withHome.items.map((i) => [i.load, i.reason])).toEqual([
+    ['startup', expect.any(String)],
+    ['startup', 'imported by GEMINI.md'],
+  ]);
+  expect(withHome.items[1]).toMatchObject({ scope: 'user', text: 'outside' });
+});

@@ -85,6 +85,8 @@ export const load: Loader = async (ctx) => {
     const result = expandImports(file.abs, file.text, {
       maxDepth: profile.importMaxDepth,
       ...(ctx.home ? { home: ctx.home } : {}),
+      // Without --include-user, keep output independent of files outside the repo.
+      boundary: ctx.home ? undefined : ctx.root,
       seen,
     });
     for (const imported of result.files) {
