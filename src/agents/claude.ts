@@ -2,7 +2,7 @@ import path from 'node:path';
 import { parseFrontmatter, stringField } from '../core/frontmatter.ts';
 import { ancestors, displayPath, fileExists, isInside, readText, walkFiles } from '../core/fs.ts';
 import { expandImports } from '../core/imports.ts';
-import { makeItem, readSkillsDir, warn } from '../core/items.ts';
+import { makeItem, readSkillsDir, skillEntry, warn } from '../core/items.ts';
 import type {
   Category,
   Load,
@@ -216,7 +216,8 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
       const key = path.resolve(s.abs);
       if (seenSkills.has(key)) continue;
       seenSkills.add(key);
-      const text = `- ${s.name}: ${s.description}${s.whenToUse ? ` ${s.whenToUse}` : ''}\n`;
+      // Claude Code lists description and when_to_use together.
+      const text = skillEntry(s.name, [s.description, s.whenToUse].filter(Boolean).join(' '));
       items.push(
         makeItem(ctx, AGENT, s.abs, text, {
           category: 'skills',

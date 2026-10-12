@@ -225,6 +225,16 @@ test('skills: exact listing entries, cwd-level dirs, no truncation', async () =>
   expect(skills[2]?.skill).not.toHaveProperty('whenToUse');
 });
 
+test('skills: an empty description lists the name alone', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/bare/SKILL.md': '---\nname: bare\n---\nbody',
+    '.claude/skills/when/SKILL.md': '---\nwhen_to_use: Later\n---\nbody',
+  });
+  const r = await run(root);
+  expect(r.items.map((i) => i.text)).toEqual(['- bare\n', '- when: Later\n']);
+});
+
 test('user files load only with home, before project files', async () => {
   const home = fakeHome({
     '.claude/CLAUDE.md': 'user',
