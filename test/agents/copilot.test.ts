@@ -52,20 +52,20 @@ test('instructions files are classified by applyTo and excludeAgent', async () =
       'applyTo: src/**/*.ts,src/**/*.tsx',
     ],
     ['.github/instructions/b-all.instructions.md', 'rules', 'startup', 'applyTo: ** (all files)'],
-    ['.github/instructions/c-ex.instructions.md', 'rules', 'ignored', 'excludeAgent: cloud-agent'],
+    [
+      '.github/instructions/c-ex.instructions.md',
+      'rules',
+      'ignored',
+      'ignored: excludeAgent cloud-agent',
+    ],
     [
       '.github/instructions/d-exarr.instructions.md',
       'rules',
       'ignored',
-      'excludeAgent: cloud-agent',
+      'ignored: excludeAgent cloud-agent',
     ],
     ['.github/instructions/e-review.instructions.md', 'rules', 'on-demand', 'applyTo: docs/**'],
-    [
-      '.github/instructions/f-none.instructions.md',
-      'rules',
-      'ignored',
-      'no applyTo: never applied',
-    ],
+    ['.github/instructions/f-none.instructions.md', 'rules', 'ignored', 'ignored: no applyTo'],
     [
       '.github/instructions/nested/g.instructions.md',
       'rules',
@@ -124,16 +124,28 @@ test('nearest AGENTS.md wins; ancestors are shadowed; deeper ones are on-demand'
     'other/AGENTS.md': 'other',
   });
   expect(await summary(ctxFor(root, path.join(root, 'pkg')))).toEqual([
-    ['pkg/AGENTS.md', 'instructions', 'startup', 'nearest AGENTS.md'],
-    ['AGENTS.md', 'instructions', 'ignored', 'shadowed by nearer AGENTS.md'],
-    ['pkg/sub/deep/AGENTS.md', 'instructions', 'on-demand', 'nearest when working in pkg/sub/deep'],
+    ['pkg/AGENTS.md', 'instructions', 'startup', 'AGENTS.md in cwd'],
+    ['AGENTS.md', 'instructions', 'ignored', 'ignored: shadowed by nearer AGENTS.md'],
+    [
+      'pkg/sub/deep/AGENTS.md',
+      'instructions',
+      'on-demand',
+      'on demand: loads when working in pkg/sub/deep',
+    ],
   ]);
 });
 
 test('cwd without AGENTS.md uses the nearest ancestor', async () => {
   const root = tmpRepo({ '.git/': '', 'AGENTS.md': 'root', 'pkg/src/': '' });
   expect(await summary(ctxFor(root, path.join(root, 'pkg', 'src')))).toEqual([
-    ['AGENTS.md', 'instructions', 'startup', 'nearest AGENTS.md'],
+    ['AGENTS.md', 'instructions', 'startup', 'AGENTS.md in repo root'],
+  ]);
+});
+
+test('a nearest AGENTS.md between root and cwd names its directory', async () => {
+  const root = tmpRepo({ '.git/': '', 'pkg/AGENTS.md': 'pkg', 'pkg/src/': '' });
+  expect(await summary(ctxFor(root, path.join(root, 'pkg', 'src')))).toEqual([
+    ['pkg/AGENTS.md', 'instructions', 'startup', 'AGENTS.md in pkg'],
   ]);
 });
 
@@ -158,9 +170,9 @@ test('root CLAUDE.md and GEMINI.md load, with a warning when AGENTS.md also load
   const { items, warnings } = await load(ctxFor(root));
   expect(items.map((i) => [i.path, i.load, i.reason, i.order])).toEqual([
     ['.github/copilot-instructions.md', 'startup', 'repository-wide instructions', 0],
-    ['AGENTS.md', 'startup', 'nearest AGENTS.md', 1],
-    ['CLAUDE.md', 'startup', 'root CLAUDE.md (read by cloud agent)', 2],
-    ['GEMINI.md', 'startup', 'root GEMINI.md (read by cloud agent)', 3],
+    ['AGENTS.md', 'startup', 'AGENTS.md in repo root', 1],
+    ['CLAUDE.md', 'startup', 'CLAUDE.md in repo root (cloud agent)', 2],
+    ['GEMINI.md', 'startup', 'GEMINI.md in repo root (cloud agent)', 3],
   ]);
   expect(warnings.map((w) => [w.agent, w.path])).toEqual([
     ['copilot', 'CLAUDE.md'],

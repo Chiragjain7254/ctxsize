@@ -19,7 +19,7 @@ interface RuleMode {
 function ruleMode(data: Record<string, unknown>): RuleMode {
   if (boolField(data, 'alwaysApply')) return { load: 'startup', reason: 'alwaysApply' };
   const globs = stringField(data, 'globs')?.trim();
-  if (globs) return { load: 'on-demand', reason: `globs: ${globs}` };
+  if (globs) return { load: 'on-demand', reason: `on demand: globs ${globs}` };
   const description = stringField(data, 'description')?.trim();
   if (description) {
     // Agent-requested: at startup Cursor really lists only the description, and the body loads
@@ -27,10 +27,17 @@ function ruleMode(data: Record<string, unknown>): RuleMode {
     // count the description listing toward startup (v0.2).
     return {
       load: 'on-demand',
-      reason: `agent-requested: ${description.slice(0, DESCRIPTION_PREVIEW_CHARS)}`,
+      reason: `on demand: agent-requested (${description.slice(0, DESCRIPTION_PREVIEW_CHARS)})`,
     };
   }
-  return { load: 'on-demand', reason: 'manual (@-mention only)' };
+  return { load: 'on-demand', reason: 'on demand: manual (@-mention only)' };
+}
+
+/** "AGENTS.md in repo root", "AGENTS.md in cwd" or "AGENTS.md in <dir>" for a startup file. */
+function agentsMdReason(ctx: LoaderContext, dir: string): string {
+  if (dir === path.resolve(ctx.root)) return 'AGENTS.md in repo root';
+  if (dir === path.resolve(ctx.cwd)) return 'AGENTS.md in cwd';
+  return `AGENTS.md in ${displayPath(dir, ctx)}`;
 }
 
 /**
@@ -65,7 +72,7 @@ export const load: Loader = async (ctx: LoaderContext) => {
       makeItem(ctx, AGENT, abs, text, {
         category: 'instructions',
         load: 'startup',
-        reason: 'AGENTS.md',
+        reason: agentsMdReason(ctx, dir),
         order: order++,
       }),
     );
@@ -99,7 +106,7 @@ export const load: Loader = async (ctx: LoaderContext) => {
         makeItem(ctx, AGENT, abs, text, {
           category: 'rules',
           load: 'ignored',
-          reason: 'only .mdc files are rules',
+          reason: 'ignored: only .mdc files are rules',
           order: order++,
         }),
       );
@@ -141,7 +148,7 @@ export const load: Loader = async (ctx: LoaderContext) => {
       makeItem(ctx, AGENT, abs, text, {
         category: 'instructions',
         load: 'on-demand',
-        reason: `applies when working in ${displayPath(dir, ctx)}`,
+        reason: `on demand: loads when working in ${displayPath(dir, ctx)}`,
         order: order++,
       }),
     );

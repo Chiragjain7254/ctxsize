@@ -40,7 +40,7 @@ test('globs as a comma string is on-demand and kept as written', async () => {
   });
   expect(byPath(items, '.cursor/rules/g.mdc')).toMatchObject({
     load: 'on-demand',
-    reason: 'globs: src/**/*.ts,test/**',
+    reason: 'on demand: globs src/**/*.ts,test/**',
   });
 });
 
@@ -50,7 +50,7 @@ test('globs as a YAML array is joined', async () => {
   });
   expect(byPath(items, '.cursor/rules/g.mdc')).toMatchObject({
     load: 'on-demand',
-    reason: 'globs: *.ts, *.tsx',
+    reason: 'on demand: globs *.ts, *.tsx',
   });
 });
 
@@ -61,7 +61,7 @@ test('description only is agent-requested with a 60-char preview', async () => {
   });
   expect(byPath(items, '.cursor/rules/d.mdc')).toMatchObject({
     load: 'on-demand',
-    reason: `agent-requested: ${'D'.repeat(60)}`,
+    reason: `on demand: agent-requested (${'D'.repeat(60)})`,
     text: 'Body',
   });
 });
@@ -74,7 +74,7 @@ test('no frontmatter fields is a manual rule', async () => {
   for (const p of ['.cursor/rules/m.mdc', '.cursor/rules/e.mdc']) {
     expect(byPath(items, p)).toMatchObject({
       load: 'on-demand',
-      reason: 'manual (@-mention only)',
+      reason: 'on demand: manual (@-mention only)',
     });
   }
 });
@@ -87,7 +87,7 @@ test('.md and other files in .cursor/rules are ignored', async () => {
   for (const p of ['.cursor/rules/readme.md', '.cursor/rules/notes.txt']) {
     expect(byPath(items, p)).toMatchObject({
       load: 'ignored',
-      reason: 'only .mdc files are rules',
+      reason: 'ignored: only .mdc files are rules',
     });
   }
 });
@@ -116,7 +116,7 @@ test('unreadable frontmatter warns and treats the rule as manual', async () => {
   });
   expect(byPath(items, '.cursor/rules/bad.mdc')).toMatchObject({
     load: 'on-demand',
-    reason: 'manual (@-mention only)',
+    reason: 'on demand: manual (@-mention only)',
   });
   expect(warnings).toHaveLength(1);
   expect(warnings[0]).toMatchObject({ agent: 'cursor', path: '.cursor/rules/bad.mdc' });
@@ -131,13 +131,13 @@ test('root AGENTS.md is startup, nested AGENTS.md is on-demand', async () => {
   expect(byPath(items, 'AGENTS.md')).toMatchObject({
     category: 'instructions',
     load: 'startup',
-    reason: 'AGENTS.md',
+    reason: 'AGENTS.md in repo root',
     text: 'root',
   });
   expect(byPath(items, 'packages/a/AGENTS.md')).toMatchObject({
     category: 'instructions',
     load: 'on-demand',
-    reason: 'applies when working in packages/a',
+    reason: 'on demand: loads when working in packages/a',
   });
 });
 
@@ -180,7 +180,12 @@ test('nested .cursor/rules below cwd are on-demand whatever their type', async (
       'on demand: nested rules for packages/x',
       'Always',
     ],
-    ['packages/x/.cursor/rules/readme.md', 'ignored', 'only .mdc files are rules', 'not a rule'],
+    [
+      'packages/x/.cursor/rules/readme.md',
+      'ignored',
+      'ignored: only .mdc files are rules',
+      'not a rule',
+    ],
     [
       'packages/x/.cursor/rules/sub/globs.mdc',
       'on-demand',
@@ -214,6 +219,18 @@ test("cwd's own .cursor/rules keep their type; rules below cwd are nested", asyn
   ]);
 });
 
+test('startup AGENTS.md reasons name repo root, cwd or the directory', async () => {
+  const { items } = await loadRepo(
+    { 'AGENTS.md': 'r', 'packages/AGENTS.md': 'p', 'packages/a/AGENTS.md': 'a' },
+    'packages/a',
+  );
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['AGENTS.md', 'startup', 'AGENTS.md in repo root'],
+    ['packages/AGENTS.md', 'startup', 'AGENTS.md in packages'],
+    ['packages/a/AGENTS.md', 'startup', 'AGENTS.md in cwd'],
+  ]);
+});
+
 test('.cursorrules is emitted as a legacy startup rule after AGENTS.md', async () => {
   const { items } = await loadRepo({
     '.cursorrules': 'old rules',
@@ -238,8 +255,7 @@ test('unquoted globs as in the Cursor docs are read', async () => {
   expect(warnings).toEqual([]);
   const tsx = byPath(items, '.cursor/rules/tsx.mdc');
   expect(tsx).toMatchObject({ load: 'on-demand', text: 'TSX' });
-  expect(tsx.reason).toContain('globs');
-  expect(tsx.reason).toContain('*.tsx');
+  expect(tsx.reason).toBe('on demand: globs *.tsx');
   expect(byPath(items, '.cursor/rules/both.mdc')).toMatchObject({
     load: 'startup',
     reason: 'alwaysApply',

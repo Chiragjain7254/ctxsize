@@ -45,7 +45,7 @@ export const load: Loader = async (ctx) => {
   for (const name of ['CLAUDE.md', 'GEMINI.md']) {
     const file = readExact(ctx.root, name);
     if (!file) continue;
-    push(file.abs, file.text, 'instructions', 'startup', `root ${name} (read by cloud agent)`);
+    push(file.abs, file.text, 'instructions', 'startup', `${name} in repo root (cloud agent)`);
     if (agentsStartup) {
       warnings.push(
         warn(
@@ -84,15 +84,22 @@ function classifyInstructions(data: Record<string, unknown>): { load: Load; reas
   const excluded = Array.isArray(exclude)
     ? exclude.some((v) => String(v).trim() === SURFACE)
     : typeof exclude === 'string' && exclude.trim() === SURFACE;
-  if (excluded) return { load: 'ignored', reason: `excludeAgent: ${SURFACE}` };
+  if (excluded) return { load: 'ignored', reason: `ignored: excludeAgent ${SURFACE}` };
 
   const applyTo = stringField(data, 'applyTo')?.trim();
-  if (!applyTo) return { load: 'ignored', reason: 'no applyTo: never applied' };
+  if (!applyTo) return { load: 'ignored', reason: 'ignored: no applyTo' };
   const globs = applyTo.split(',').map((g) => g.trim());
   if (globs.some((g) => ALL_FILES.has(g))) {
     return { load: 'startup', reason: `applyTo: ${applyTo} (all files)` };
   }
   return { load: 'on-demand', reason: `applyTo: ${applyTo}` };
+}
+
+/** "AGENTS.md in repo root", "AGENTS.md in cwd" or "AGENTS.md in <dir>" for the nearest file. */
+function agentsMdReason(ctx: LoaderContext, dir: string): string {
+  if (dir === path.resolve(ctx.root)) return 'AGENTS.md in repo root';
+  if (dir === path.resolve(ctx.cwd)) return 'AGENTS.md in cwd';
+  return `AGENTS.md in ${toPosixRel(ctx.root, dir)}`;
 }
 
 /** Emits every AGENTS.md; returns true when one loads at startup. */
@@ -106,9 +113,9 @@ function loadAgentsMd(
     const file = readExact(dir, 'AGENTS.md');
     if (!file) continue;
     if (startup) {
-      push(file.abs, file.text, 'instructions', 'ignored', 'shadowed by nearer AGENTS.md');
+      push(file.abs, file.text, 'instructions', 'ignored', 'ignored: shadowed by nearer AGENTS.md');
     } else {
-      push(file.abs, file.text, 'instructions', 'startup', 'nearest AGENTS.md');
+      push(file.abs, file.text, 'instructions', 'startup', agentsMdReason(ctx, dir));
       startup = true;
     }
   }
@@ -124,7 +131,7 @@ function loadAgentsMd(
       file.text,
       'instructions',
       'on-demand',
-      `nearest when working in ${toPosixRel(ctx.root, dir)}`,
+      `on demand: loads when working in ${toPosixRel(ctx.root, dir)}`,
     );
   }
   return startup;
