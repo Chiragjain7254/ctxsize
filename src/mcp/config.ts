@@ -213,10 +213,15 @@ export function parseCodexToml(text: string, tableName: string): Record<string, 
       const parts = splitTomlKey(header[1] ?? '');
       if (parts[0] !== tableName || parts.length < 2) continue;
       const name = parts[1] ?? '';
-      const server = (servers[name] ??= {});
-      if (parts.length === 2) current = server;
-      else if (parts.length === 3 && parts[2] === 'env')
-        current = (server.env = {}) as Record<string, unknown>;
+      const server = servers[name] ?? {};
+      servers[name] = server;
+      if (parts.length === 2) {
+        current = server;
+      } else if (parts.length === 3 && parts[2] === 'env') {
+        const env: Record<string, unknown> = {};
+        server.env = env;
+        current = env;
+      }
       continue;
     }
     if (!current) continue;
