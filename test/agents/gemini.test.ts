@@ -168,14 +168,23 @@ test('skills: .agents beats .gemini in the workspace, workspace beats user', asy
     '.gemini/skills/lint/SKILL.md': skill('lint it'),
   });
   const { items } = await load(ctxFor(root, { home }));
+  // Discovery order, lowest precedence first: user .gemini, user .agents, then workspace.
   expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
-    ['~/.gemini/skills/deploy/SKILL.md', 'ignored', 'overridden by .agents/skills/deploy/SKILL.md'],
-    ['.gemini/skills/deploy/SKILL.md', 'ignored', 'overridden by .agents/skills/deploy/SKILL.md'],
-    ['.agents/skills/deploy/SKILL.md', 'startup', 'skill name and description injected at startup'],
-    ['.gemini/skills/lint/SKILL.md', 'startup', 'skill name and description injected at startup'],
-    ['~/.agents/skills/solo/SKILL.md', 'startup', 'skill name and description injected at startup'],
+    [
+      '~/.gemini/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by .agents/skills/deploy/SKILL.md',
+    ],
+    ['~/.agents/skills/solo/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      '.gemini/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by .agents/skills/deploy/SKILL.md',
+    ],
+    ['.gemini/skills/lint/SKILL.md', 'startup', 'skill listing entry'],
+    ['.agents/skills/deploy/SKILL.md', 'startup', 'skill listing entry'],
   ]);
-  const winner = items[2];
+  const winner = items[4];
   expect(winner).toMatchObject({
     category: 'skills',
     text: '- deploy: agents deploy\n',
@@ -269,4 +278,57 @@ test('reasons name the repo root, intermediate directories and cwd', async () =>
   ]);
   const atRoot = await load(ctxFor(root));
   expect(atRoot.items[0]?.reason).toBe('GEMINI.md in repo root');
+});
+
+test('skills are read from cwd and from the repo root; cwd wins on a name collision', async () => {
+  const skill = (desc: string) => `---\ndescription: ${desc}\n---\nbody`;
+  const root = tmpRepo({
+    '.git/': '',
+    '.agents/skills/deploy/SKILL.md': skill('root deploy'),
+    '.gemini/skills/root-only/SKILL.md': skill('root only'),
+    'pkg/.gemini/skills/deploy/SKILL.md': skill('pkg deploy'),
+    'pkg/.agents/skills/pkg-only/SKILL.md': skill(''),
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'pkg' }));
+  expect(items.map((i) => [i.path, i.load, i.reason, i.text])).toEqual([
+    [
+      '.gemini/skills/root-only/SKILL.md',
+      'startup',
+      'skill listing entry',
+      '- root-only: root only\n',
+    ],
+    [
+      '.agents/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by pkg/.gemini/skills/deploy/SKILL.md',
+      '- deploy: root deploy\n',
+    ],
+    [
+      'pkg/.gemini/skills/deploy/SKILL.md',
+      'startup',
+      'skill listing entry',
+      '- deploy: pkg deploy\n',
+    ],
+    ['pkg/.agents/skills/pkg-only/SKILL.md', 'startup', 'skill listing entry', '- pkg-only\n'],
+  ]);
+});
+
+test('skills keep discovery order instead of sorting by name', async () => {
+  const skill = '---\ndescription: d\n---\n';
+  const home = fakeHome({ '.gemini/skills/zeta/SKILL.md': skill });
+  const root = tmpRepo({ '.git/': '', '.gemini/skills/alpha/SKILL.md': skill });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(items.map((i) => i.skill?.name)).toEqual(['zeta', 'alpha']);
+});
+
+test('project settings are read from the repo root, not cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.gemini/settings.json': '{"context":{"fileName":"ROOT.md"}}',
+    'pkg/.gemini/settings.json': '{"context":{"fileName":"PKG.md"}}',
+    'ROOT.md': 'r',
+    'pkg/PKG.md': 'p',
+  });
+  const { items } = await load(ctxFor(root, { cwd: 'pkg' }));
+  expect(summary(items)).toEqual([['ROOT.md', 'startup']]);
 });

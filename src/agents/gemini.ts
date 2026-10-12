@@ -1,15 +1,7 @@
 import path from 'node:path';
-import {
-  ancestors,
-  compareCodePoints,
-  displayPath,
-  fileExists,
-  readText,
-  toPosixRel,
-  walkFiles,
-} from '../core/fs.ts';
+import { ancestors, displayPath, fileExists, readText, toPosixRel, walkFiles } from '../core/fs.ts';
 import { expandImports } from '../core/imports.ts';
-import { type FoundSkill, makeItem, readSkillsDir, warn } from '../core/items.ts';
+import { type FoundSkill, makeItem, readSkillsDir, skillEntry, warn } from '../core/items.ts';
 import type { Load, Loader, LoaderContext, LoaderItem, Warning } from '../core/types.ts';
 import { profiles } from '../profiles.ts';
 
@@ -115,19 +107,17 @@ export const load: Loader = async (ctx) => {
     for (const w of result.warnings) warnings.push(warn(ctx, AGENT, w.abs, w.message));
   }
 
-  // Skills, lowest precedence first: user, then workspace; within a tier .agents/skills
-  // beats .gemini/skills. Only the winner per name is listed at startup.
+  // Skills, in discovery order, lowest precedence first: user, then the workspace. The
+  // workspace is the launch directory (cwd); when that is below the repo root, the root's
+  // skills are read too and cwd's win. Within a tier .agents/skills beats .gemini/skills.
+  // Only the winner per name is listed at startup.
   const skillDirs: string[] = [];
-  if (ctx.home)
-    skillDirs.push(
-      path.join(ctx.home, '.gemini', 'skills'),
-      path.join(ctx.home, '.agents', 'skills'),
-    );
-  skillDirs.push(
-    path.join(ctx.root, '.gemini', 'skills'),
-    path.join(ctx.root, '.agents', 'skills'),
-  );
-  const found: { skill: FoundSkill; rank: number }[] = [];
+  const tier = (base: string) =>
+    skillDirs.push(path.join(base, '.gemini', 'skills'), path.join(base, '.agents', 'skills'));
+  if (ctx.home) tier(ctx.home);
+  if (cwd !== root) tier(root);
+  tier(cwd);
+  const found: FoundSkill[] = [];
   const doneDirs = new Set<string>();
   for (const dir of skillDirs) {
     const resolved = path.resolve(dir);
@@ -135,22 +125,20 @@ export const load: Loader = async (ctx) => {
     doneDirs.add(resolved);
     const result = readSkillsDir(ctx, AGENT, resolved);
     warnings.push(...result.warnings);
-    for (const skill of result.skills) found.push({ skill, rank: found.length });
+    found.push(...result.skills);
   }
   const winner = new Map<string, FoundSkill>();
-  for (const { skill } of found) winner.set(skill.name, skill);
-  found.sort((a, b) => compareCodePoints(a.skill.name, b.skill.name) || a.rank - b.rank);
-  for (const { skill } of found) {
+  for (const skill of found) winner.set(skill.name, skill);
+  for (const skill of found) {
     const best = winner.get(skill.name);
-    const wins = best === skill;
+    const wins = best === skill || best === undefined;
     items.push(
-      makeItem(ctx, AGENT, skill.abs, `- ${skill.name}: ${skill.description}\n`, {
+      makeItem(ctx, AGENT, skill.abs, skillEntry(skill.name, skill.description), {
         category: 'skills',
         load: wins ? 'startup' : 'ignored',
-        reason:
-          wins || best === undefined
-            ? 'skill name and description injected at startup'
-            : `overridden by ${displayPath(best.abs, ctx)}`,
+        reason: wins
+          ? 'skill listing entry'
+          : `ignored: overridden by ${displayPath(best.abs, ctx)}`,
         order: order++,
         skill: { name: skill.name, description: skill.description, bodyAbs: skill.abs },
       }),
@@ -162,7 +150,9 @@ export const load: Loader = async (ctx) => {
 
 /**
  * File names from `context.fileName` in settings.json (project overrides user),
- * else profiles.gemini.defaultFileNames.
+ * else profiles.gemini.defaultFileNames. Project settings live in `.gemini/settings.json`
+ * "within your project's root directory" (https://geminicli.com/docs/reference/configuration),
+ * so they are read from ctx.root, not cwd.
  */
 function contextFileNames(ctx: LoaderContext, warnings: Warning[]): string[] {
   const project = settingsFileName(ctx, path.join(ctx.root, '.gemini', 'settings.json'), warnings);
