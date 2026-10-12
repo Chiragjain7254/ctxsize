@@ -11,7 +11,7 @@ import {
   type Load,
   type Report,
 } from '../src/core/types.ts';
-import { tmpRepo } from './helpers.ts';
+import { fakeHome, tmpRepo } from './helpers.ts';
 
 const FILES: Record<string, string> = {
   '.git/': '',
@@ -436,4 +436,31 @@ describe('simulator through analyze', () => {
     expect(claude.notes).toEqual([]);
     expect(claude.drops).toEqual([]);
   });
+});
+
+// An @import that points outside the repo must not leak an absolute machine path into the
+// report (monorepos: CLAUDE.md with @../shared.md).
+test('an import outside the repo never shows an absolute path', async () => {
+  const outer = tmpRepo({
+    'shared.md': 'shared rules\n',
+    'repo/.git/': '',
+    'repo/CLAUDE.md': '# Repo\n\n@../shared.md\n',
+  });
+  const report = await analyze({ cwd: path.join(outer, 'repo'), agents: ['claude', 'gemini'] });
+  const json = JSON.stringify(report);
+  expect(json).not.toContain(path.basename(outer));
+  for (const a of report.agents) {
+    for (const i of a.items)
+      expect(path.posix.isAbsolute(i.path) || /^[A-Za-z]:/.test(i.path)).toBe(false);
+  }
+});
+
+// Codex's global ~/.codex/AGENTS.md is joined after the project docs and does not use up the
+// 32 KiB project_doc_max_bytes budget.
+test('global ~/.codex/AGENTS.md does not eat the project AGENTS.md budget', async () => {
+  const home = fakeHome({ '.codex/AGENTS.md': 'g'.repeat(30 * 1024) });
+  const repo = tmpRepo({ '.git/': '', 'AGENTS.md': 'p'.repeat(10 * 1024) });
+  const [codex] = (await analyze({ cwd: repo, agents: ['codex'], home })).agents;
+  expect(codex?.drops).toEqual([]);
+  expect(codex?.items.find((i) => i.path === 'AGENTS.md')?.bytes).toBe(10 * 1024);
 });
