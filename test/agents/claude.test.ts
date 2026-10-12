@@ -1,3 +1,4 @@
+import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from 'vitest';
 import { load } from '../../src/agents/claude.ts';
@@ -24,7 +25,7 @@ test('CLAUDE.md at root and in cwd both load, outermost first', async () => {
     ['CLAUDE.md', 'startup'],
     ['pkg/CLAUDE.md', 'startup'],
   ]);
-  expect(r.items.map((i) => i.reason)).toEqual(['CLAUDE.md in ancestor', 'CLAUDE.md in cwd']);
+  expect(r.items.map((i) => i.reason)).toEqual(['CLAUDE.md in repo root', 'CLAUDE.md in cwd']);
   expect(r.items.map((i) => i.order)).toEqual([0, 1]);
   expect(r.items[0]).toMatchObject({ scope: 'project', category: 'instructions', bytes: 4 });
 });
@@ -42,7 +43,32 @@ test('.claude/CLAUDE.md and CLAUDE.local.md load', async () => {
     ['.claude/CLAUDE.md', 'startup'],
     ['CLAUDE.local.md', 'startup'],
   ]);
-  expect(byPath(r, 'CLAUDE.local.md')?.reason).toBe('CLAUDE.local.md (personal)');
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'CLAUDE.md in repo root',
+    '.claude/CLAUDE.md in repo root',
+    'CLAUDE.local.md in repo root',
+  ]);
+});
+
+test('reasons name the directory between root and cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'a/CLAUDE.md': 'a',
+    'a/.claude/rules/r.md': 'r',
+    'a/b/CLAUDE.md': 'b',
+  });
+  const r = await run(root, 'a/b');
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'CLAUDE.md in a',
+    '.claude/rules/r.md in a',
+    'CLAUDE.md in cwd',
+  ]);
+  const home = fakeHome({ '.claude/CLAUDE.md': 'u', '.claude/rules/s/x.md': 'x' });
+  const withHome = await run(root, 'a/b', home);
+  expect(withHome.items.slice(0, 2).map((i) => i.reason)).toEqual([
+    'user CLAUDE.md (~/.claude)',
+    'user rules/s/x.md (~/.claude)',
+  ]);
 });
 
 test('lowercase claude.md is not loaded', async () => {
@@ -57,6 +83,10 @@ test('AGENTS.md is used when there are no CLAUDE files', async () => {
     ['AGENTS.md', 'startup'],
     ['sub/.claude/AGENTS.md', 'startup'],
   ]);
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'AGENTS.md in repo root',
+    '.claude/AGENTS.md in cwd',
+  ]);
 });
 
 test('AGENTS.md is ignored when CLAUDE.local.md exists in an ancestor', async () => {
@@ -66,7 +96,7 @@ test('AGENTS.md is ignored when CLAUDE.local.md exists in an ancestor', async ()
     ['CLAUDE.local.md', 'startup'],
     ['sub/AGENTS.md', 'ignored'],
   ]);
-  expect(byPath(r, 'sub/AGENTS.md')?.reason).toBe('AGENTS.md ignored: CLAUDE.md present');
+  expect(byPath(r, 'sub/AGENTS.md')?.reason).toBe('ignored: CLAUDE.md present');
 });
 
 test('AGENTS.md imported by CLAUDE.md is loaded once, not also ignored', async () => {
@@ -96,7 +126,7 @@ test('rules: nested files found, paths: makes them on-demand, only .md', async (
   ]);
   expect(byPath(r, '.claude/rules/ts.md')).toMatchObject({
     category: 'rules',
-    reason: 'paths: src/**/*.ts, lib/**',
+    reason: 'on demand: paths src/**/*.ts, lib/**',
   });
   expect(byPath(r, '.claude/rules/ts.md')?.text).toContain('paths:');
 });
@@ -114,10 +144,51 @@ test('subdirectory CLAUDE.md files are on-demand', async () => {
     ['pkg/api/CLAUDE.md', 'on-demand'],
     ['pkg/web/.claude/CLAUDE.md', 'on-demand'],
   ]);
-  expect(byPath(r, 'pkg/api/CLAUDE.md')?.reason).toBe('loads when Claude reads files in pkg/api');
+  expect(byPath(r, 'pkg/api/CLAUDE.md')?.reason).toBe('on demand: loads when working in pkg/api');
   expect(byPath(r, 'pkg/web/.claude/CLAUDE.md')?.reason).toBe(
-    'loads when Claude reads files in pkg/web',
+    'on demand: loads when working in pkg/web',
   );
+});
+
+test('subdirectory CLAUDE.local.md is on-demand, but not inside .claude/', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'CLAUDE.md': 'root',
+    'pkg/CLAUDE.local.md': 'mine',
+    'lib/.claude/CLAUDE.local.md': 'not a location',
+  });
+  const r = await run(root);
+  expect(summary(r)).toEqual([
+    ['CLAUDE.md', 'startup'],
+    ['pkg/CLAUDE.local.md', 'on-demand'],
+  ]);
+  expect(byPath(r, 'pkg/CLAUDE.local.md')?.reason).toBe('on demand: loads when working in pkg');
+});
+
+test('subdirectory AGENTS.md is on-demand only when AGENTS.md is the fallback', async () => {
+  const files = {
+    '.git/': '',
+    'AGENTS.md': 'root',
+    'a/AGENTS.md': 'a',
+    'b/.claude/AGENTS.md': 'b',
+    'c/AGENTS.md': 'c',
+    'c/CLAUDE.md': 'c claude',
+  };
+  const r = await run(tmpRepo(files));
+  expect(summary(r)).toEqual([
+    ['AGENTS.md', 'startup'],
+    ['a/AGENTS.md', 'on-demand'],
+    ['b/.claude/AGENTS.md', 'on-demand'],
+    ['c/CLAUDE.md', 'on-demand'],
+  ]);
+  expect(byPath(r, 'b/.claude/AGENTS.md')?.reason).toBe('on demand: loads when working in b');
+  // A CLAUDE file in cwd or above turns the fallback off everywhere.
+  const r2 = await run(tmpRepo({ ...files, 'CLAUDE.md': 'root claude' }));
+  expect(summary(r2)).toEqual([
+    ['CLAUDE.md', 'startup'],
+    ['c/CLAUDE.md', 'on-demand'],
+    ['AGENTS.md', 'ignored'],
+  ]);
 });
 
 test('imports from a rule resolve relative to the rule file', async () => {
@@ -224,6 +295,59 @@ test('skills: exact listing entries, cwd-level dirs, no truncation', async () =>
   expect(skills[2]?.skill).not.toHaveProperty('whenToUse');
 });
 
+test('skills: disable-model-invocation keeps a skill out of the listing', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/manual/SKILL.md':
+      '---\ndescription: By hand\ndisable-model-invocation: true\n---\nbody',
+    '.claude/skills/auto/SKILL.md':
+      '---\ndescription: Auto\ndisable-model-invocation: false\n---\n',
+  });
+  const r = await run(root);
+  expect(summary(r)).toEqual([
+    ['.claude/skills/auto/SKILL.md', 'startup'],
+    ['.claude/skills/manual/SKILL.md', 'ignored'],
+  ]);
+  expect(byPath(r, '.claude/skills/manual/SKILL.md')?.reason).toBe(
+    'ignored: disable-model-invocation',
+  );
+});
+
+test('skills: same name, personal beats project and the first project one wins', async () => {
+  const home = fakeHome({ '.claude/skills/deploy/SKILL.md': '---\ndescription: Mine\n---\n' });
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/deploy/SKILL.md': '---\ndescription: Project\n---\n',
+    '.claude/skills/lint/SKILL.md': '---\ndescription: Root lint\n---\n',
+    'pkg/.claude/skills/lint2/SKILL.md': '---\nname: lint\ndescription: Pkg lint\n---\n',
+  });
+  const r = await run(root, 'pkg', home);
+  expect(r.items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['~/.claude/skills/deploy/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      '.claude/skills/deploy/SKILL.md',
+      'ignored',
+      'ignored: overridden by ~/.claude/skills/deploy/SKILL.md',
+    ],
+    ['.claude/skills/lint/SKILL.md', 'startup', 'skill listing entry'],
+    [
+      'pkg/.claude/skills/lint2/SKILL.md',
+      'ignored',
+      'ignored: overridden by .claude/skills/lint/SKILL.md',
+    ],
+  ]);
+});
+
+test('skills: an empty description lists the name alone', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    '.claude/skills/bare/SKILL.md': '---\nname: bare\n---\nbody',
+    '.claude/skills/when/SKILL.md': '---\nwhen_to_use: Later\n---\nbody',
+  });
+  const r = await run(root);
+  expect(r.items.map((i) => i.text)).toEqual(['- bare\n', '- when: Later\n']);
+});
+
 test('user files load only with home, before project files', async () => {
   const home = fakeHome({
     '.claude/CLAUDE.md': 'user',
@@ -273,4 +397,34 @@ test('every path is POSIX and order is a single counter', async () => {
   }
   expect(byPath(r, 'docs/guide.md')?.path).toBe('docs/guide.md');
   expect(r.items.map((i) => i.order)).toEqual([0, 1, 2, 3, 4]);
+});
+
+test('imports outside the repo are skipped with a warning unless home is set', async () => {
+  const outer = tmpRepo({
+    'shared.md': 'shared',
+    'repo/.git/': '',
+    'repo/CLAUDE.md': '@../shared.md',
+  });
+  const root = path.join(outer, 'repo');
+  const r = await run(root);
+  expect(summary(r)).toEqual([['CLAUDE.md', 'startup']]);
+  expect(r.warnings).toEqual([
+    {
+      agent: 'claude',
+      path: 'CLAUDE.md',
+      message: 'import outside the repo not counted: @../shared.md (use --include-user)',
+    },
+  ]);
+  const withHome = await run(root, '', fakeHome());
+  expect(withHome.items.map((i) => i.importedFrom)).toEqual([undefined, 'CLAUDE.md']);
+});
+
+test('rules: symlinked folders inside .claude/rules are followed', async () => {
+  const root = tmpRepo({ '.git/': '', 'shared/style.md': 'style', '.claude/rules/x.md': 'x' });
+  // A junction needs no admin rights on Windows; elsewhere it is a plain symlink.
+  symlinkSync(path.join(root, 'shared'), path.join(root, '.claude', 'rules', 'linked'), 'junction');
+  expect(summary(await run(root))).toEqual([
+    ['.claude/rules/linked/style.md', 'startup'],
+    ['.claude/rules/x.md', 'startup'],
+  ]);
 });

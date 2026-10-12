@@ -1,8 +1,16 @@
 import path from 'node:path';
-import { parseFrontmatter, stringField } from '../core/frontmatter.ts';
-import { ancestors, displayPath, fileExists, isInside, readText, walkFiles } from '../core/fs.ts';
+import { boolField, parseFrontmatter, stringField } from '../core/frontmatter.ts';
+import {
+  ancestors,
+  displayPath,
+  fileExists,
+  isInside,
+  readText,
+  toPosixRel,
+  walkFiles,
+} from '../core/fs.ts';
 import { expandImports } from '../core/imports.ts';
-import { makeItem, readSkillsDir, warn } from '../core/items.ts';
+import { makeItem, readSkillsDir, skillEntry, warn } from '../core/items.ts';
 import type {
   Category,
   Load,
@@ -63,8 +71,18 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
   const agentsFiles: { abs: string; dir: string }[] = [];
   let hasClaudeFile = false;
 
-  const collectRules = (rulesDir: string): void => {
-    for (const abs of walkFiles(rulesDir)) {
+  const cwd = path.resolve(ctx.cwd);
+  const root = path.resolve(ctx.root);
+  // Reason wording is shared across agents: "<name> in repo root|cwd|<dir>".
+  const relDir = (dir: string): string =>
+    ctx.home && path.resolve(ctx.home) === dir ? '~' : displayPath(dir, ctx);
+  const where = (dir: string): string =>
+    dir === root ? 'in repo root' : dir === cwd ? 'in cwd' : `in ${relDir(dir)}`;
+
+  /** startupReason gets the rule's POSIX path relative to the rules dir. */
+  const collectRules = (rulesDir: string, startupReason: (rel: string) => string): void => {
+    // The rules dir supports symlinked folders (shared rule sets), so follow them here only.
+    for (const abs of walkFiles(rulesDir, { followSymlinks: true })) {
       if (path.extname(abs) !== '.md') continue;
       if (collected.has(path.resolve(abs))) continue;
       const text = read(abs);
@@ -80,7 +98,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
           text,
           category: 'rules',
           load: 'on-demand',
-          reason: `paths: ${globs}`,
+          reason: `on demand: paths ${globs}`,
         });
       else
         add(startup, {
@@ -88,7 +106,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
           text,
           category: 'rules',
           load: 'startup',
-          reason: 'rule without paths:, always loaded',
+          reason: startupReason(toPosixRel(rulesDir, abs)),
         });
     }
   };
@@ -97,57 +115,75 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (fileExists(userClaude, 'CLAUDE.md')) {
       add(
         startup,
-        candidate(path.join(userClaude, 'CLAUDE.md'), 'instructions', 'startup', 'user CLAUDE.md'),
+        candidate(
+          path.join(userClaude, 'CLAUDE.md'),
+          'instructions',
+          'startup',
+          'user CLAUDE.md (~/.claude)',
+        ),
       );
     }
-    collectRules(path.join(userClaude, 'rules'));
+    collectRules(path.join(userClaude, 'rules'), (rel) => `user rules/${rel} (~/.claude)`);
   }
 
-  const cwd = path.resolve(ctx.cwd);
   for (const dir of dirs) {
-    const where = dir === cwd ? 'in cwd' : 'in ancestor';
     const dotClaude = path.join(dir, '.claude');
-    const files: [string, string, string][] = [
-      [dir, 'CLAUDE.md', `CLAUDE.md ${where}`],
-      [dotClaude, 'CLAUDE.md', `.claude/CLAUDE.md ${where}`],
-      [dir, 'CLAUDE.local.md', 'CLAUDE.local.md (personal)'],
+    const files: [string, string][] = [
+      [dir, 'CLAUDE.md'],
+      [dotClaude, 'CLAUDE.md'],
+      [dir, 'CLAUDE.local.md'],
     ];
-    for (const [d, name, reason] of files) {
+    for (const [d, name] of files) {
       if (!fileExists(d, name)) continue;
       hasClaudeFile = true;
-      add(startup, candidate(path.join(d, name), 'instructions', 'startup', reason));
+      const abs = path.join(d, name);
+      add(
+        startup,
+        candidate(abs, 'instructions', 'startup', `${toPosixRel(dir, abs)} ${where(dir)}`),
+      );
     }
     for (const d of [dir, dotClaude]) {
       if (fileExists(d, 'AGENTS.md')) agentsFiles.push({ abs: path.join(d, 'AGENTS.md'), dir });
     }
-    collectRules(path.join(dotClaude, 'rules'));
+    collectRules(path.join(dotClaude, 'rules'), (rel) => `.claude/rules/${rel} ${where(dir)}`);
   }
 
   // AGENTS.md is a fallback: used only when no CLAUDE-family file exists in cwd or above
   // (the user-level ~/.claude/CLAUDE.md does not count).
   if (!hasClaudeFile) {
     for (const { abs, dir } of agentsFiles) {
-      const where = dir === cwd ? 'in cwd' : 'in ancestor';
       add(
         startup,
-        candidate(abs, 'instructions', 'startup', `AGENTS.md ${where} (no CLAUDE.md found)`),
+        candidate(abs, 'instructions', 'startup', `${toPosixRel(dir, abs)} ${where(dir)}`),
       );
     }
   }
 
-  // Subdirectory CLAUDE.md files load lazily, when Claude reads files there.
+  // Subdirectory CLAUDE.md / CLAUDE.local.md files load lazily, when Claude reads files
+  // there. With AGENTS.md as the fallback, a subdirectory AGENTS.md does too, unless that
+  // directory has a CLAUDE-family file of its own.
+  const hasClaudeIn = (dir: string): boolean =>
+    fileExists(dir, 'CLAUDE.md') ||
+    fileExists(path.join(dir, '.claude'), 'CLAUDE.md') ||
+    fileExists(dir, 'CLAUDE.local.md');
   for (const abs of walkFiles(cwd)) {
-    if (path.basename(abs) !== 'CLAUDE.md') continue;
-    let owner = path.dirname(abs);
-    if (path.basename(owner) === '.claude') owner = path.dirname(owner);
+    const name = path.basename(abs);
+    const parent = path.dirname(abs);
+    const inDotClaude = path.basename(parent) === '.claude';
+    const owner = inDotClaude ? path.dirname(parent) : parent;
     if (owner === cwd) continue;
+    const wanted =
+      name === 'CLAUDE.md' ||
+      (name === 'CLAUDE.local.md' && !inDotClaude) ||
+      (name === 'AGENTS.md' && !hasClaudeFile && !hasClaudeIn(owner));
+    if (!wanted) continue;
     add(
       onDemand,
       candidate(
         abs,
         'instructions',
         'on-demand',
-        `loads when Claude reads files in ${displayPath(owner, ctx)}`,
+        `on demand: loads when working in ${relDir(owner)}`,
       ),
     );
   }
@@ -170,7 +206,8 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (c.load === 'ignored') return;
     const result = expandImports(c.abs, c.text, {
       maxDepth,
-      ...(ctx.home ? { home: ctx.home } : {}),
+      // Without --include-user, imports outside the repo are skipped (reproducible output).
+      ...(ctx.home ? { home: ctx.home } : { boundary: ctx.root }),
       seen,
     });
     for (const f of result.files) {
@@ -207,6 +244,9 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (isInside(ctx.root, dir)) skillDirs.push(path.join(dir, '.claude', 'skills'));
   }
   const seenSkills = new Set<string>();
+  // Same name: personal beats project, and within the project the first found wins.
+  // skillDirs is already in that order, so the first skill with a name keeps it.
+  const skillOwner = new Map<string, string>();
   for (const dir of skillDirs) {
     const found = readSkillsDir(ctx, AGENT, dir);
     warnings.push(...found.warnings);
@@ -214,12 +254,26 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
       const key = path.resolve(s.abs);
       if (seenSkills.has(key)) continue;
       seenSkills.add(key);
-      const text = `- ${s.name}: ${s.description}${s.whenToUse ? ` ${s.whenToUse}` : ''}\n`;
+      // Claude Code lists description and when_to_use together.
+      const text = skillEntry(s.name, [s.description, s.whenToUse].filter(Boolean).join(' '));
+      const winner = skillOwner.get(s.name);
+      if (winner === undefined) skillOwner.set(s.name, s.abs);
+      // A skill only the user can invoke is left out of the listing entirely.
+      const disabled = boolField(
+        parseFrontmatter(read(s.abs) ?? '').data,
+        'disable-model-invocation',
+      );
+      const reason =
+        winner !== undefined
+          ? `ignored: overridden by ${displayPath(winner, ctx)}`
+          : disabled
+            ? 'ignored: disable-model-invocation'
+            : 'skill listing entry';
       items.push(
         makeItem(ctx, AGENT, s.abs, text, {
           category: 'skills',
-          load: 'startup',
-          reason: 'skill listing entry',
+          load: reason.startsWith('ignored') ? 'ignored' : 'startup',
+          reason,
           order: order++,
           skill: {
             name: s.name,
@@ -244,7 +298,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
   if (hasClaudeFile) {
     for (const { abs } of agentsFiles) {
       if (seen.has(path.resolve(abs))) continue;
-      const c = candidate(abs, 'instructions', 'ignored', 'AGENTS.md ignored: CLAUDE.md present');
+      const c = candidate(abs, 'instructions', 'ignored', 'ignored: CLAUDE.md present');
       if (c) emit(c);
     }
   }

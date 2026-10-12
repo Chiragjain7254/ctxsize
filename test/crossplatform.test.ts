@@ -187,7 +187,7 @@ describe('CRLF line endings', () => {
     const report = await analyze({ cwd: tmpRepo(crlf(FILES)), agents: AGENT_IDS });
     const reason = (agent: string, p: string) =>
       get(report, agent)?.items.find((i) => i.path === p)?.reason;
-    expect(reason('claude', '.claude/rules/日本 paths.md')).toBe('paths: src/**/*.ts');
+    expect(reason('claude', '.claude/rules/日本 paths.md')).toBe('on demand: paths src/**/*.ts');
     expect(reason('cursor', '.cursor/rules/glob é.mdc')).toBe('globs: **/*.ts');
     expect(reason('copilot', '.github/instructions/café.instructions.md')).toContain('applyTo: **');
     // The frontmatter is not counted as part of a Cursor rule body.
