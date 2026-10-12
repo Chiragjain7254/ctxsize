@@ -214,6 +214,21 @@ export interface AgentReport {
   warnings: Warning[];
 }
 
+/** A finding from the smart checks: a duplicate, a way to cut tokens, or a skill that may not trigger. */
+export interface Check {
+  /** Set when the finding concerns one tool. */
+  tool?: ToolId;
+  kind: 'duplicate' | 'suggestion' | 'skill-health';
+  /** Stable machine-readable id, e.g. "duplicate-file". */
+  code: string;
+  severity: 'info' | 'warn';
+  message: string;
+  /** POSIX paths the finding is about. */
+  paths: string[];
+  /** Tokens wasted or saved, an estimate. */
+  tokens?: number;
+}
+
 export interface Report {
   schemaVersion: 2;
   tool: { name: 'ctxsize'; version: string };
@@ -222,4 +237,5 @@ export interface Report {
   /** Messages used for every tool's overhead figure. */
   messages: number;
   agents: AgentReport[];
+  checks: Check[];
 }

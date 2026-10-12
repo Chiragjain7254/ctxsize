@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { computeChecks, skillDescriptionLimits } from '../checks.ts';
 import { loadConfig } from '../config.ts';
 import { genericModel, type Model, type ModelChoice, modelForTool, modelInfo } from '../models.ts';
 import { simulate } from '../simulate.ts';
@@ -31,6 +32,8 @@ export interface AnalyzeOptions {
   messages?: number;
   /** Which model each tool is measured with; omit to use a generic 200k-window model. */
   models?: ModelSelection;
+  /** Run the smart checks (default true). */
+  checks?: boolean;
 }
 
 export interface ModelSelection {
@@ -97,6 +100,10 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
     root: '.',
     messages: opts.messages ?? DEFAULT_MESSAGES,
     agents,
+    checks:
+      opts.checks === false
+        ? []
+        : computeChecks(agents, { descriptionLimits: skillDescriptionLimits(tools) }),
   };
 }
 
