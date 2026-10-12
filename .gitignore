@@ -4,3 +4,4 @@ coverage/
 *.log
 .DS_Store
 ctxsize-report.html
+.claude/worktrees/
