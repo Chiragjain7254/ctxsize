@@ -5,13 +5,14 @@ import { parseArgs } from 'node:util';
 import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
-import type { ToolId } from './core/types.ts';
+import type { Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
 import { allModels, type ModelChoice, modelForTool, presets } from './models.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
 import { buildTools } from './tools.ts';
 import { VERSION } from './version.ts';
+import { watchLoop } from './watch.ts';
 
 export const EXIT = { ok: 0, overBudget: 1, usage: 2 } as const;
 
@@ -21,6 +22,8 @@ export interface Io {
   env: Record<string, string | undefined>;
   isTTY: boolean;
   cwd: string;
+  /** Stops --watch; by default Ctrl+C does. */
+  signal?: AbortSignal | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -50,6 +53,8 @@ Options:
   --card <file.svg>    Write an SVG summary card (--title sets its heading)
   --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
   --title <text>       Heading for --card
+  --watch              Re-run when files in the repo change (Ctrl+C to stop). With --html, the
+                       open page updates itself from a .data.js file written next to it
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --no-checks          Skip the duplicate, suggestion and skill-health checks
   --no-color           Disable colors (NO_COLOR is honoured too)
@@ -63,6 +68,9 @@ Tokens are estimates (o200k_base). Nothing is sent anywhere.
 `;
 
 class UsageError extends Error {}
+
+/** ctxsize-report.html -> ctxsize-report.data.js, the file the page polls in watch mode. */
+const dataFileFor = (html: string) => `${html.replace(/.html?$/i, '')}.data.js`;
 
 export async function run(argv: string[], io: Io): Promise<number> {
   let parsed: ReturnType<typeof parse>;
@@ -131,65 +139,93 @@ Run ctxsize --help for usage.
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   });
-  const report = await analyze(analyzeOptions(parsed.dir));
-  {
-    const { attachMcp } = await import('./mcp/index.ts');
-    await attachMcp(report, root, {
-      measure: parsed.mcp,
-      tokenizerFor: (id) => modelForTool(id, models, choice).model.tokenizer,
-      log: (line) =>
-        io.stderr(`${line}
-`),
-    });
-  }
-  if (parsed.tree) {
-    const { analyzeTree } = await import('./tree.ts');
-    const tree = await analyzeTree(report, root, (cwd) =>
-      analyze({ ...analyzeOptions(cwd), checks: false }),
-    );
-    report.tree = tree.rows;
-    if (tree.skipped > 0) {
-      io.stderr(`ctxsize: --tree lists ${tree.rows.length} folders; ${tree.skipped} more were skipped
-`);
-    }
-  }
-
   // Sharing outputs load lazily: most runs never use them.
   const share =
     parsed.markdown || parsed.card || parsed.badge ? await import('./report/share.ts') : undefined;
-  if (parsed.json) {
-    io.stdout(toJson(report));
-  } else if (parsed.markdown === '-' && share) {
-    io.stdout(share.renderMarkdown(report));
-  } else {
-    io.stdout(renderTerminal(report, { color: parsed.color }));
-  }
 
-  if (parsed.html) {
-    // Loaded lazily: most runs never write HTML.
-    const { renderHtml } = await import('./report/html.ts');
-    writeFileSync(parsed.out, renderHtml(report));
-    io.stderr(`Wrote ${parsed.out}\n`);
-  }
+  // One analysis plus its output; --watch calls it again after every change.
+  const once = async (rerun: boolean): Promise<Report> => {
+    const report = await analyze(analyzeOptions(parsed.dir));
+    {
+      const { attachMcp } = await import('./mcp/index.ts');
+      await attachMcp(report, root, {
+        measure: parsed.mcp,
+        tokenizerFor: (id) => modelForTool(id, models, choice).model.tokenizer,
+        log: (line) =>
+          io.stderr(`${line}
+`),
+      });
+    }
+    if (parsed.tree) {
+      const { analyzeTree } = await import('./tree.ts');
+      const tree = await analyzeTree(report, root, (cwd) =>
+        analyze({ ...analyzeOptions(cwd), checks: false }),
+      );
+      report.tree = tree.rows;
+      if (tree.skipped > 0) {
+        io.stderr(`ctxsize: --tree lists ${tree.rows.length} folders; ${tree.skipped} more were skipped
+`);
+      }
+    }
 
-  if (share) {
-    if (parsed.markdown && parsed.markdown !== '-') {
-      writeFileSync(parsed.markdown, share.renderMarkdown(report));
-      io.stderr(`Wrote ${parsed.markdown}
-`);
+    if (rerun && io.isTTY) io.stdout('[2J[3J[H');
+    if (parsed.json) {
+      io.stdout(toJson(report));
+    } else if (parsed.markdown === '-' && share) {
+      io.stdout(share.renderMarkdown(report));
+    } else {
+      io.stdout(renderTerminal(report, { color: parsed.color }));
     }
-    if (parsed.card) {
-      writeFileSync(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
-      io.stderr(`Wrote ${parsed.card}
-`);
+
+    if (parsed.html) {
+      // Loaded lazily: most runs never write HTML.
+      const { renderHtml, renderDataJs } = await import('./report/html.ts');
+      const live = parsed.watch
+        ? { watch: { file: path.basename(dataFileFor(parsed.out)) }, generated: String(Date.now()) }
+        : {};
+      writeFileSync(parsed.out, renderHtml(report, { models, ...live }));
+      // Only in watch mode: the open page polls this file for new data.
+      if (parsed.watch)
+        writeFileSync(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
+      io.stderr(`Wrote ${parsed.out}\n`);
     }
-    if (parsed.badge) {
-      writeFileSync(parsed.badge, share.renderBadgeSvg(report));
-      io.stderr(`Wrote ${parsed.badge}
-README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
-`);
+    if (share) {
+      if (parsed.markdown && parsed.markdown !== '-') {
+        writeFileSync(parsed.markdown, share.renderMarkdown(report));
+        io.stderr(`Wrote ${parsed.markdown}
+  `);
+      }
+      if (parsed.card) {
+        writeFileSync(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
+        io.stderr(`Wrote ${parsed.card}
+  `);
+      }
+      if (parsed.badge) {
+        writeFileSync(parsed.badge, share.renderBadgeSvg(report));
+        io.stderr(`Wrote ${parsed.badge}
+  README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
+  `);
+      }
     }
+
+    return report;
+  };
+
+  if (parsed.watch) {
+    io.stderr(`ctxsize: watching ${root} (Ctrl+C to stop)\n`);
+    await watchLoop({
+      root,
+      ignorePaths: [parsed.out, dataFileFor(parsed.out)],
+      signal: io.signal,
+      once: async (rerun) => {
+        await once(rerun);
+        io.stderr(`ctxsize: updated ${new Date().toLocaleTimeString()}, watching for changes\n`);
+      },
+      onError: (err) => io.stderr(`ctxsize: ${err instanceof Error ? err.message : String(err)}\n`),
+    });
+    return EXIT.ok;
   }
+  const report = await once(false);
 
   if (parsed.maxTokens !== undefined) {
     const over = report.agents.filter((a) => a.startup.total > (parsed.maxTokens ?? 0));
@@ -227,6 +263,7 @@ function parse(argv: string[], io: Io) {
       title: { type: 'string' },
       'max-tokens': { type: 'string' },
       'no-checks': { type: 'boolean', default: false },
+      watch: { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -248,7 +285,17 @@ function parse(argv: string[], io: Io) {
           .map((s) => s.trim().toLowerCase())
           .filter(Boolean);
 
+  if (values.watch && values.mcp) {
+    throw new UsageError(
+      '--watch cannot be combined with --mcp: it would restart the servers on every change',
+    );
+  }
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
+  if (values.watch && values['max-tokens'] !== undefined) {
+    throw new UsageError(
+      '--watch cannot be combined with --max-tokens (it never exits on its own)',
+    );
+  }
 
   const color =
     !values['no-color'] &&
@@ -270,6 +317,7 @@ function parse(argv: string[], io: Io) {
     html: values.html,
     tree: values.tree,
     mcp: values.mcp,
+    watch: values.watch,
     out: path.resolve(io.cwd, values.out ?? 'ctxsize-report.html'),
     markdown:
       values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),
