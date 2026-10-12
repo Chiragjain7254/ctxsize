@@ -33,6 +33,15 @@ describe('parseFrontmatter', () => {
     expect(fm.body).toBe('Body');
   });
 
+  test('lenient mode reads unquoted globs that YAML rejects', () => {
+    const text = '---\nglobs: *.tsx, src/**/*.ts\nalwaysApply: false\n---\nBody';
+    expect(parseFrontmatter(text).error).toMatch(/invalid YAML/);
+    const fm = parseFrontmatter(text, { lenient: true });
+    expect(fm.error).toBeUndefined();
+    expect(fm.data).toEqual({ globs: '*.tsx, src/**/*.ts', alwaysApply: false });
+    expect(fm.body).toBe('Body');
+  });
+
   test('a horizontal rule later in the file is not frontmatter', () => {
     expect(parseFrontmatter('# T\n---\nx\n---\n').data).toEqual({});
   });
