@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { ancestors, displayPath, fileExists, isInside, readText } from '../core/fs.ts';
-import { makeItem, readSkillsDir } from '../core/items.ts';
+import { ancestors, displayPath, fileExists, isInside, readText, toPosixRel } from '../core/fs.ts';
+import { makeItem, readSkillsDir, skillEntry } from '../core/items.ts';
 import type { Loader, LoaderContext, LoaderItem, Warning } from '../core/types.ts';
 
 // Codex CLI: one instruction file per directory (global, then repo root down to cwd),
@@ -18,29 +18,31 @@ export const load: Loader = async (ctx) => {
 
   // Global: ~/.codex (or $CODEX_HOME), only when the user's setup is included.
   if (codexHome) {
+    const where = displayPath(codexHome, ctx);
     for (const pick of pickInDir(codexHome, [OVERRIDE, DEFAULT])) {
-      const where = displayPath(codexHome, ctx);
       items.push(
         makeItem(ctx, 'codex', pick.abs, pick.text, {
           category: 'instructions',
-          load: pick.loser ? 'ignored' : 'startup',
-          reason: pick.loser ?? `global ${pick.name} in ${where}`,
+          load: pick.ignored ? 'ignored' : 'startup',
+          reason: pick.ignored ?? `user ${pick.name} (${where})`,
           order: order++,
         }),
       );
     }
   }
 
-  // Project: repo root down to cwd, first non-empty candidate per directory.
+  // Project: repo root down to cwd, first existing candidate per directory.
   const candidates = unique([OVERRIDE, DEFAULT, ...fallbackNames(codexHome)]);
+  const cwd = path.resolve(ctx.cwd);
+  const root = path.resolve(ctx.root);
   for (const dir of ancestors(ctx.cwd, ctx.root).reverse()) {
-    const rel = displayPath(dir, ctx);
+    const where = dir === root ? 'repo root' : dir === cwd ? 'cwd' : toPosixRel(ctx.root, dir);
     for (const pick of pickInDir(dir, candidates)) {
       items.push(
         makeItem(ctx, 'codex', pick.abs, pick.text, {
           category: 'instructions',
-          load: pick.loser ? 'ignored' : 'startup',
-          reason: pick.loser ?? (rel === '.' ? `${pick.name} (root)` : `${pick.name} in ${rel}`),
+          load: pick.ignored ? 'ignored' : 'startup',
+          reason: pick.ignored ?? `${pick.name} in ${where}`,
           order: order++,
         }),
       );
@@ -57,7 +59,7 @@ export const load: Loader = async (ctx) => {
     warnings.push(...found.warnings);
     for (const skill of found.skills) {
       items.push(
-        makeItem(ctx, 'codex', skill.abs, `- ${skill.name}: ${skill.description}\n`, {
+        makeItem(ctx, 'codex', skill.abs, skillEntry(skill.name, skill.description), {
           category: 'skills',
           load: 'startup',
           reason: 'skill listing entry',
@@ -81,13 +83,14 @@ interface Pick {
   abs: string;
   name: string;
   text: string;
-  /** Set when another file in the same directory wins; the reason it is ignored. */
-  loser?: string;
+  /** Set when this file does not load; the reason why. */
+  ignored?: string;
 }
 
 /**
- * The first existing, non-whitespace-only candidate wins; later non-empty candidates
- * are reported as shadowed. Whitespace-only files are skipped entirely, as Codex does.
+ * The first candidate that exists as a file wins, as in codex-rs agents_md.rs. A
+ * whitespace-only winner still wins: the directory then contributes nothing, and Codex
+ * does not fall through to the next name. Every other existing candidate is shadowed.
  */
 function pickInDir(dir: string, names: string[]): Pick[] {
   const picks: Pick[] = [];
@@ -95,13 +98,13 @@ function pickInDir(dir: string, names: string[]): Pick[] {
   for (const name of names) {
     if (!fileExists(dir, name)) continue;
     const abs = path.join(dir, name);
-    const text = readText(abs);
-    if (text === undefined || text.trim() === '') continue;
+    const text = readText(abs) ?? '';
     if (winner === undefined) {
       winner = name;
-      picks.push({ abs, name, text });
+      const empty = text.trim() === '';
+      picks.push({ abs, name, text, ...(empty ? { ignored: 'ignored: empty file' } : {}) });
     } else {
-      picks.push({ abs, name, text, loser: `${name} shadowed by ${winner}` });
+      picks.push({ abs, name, text, ignored: `ignored: shadowed by ${winner}` });
     }
   }
   return picks;
@@ -118,10 +121,33 @@ function fallbackNames(codexHome: string | undefined): string[] {
   if (!match) return [];
   const names: string[] = [];
   for (const m of (match[1] ?? '').matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g)) {
-    const name = (m[1] ?? m[2] ?? '').trim();
-    if (name) names.push(name);
+    const name = (m[1] !== undefined ? unescapeBasic(m[1]) : (m[2] ?? '')).trim();
+    if (validFallbackName(name)) names.push(name);
   }
   return names;
+}
+
+/**
+ * Codex skips fallback names that are not a single file name in the directory:
+ * empty, ".", "..", or containing "/" or NUL (on Windows also "\" or ":").
+ */
+export function validFallbackName(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (name === '' || name === '.' || name === '..') return false;
+  if (name.includes('/') || name.includes('\0')) return false;
+  if (platform === 'win32' && (name.includes('\\') || name.includes(':'))) return false;
+  return true;
+}
+
+/** Decodes TOML basic-string escapes; JSON covers all but \U and \e, kept literal then. */
+function unescapeBasic(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw;
+  }
 }
 
 function skillDirs(ctx: LoaderContext): string[] {
