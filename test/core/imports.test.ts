@@ -4,6 +4,8 @@ import { toPosixRel } from '../../src/core/fs.ts';
 import { expandImports, findImports } from '../../src/core/imports.ts';
 import { fakeHome, tmpRepo } from '../helpers.ts';
 
+const rel = (root: string, files: { abs: string }[]) => files.map((f) => toPosixRel(root, f.abs));
+
 describe('findImports', () => {
   test('finds imports at line start and after whitespace', () => {
     expect(findImports('@a.md\nSee @docs/b.md and @c.md.')).toEqual(['a.md', 'docs/b.md', 'c.md.']);
@@ -38,8 +40,6 @@ describe('findImports', () => {
 });
 
 describe('expandImports', () => {
-  const rel = (root: string, files: { abs: string }[]) => files.map((f) => toPosixRel(root, f.abs));
-
   test('resolves relative to the importing file, recursively', () => {
     const repo = tmpRepo({
       'CLAUDE.md': '@docs/a.md',
@@ -104,5 +104,27 @@ describe('expandImports', () => {
       home,
     });
     expect(rel(home, withHome.files)).toEqual(['.claude/me.md']);
+  });
+});
+
+describe('import boundary and absolute paths', () => {
+  test('imports outside the boundary are skipped with a warning', () => {
+    const outer = tmpRepo({ 'shared.md': 'S', 'repo/x.md': '' });
+    const repo = path.join(outer, 'repo');
+    const r = expandImports(path.join(repo, 'x.md'), '@../shared.md', {
+      maxDepth: 4,
+      boundary: repo,
+    });
+    expect(r.files).toEqual([]);
+    expect(r.warnings[0]?.message).toMatch(/outside the repo not counted: @..\/shared.md/);
+    const open = expandImports(path.join(repo, 'x.md'), '@../shared.md', { maxDepth: 4 });
+    expect(open.files).toHaveLength(1);
+  });
+
+  test('absolute imports stay absolute', () => {
+    const repo = tmpRepo({ 'docs/abs.md': 'A' });
+    const target = path.join(repo, 'docs', 'abs.md').split(path.sep).join('/');
+    const r = expandImports(path.join(repo, 'sub', 'x.md'), `@${target}`, { maxDepth: 4 });
+    expect(rel(repo, r.files)).toEqual(['docs/abs.md']);
   });
 });

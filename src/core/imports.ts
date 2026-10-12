@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readText } from './fs.ts';
+import { isInside, readText } from './fs.ts';
 
 // `@path` imports, shared by Claude Code (max 4 hops) and Gemini CLI (max 5).
 // Claude: https://code.claude.com/docs/en/memory.md#import-additional-files
@@ -26,6 +26,11 @@ export interface ImportOptions {
   home?: string;
   /** Files already loaded; shared across calls so nothing loads twice. */
   seen?: Set<string>;
+  /**
+   * Imports resolving outside this directory are skipped with a warning. Set to the repo
+   * root unless --include-user, so output never depends on files outside the repo.
+   */
+  boundary?: string;
 }
 
 /** Import targets in document order, ignoring code spans and fenced code blocks. */
@@ -68,9 +73,17 @@ export function expandImports(abs: string, text: string, opts: ImportOptions): I
         if (!opts.home) continue;
         resolved = path.join(opts.home, ...target.slice(2).split('/'));
       } else {
-        resolved = path.resolve(path.dirname(from), ...target.split('/'));
+        // path.resolve accepts "/" on every OS and keeps absolute targets absolute.
+        resolved = path.resolve(path.dirname(from), target);
       }
       if (seen.has(resolved)) continue;
+      if (opts.boundary !== undefined && !isInside(opts.boundary, resolved)) {
+        result.warnings.push({
+          abs: from,
+          message: `import outside the repo not counted: @${target} (use --include-user)`,
+        });
+        continue;
+      }
       if (depth + 1 > opts.maxDepth) {
         result.tooDeep.push({ abs: resolved, importedFrom: from });
         continue;
