@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { ancestors, displayPath, fileExists, isInside, readText, toPosixRel } from '../core/fs.ts';
-import { makeItem, readSkillsDir } from '../core/items.ts';
+import { makeItem, readSkillsDir, skillEntry } from '../core/items.ts';
 import type { Loader, LoaderContext, LoaderItem, Warning } from '../core/types.ts';
 
 // Codex CLI: one instruction file per directory (global, then repo root down to cwd),
@@ -59,7 +59,7 @@ export const load: Loader = async (ctx) => {
     warnings.push(...found.warnings);
     for (const skill of found.skills) {
       items.push(
-        makeItem(ctx, 'codex', skill.abs, `- ${skill.name}: ${skill.description}\n`, {
+        makeItem(ctx, 'codex', skill.abs, skillEntry(skill.name, skill.description), {
           category: 'skills',
           load: 'startup',
           reason: 'skill listing entry',

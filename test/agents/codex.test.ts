@@ -161,6 +161,12 @@ test('skills from cwd and root .agents/skills are listed once when cwd is root',
   expect(items[0]?.skill).not.toHaveProperty('whenToUse');
 });
 
+test('a skill without a description is listed by name only, as other agents list it', async () => {
+  const root = tmpRepo({ '.git/': '', '.agents/skills/bare/SKILL.md': '---\nname: bare\n---\n' });
+  const { items } = await load(ctxFor(root));
+  expect(items.map((i) => i.text)).toEqual(['- bare\n']);
+});
+
 test('skills scan cwd, its parent, root and home in order after instructions', async () => {
   const skill = (n: string) => `---\nname: ${n}\ndescription: d\n---\n`;
   const root = tmpRepo({
