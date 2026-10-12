@@ -7,7 +7,7 @@ import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
 import type { ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
-import { allModels, type ModelChoice, presets } from './models.ts';
+import { allModels, type ModelChoice, modelForTool, presets } from './models.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
 import { buildTools } from './tools.ts';
@@ -42,6 +42,8 @@ Options:
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
+  --mcp                START the local MCP servers in this repo's config and count their tool
+                       tokens (runs the configured commands; remote servers are never contacted)
   --tree               Also show the startup load when the agent starts in each nested folder
   --out <file>         Where to write --html
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
@@ -128,6 +130,16 @@ Run ctxsize --help for usage.
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   });
   const report = await analyze(analyzeOptions(parsed.dir));
+  {
+    const { attachMcp } = await import('./mcp/index.ts');
+    await attachMcp(report, root, {
+      measure: parsed.mcp,
+      tokenizerFor: (id) => modelForTool(id, models, choice).model.tokenizer,
+      log: (line) =>
+        io.stderr(`${line}
+`),
+    });
+  }
   if (parsed.tree) {
     const { analyzeTree } = await import('./tree.ts');
     const tree = await analyzeTree(report, root, (cwd) => analyze(analyzeOptions(cwd)));
@@ -204,6 +216,7 @@ function parse(argv: string[], io: Io) {
       html: { type: 'boolean', default: false },
       out: { type: 'string' },
       tree: { type: 'boolean', default: false },
+      mcp: { type: 'boolean', default: false },
       markdown: { type: 'string' },
       card: { type: 'string' },
       badge: { type: 'string' },
@@ -250,6 +263,7 @@ function parse(argv: string[], io: Io) {
     json: values.json,
     html: values.html,
     tree: values.tree,
+    mcp: values.mcp,
     out: path.resolve(io.cwd, values.out ?? 'ctxsize-report.html'),
     markdown:
       values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),

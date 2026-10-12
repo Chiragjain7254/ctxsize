@@ -31,6 +31,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   out.push(...costLines(report, c));
   out.push(...biggestFiles(report, c));
   out.push(...treeLines(report, c));
+  out.push(...mcpLines(report, c));
 
   const dropped = report.agents.filter((a) => a.drops.length > 0);
   if (dropped.length > 0) {
@@ -272,4 +273,49 @@ function treeLines(report: Report, c: Colors): string[] {
     ),
     ...(same > 0 ? [c.dim(`  ${same} other tool(s) load the same in every folder.`)] : []),
   ];
+}
+
+function mcpLines(report: Report, c: Colors): string[] {
+  const withMcp = report.agents.filter((a) => a.mcp);
+  if (withMcp.length === 0) return [];
+  const out = ['', c.bold('MCP servers configured in this repo')];
+  let anyMeasured = false;
+  let anyUnmeasured = false;
+  for (const agent of withMcp) {
+    const mcp = agent.mcp;
+    if (!mcp) continue;
+    for (const w of mcp.warnings ?? []) out.push(`  ${c.yellow('!')} ${agent.label}: ${w}`);
+    for (const s of mcp.servers) {
+      const where = `${agent.label} (${s.configPath})`;
+      if (s.status === 'measured') {
+        anyMeasured = true;
+        out.push(`  ${where}: ${s.name}  ${num(s.tools ?? 0)} tools, ${num(s.tokens ?? 0)} tokens`);
+      } else if (s.status === 'failed') {
+        out.push(`  ${where}: ${s.name}  ${c.red('failed')}: ${s.message ?? ''}`);
+      } else {
+        if (s.status === 'not-measured') anyUnmeasured = true;
+        out.push(
+          `  ${where}: ${s.name}  ${c.dim(s.transport === 'remote' ? 'remote, not contacted' : 'not measured')}`,
+        );
+      }
+    }
+    if (mcp.measuredTokens !== null) {
+      out.push(`  ${agent.label} total: ${num(mcp.measuredTokens)} tokens of tool definitions`);
+    }
+  }
+  if (anyUnmeasured) {
+    out.push(
+      c.dim(
+        '  Pass --mcp to start the local servers and count their tool tokens (runs the commands in the config).',
+      ),
+    );
+  }
+  if (anyMeasured) {
+    out.push(
+      c.dim(
+        '  Upper bound: some tools load MCP tool definitions on demand (Claude Code uses tool search by default).',
+      ),
+    );
+  }
+  return out;
 }

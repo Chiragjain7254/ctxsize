@@ -197,6 +197,25 @@ export interface TopFile {
   skill?: string;
 }
 
+/** One MCP server configured for a tool. Tokens are the tool definitions a model would be sent. */
+export interface McpServerReport {
+  name: string;
+  transport: 'stdio' | 'remote';
+  /** POSIX path of the config file that defines it. */
+  configPath: string;
+  status: 'not-measured' | 'measured' | 'failed' | 'remote-skipped';
+  tools?: number;
+  tokens?: number;
+  message?: string;
+}
+
+export interface McpReport {
+  servers: McpServerReport[];
+  /** Sum of measured tool-definition tokens; null unless --mcp measured something. */
+  measuredTokens: number | null;
+  warnings?: string[];
+}
+
 export interface AgentReport {
   agent: ToolId;
   label: string;
@@ -208,6 +227,8 @@ export interface AgentReport {
   usage: Usage;
   /** The five items that cost the most at startup. */
   topFiles: TopFile[];
+  /** MCP servers this repo configures for the tool (set when there are any). */
+  mcp?: McpReport;
   onDemand: { total: number; count: number };
   items: LoadedItem[];
   drops: Drop[];
