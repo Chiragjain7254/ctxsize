@@ -4,12 +4,12 @@ import { parseFrontmatter, stringField } from './frontmatter.ts';
 import { compareCodePoints, displayPath, fileExists, isInside, readText } from './fs.ts';
 import { byteLength } from './tokenize.ts';
 import type {
-  AgentId,
   Category,
   Load,
   LoaderContext,
   LoaderItem,
   SkillInfo,
+  ToolId,
   Warning,
 } from './types.ts';
 
@@ -26,7 +26,7 @@ export interface ItemFields {
 /** Builds a LoaderItem with display paths, scope and bytes filled in consistently. */
 export function makeItem(
   ctx: LoaderContext,
-  agent: AgentId,
+  agent: ToolId,
   abs: string,
   text: string,
   fields: ItemFields,
@@ -49,7 +49,7 @@ export function makeItem(
   return item;
 }
 
-export function warn(ctx: LoaderContext, agent: AgentId, abs: string, message: string): Warning {
+export function warn(ctx: LoaderContext, agent: ToolId, abs: string, message: string): Warning {
   return { agent, path: displayPath(abs, ctx), message };
 }
 
@@ -67,7 +67,7 @@ export interface FoundSkill {
  */
 export function readSkillsDir(
   ctx: LoaderContext,
-  agent: AgentId,
+  agent: ToolId,
   dir: string,
 ): { skills: FoundSkill[]; warnings: Warning[] } {
   const skills: FoundSkill[] = [];

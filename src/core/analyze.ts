@@ -1,23 +1,26 @@
 import path from 'node:path';
-import { loaders } from '../agents/index.ts';
-import { profiles } from '../profiles.ts';
+import { loadConfig } from '../config.ts';
 import { simulate } from '../simulate.ts';
+import { buildTools, type Tool } from '../tools.ts';
 import { VERSION } from '../version.ts';
 import { clearWalkCache, findRoot } from './fs.ts';
 import { countTokens } from './tokenize.ts';
 import {
-  type AgentId,
   type AgentReport,
   CATEGORIES,
   type Category,
   type LoadedItem,
   type Report,
+  type ToolId,
 } from './types.ts';
 
 export interface AnalyzeOptions {
   /** Directory the agents start in. */
   cwd: string;
-  agents: readonly AgentId[];
+  /** Tool ids to measure; default: every tool. */
+  agents?: readonly ToolId[];
+  /** Tools to choose from; default: the built-ins plus those in the repo's ctxsize.json. */
+  tools?: readonly Tool[];
   /** Home directory to read user-level files from; omit for reproducible output. */
   home?: string;
   env?: Record<string, string | undefined>;
@@ -29,9 +32,12 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
   clearWalkCache();
   const root = findRoot(cwd);
   const env = opts.env ?? {};
+  const tools = opts.tools ?? buildTools(loadConfig(root));
   const agents: AgentReport[] = [];
 
-  for (const agent of opts.agents) {
+  for (const agent of opts.agents ?? tools.map((t) => t.id)) {
+    const tool = tools.find((t) => t.id === agent);
+    if (!tool) throw new Error(`unknown tool: ${agent}`);
     const ctx = {
       root,
       cwd,
@@ -39,20 +45,20 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
       ...(opts.home !== undefined ? { home: opts.home } : {}),
       ...(opts.contextTokens !== undefined ? { contextTokens: opts.contextTokens } : {}),
     };
-    const result = await loaders[agent](ctx);
+    const result = await tool.loader(ctx);
     const loaded: LoadedItem[] = result.items
       .map((item) => ({ ...item, tokens: countTokens(item.text) }))
       .sort((a, b) => a.order - b.order);
-    const profile = profiles[agent];
-    const contextTokens = opts.contextTokens ?? profile.defaultContextTokens;
+    const contextTokens = opts.contextTokens ?? tool.defaultContextTokens;
     const sim = simulate({
       agent,
       items: loaded,
       contextTokens,
       contextGiven: opts.contextTokens !== undefined,
       env,
+      ...(tool.spec ? { spec: tool.spec } : {}),
     });
-    agents.push(summarize(agent, profile.label, contextTokens, sim.items, sim, result.warnings));
+    agents.push(summarize(agent, tool.label, contextTokens, sim.items, sim, result.warnings));
   }
 
   return {
@@ -65,7 +71,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
 }
 
 function summarize(
-  agent: AgentId,
+  agent: ToolId,
   label: string,
   contextTokens: number,
   items: LoadedItem[],

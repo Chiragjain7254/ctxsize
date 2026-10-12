@@ -2,11 +2,13 @@ import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
-import { dirExists } from './core/fs.ts';
-import { AGENT_IDS, type AgentId } from './core/types.ts';
+import { dirExists, findRoot } from './core/fs.ts';
+import type { ToolId } from './core/types.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
+import { buildTools } from './tools.ts';
 import { VERSION } from './version.ts';
 
 export const EXIT = { ok: 0, overBudget: 1, usage: 2 } as const;
@@ -19,6 +21,8 @@ export interface Io {
   cwd: string;
 }
 
+const BUILT_IN = buildTools().map((t) => t.id);
+
 const HELP = `ctxsize v${VERSION}
 See what every coding agent loads before your first prompt, in tokens,
 and what each one silently drops.
@@ -26,7 +30,8 @@ and what each one silently drops.
 Usage: ctxsize [dir] [options]
 
 Options:
-  --agents <list>      Comma-separated: ${AGENT_IDS.join(',')} (default: all)
+  --agents <list>      Comma-separated tool ids (default: all). Built in: ${BUILT_IN.join(',')}
+                       plus any tool defined in ctxsize.json
   --context <tokens>   Context window to model (default: 200000)
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
@@ -61,9 +66,34 @@ export async function run(argv: string[], io: Io): Promise<number> {
     return EXIT.ok;
   }
 
+  let tools: ReturnType<typeof buildTools>;
+  try {
+    tools = buildTools(loadConfig(findRoot(parsed.dir)));
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    io.stderr(`ctxsize: ${err.message}
+`);
+    return EXIT.usage;
+  }
+  const ids = tools.map((t) => t.id);
+  let agents: ToolId[] = ids;
+  if (parsed.agentNames !== undefined) {
+    const unknown = parsed.agentNames.filter((n) => !ids.includes(n));
+    if (unknown.length > 0 || parsed.agentNames.length === 0) {
+      io.stderr(
+        `ctxsize: unknown agent: ${unknown.join(', ') || '(none)'} (choose from ${ids.join(', ')})
+Run ctxsize --help for usage.
+`,
+      );
+      return EXIT.usage;
+    }
+    agents = ids.filter((id) => parsed.agentNames?.includes(id));
+  }
+
   const report = await analyze({
     cwd: parsed.dir,
-    agents: parsed.agents,
+    agents,
+    tools,
     env: io.env,
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
@@ -121,20 +151,13 @@ function parse(argv: string[], io: Io) {
     throw new UsageError(`not a directory: ${positionals[0] ?? '.'}`);
   }
 
-  let agents: AgentId[] = [...AGENT_IDS];
-  if (values.agents !== undefined) {
-    const names = values.agents
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    const unknown = names.filter((n) => !(AGENT_IDS as readonly string[]).includes(n));
-    if (unknown.length > 0 || names.length === 0) {
-      throw new UsageError(
-        `unknown agent: ${unknown.join(', ') || '(none)'} (choose from ${AGENT_IDS.join(', ')})`,
-      );
-    }
-    agents = AGENT_IDS.filter((a) => names.includes(a));
-  }
+  const agentNames =
+    values.agents === undefined
+      ? undefined
+      : values.agents
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
 
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
 
@@ -146,7 +169,7 @@ function parse(argv: string[], io: Io) {
 
   return {
     dir,
-    agents,
+    agentNames,
     context: positiveInt(values.context, '--context'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     includeUser: values['include-user'],

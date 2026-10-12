@@ -1,14 +1,16 @@
 import { countTokens } from './core/tokenize.ts';
-import type { AgentId, Drop, LoadedItem } from './core/types.ts';
+import type { Drop, LoadedItem, ToolId, ToolSpec } from './core/types.ts';
 import { profiles } from './profiles.ts';
 
 export interface SimulateInput {
-  agent: AgentId;
+  agent: ToolId;
   items: LoadedItem[];
   contextTokens: number;
   /** True when the user passed --context, so the agent's real window is known. */
   contextGiven: boolean;
   env: Record<string, string | undefined>;
+  /** For tools described as data: their limits are applied after the per-agent rules. */
+  spec?: ToolSpec;
 }
 
 export interface SimulateResult {
@@ -48,6 +50,8 @@ export function simulate(input: SimulateInput): SimulateResult {
     case 'gemini':
       break;
   }
+  if (input.spec) specLimits(input.agent, input.spec, result);
+  if (input.spec?.notes) result.notes.push(...input.spec.notes);
   return result;
 }
 
@@ -330,6 +334,129 @@ function cursorRules(result: SimulateResult): void {
         certainty: 'advice',
         path: item.path,
         limit: 'cursor.ruleRecommendedMaxLines',
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Tools described as data
+
+function specLimits(id: ToolId, spec: ToolSpec, result: SimulateResult): void {
+  const limits = spec.limits;
+  if (!limits) return;
+
+  if (limits.maxFileBytes !== undefined) {
+    for (const item of startup(result.items, 'instructions').concat(
+      startup(result.items, 'rules'),
+    )) {
+      if (item.bytes <= limits.maxFileBytes) continue;
+      const lost = setText(item, truncateUtf8(item.text, limits.maxFileBytes));
+      result.drops.push({
+        agent: id,
+        kind: 'file-truncated',
+        certainty: 'will',
+        path: item.path,
+        ...lost,
+        limit: `${id}.maxFileBytes`,
+      });
+    }
+  }
+
+  if (limits.maxTotalBytes !== undefined) {
+    let remaining = limits.maxTotalBytes;
+    for (const item of startup(result.items, 'instructions')) {
+      if (remaining <= 0) {
+        const lost = dropItem(item, `over ${fmt(limits.maxTotalBytes)} bytes of instructions`);
+        result.drops.push({
+          agent: id,
+          kind: 'file-dropped',
+          certainty: 'will',
+          path: item.path,
+          ...lost,
+          limit: `${id}.maxTotalBytes`,
+        });
+        continue;
+      }
+      if (item.bytes > remaining) {
+        const lost = setText(item, truncateUtf8(item.text, remaining));
+        result.drops.push({
+          agent: id,
+          kind: 'file-truncated',
+          certainty: 'will',
+          path: item.path,
+          ...lost,
+          limit: `${id}.maxTotalBytes`,
+        });
+      }
+      remaining -= item.bytes;
+    }
+  }
+
+  if (limits.maxFileChars !== undefined) {
+    // The docs give a size but not what happens past it, so this is reported, not applied.
+    for (const item of startup(result.items, 'rules')) {
+      if ([...item.text].length <= limits.maxFileChars) continue;
+      result.drops.push({
+        agent: id,
+        kind: 'over-recommended-size',
+        certainty: 'at-risk',
+        path: item.path,
+        limit: `${id}.maxFileChars`,
+      });
+    }
+  }
+
+  if (limits.recommendedMaxLines !== undefined) {
+    for (const item of startup(result.items, 'rules').concat(
+      startup(result.items, 'instructions'),
+    )) {
+      const lines = item.text.split('\n').length - (item.text.endsWith('\n') ? 1 : 0);
+      if (lines <= limits.recommendedMaxLines) continue;
+      result.drops.push({
+        agent: id,
+        kind: 'over-recommended-size',
+        certainty: 'advice',
+        path: item.path,
+        limit: `${id}.recommendedMaxLines`,
+      });
+    }
+  }
+
+  if (limits.skillDescriptionMaxChars !== undefined) {
+    for (const item of startup(result.items, 'skills')) {
+      if (!item.skill || [...item.skill.description].length <= limits.skillDescriptionMaxChars)
+        continue;
+      result.drops.push({
+        agent: id,
+        kind: 'skill-description-truncated',
+        certainty: 'at-risk',
+        path: item.path,
+        skill: item.skill.name,
+        limit: `${id}.skillDescriptionMaxChars`,
+      });
+    }
+  }
+
+  if (limits.skillListingMaxBytes !== undefined) {
+    let remaining = limits.skillListingMaxBytes;
+    for (const item of startup(result.items, 'skills')) {
+      if (item.bytes <= remaining) {
+        remaining -= item.bytes;
+        continue;
+      }
+      remaining = 0;
+      const lost = dropItem(
+        item,
+        `over ${fmt(limits.skillListingMaxBytes)} bytes of skill listing`,
+      );
+      result.drops.push({
+        agent: id,
+        kind: 'skill-omitted',
+        certainty: 'will',
+        path: item.path,
+        ...(item.skill ? { skill: item.skill.name } : {}),
+        ...lost,
+        limit: `${id}.skillListingMaxBytes`,
       });
     }
   }

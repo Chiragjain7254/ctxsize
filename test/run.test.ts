@@ -123,3 +123,34 @@ describe('ctxsize CLI', () => {
     for (const line of table) expect(line.length).toBeLessThanOrEqual(100);
   });
 });
+
+describe('ctxsize.json through the CLI', () => {
+  const withConfig = (config: unknown) =>
+    tmpRepo({
+      '.git/': '',
+      'ctxsize.json': typeof config === 'string' ? config : JSON.stringify(config),
+      'NOTES.md': 'some notes\n',
+    });
+
+  test('--agents accepts a tool defined in the config and the table lists it', async () => {
+    const dir = withConfig({
+      tools: { notes: { label: 'Notes Bot', instructions: ['NOTES.md'] } },
+    });
+    const r = await cli(['--agents', 'notes'], dir);
+    expect(r.code).toBe(EXIT.ok);
+    expect(r.stdout).toContain('Notes Bot');
+  });
+
+  test('a bad config exits 2 and names the file and key', async () => {
+    const r = await cli([], withConfig({ tools: { x: { label: 'X', instructoins: [] } } }));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('ctxsize.json');
+    expect(r.stderr).toContain('instructoins');
+  });
+
+  test('invalid JSON in ctxsize.json exits 2', async () => {
+    const r = await cli([], withConfig('{ nope'));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('invalid JSON');
+  });
+});

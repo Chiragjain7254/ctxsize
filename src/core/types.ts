@@ -1,8 +1,12 @@
 // The contract every loader, the simulator and every report share. Frozen after M1:
 // loaders are built in parallel against it, so changes here need a coordinated commit.
 
+/** The five tools with a hand-written loader. */
 export type AgentId = 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
 export const AGENT_IDS: readonly AgentId[] = ['claude', 'codex', 'cursor', 'copilot', 'gemini'];
+
+/** Any tool: a built-in id or one defined in ctxsize.json. */
+export type ToolId = string;
 
 export type Category = 'instructions' | 'rules' | 'skills' | 'memory';
 export const CATEGORIES: readonly Category[] = ['instructions', 'rules', 'skills', 'memory'];
@@ -19,7 +23,7 @@ export interface SkillInfo {
 }
 
 export interface LoadedItem {
-  agent: AgentId;
+  agent: ToolId;
   /** POSIX path relative to root; user files start with "~/". */
   path: string;
   scope: 'project' | 'user';
@@ -43,7 +47,7 @@ export interface LoadedItem {
 export type LoaderItem = Omit<LoadedItem, 'tokens'>;
 
 export interface Warning {
-  agent?: AgentId;
+  agent?: ToolId;
   path?: string;
   message: string;
 }
@@ -65,6 +69,74 @@ export interface LoaderResult {
   warnings: Warning[];
 }
 
+/** A documented source for a limit: where it comes from and when it was last checked. */
+export interface Source {
+  url: string;
+  /** ISO date the value was last checked against this source. */
+  checked: string;
+  note?: string;
+}
+
+/** Limits a declarative tool can have. Every one needs a source in ToolSpec.sources. */
+export interface SpecLimits {
+  /** A file longer than this is cut. */
+  maxFileBytes?: number;
+  /** Combined size of all startup instruction files; the file crossing it is cut, later ones dropped. */
+  maxTotalBytes?: number;
+  /** A rule longer than this many characters may be cut or ignored by the tool; reported as at-risk. */
+  maxFileChars?: number;
+  /** Skill listing (names + descriptions) is capped at this many bytes; later skills are dropped. */
+  skillListingMaxBytes?: number;
+  /** A skill description longer than this is flagged (the tool warns or rejects it). */
+  skillDescriptionMaxChars?: number;
+  /** A recommendation only: files over this many lines are flagged, not cut. */
+  recommendedMaxLines?: number;
+}
+
+/** A rules folder: every file matching glob under dir (relative to the repo root) is a rule. */
+export interface RuleSpec {
+  dir: string;
+  /** Matched against the path inside dir; default: every .md file at any depth. */
+  glob?: string;
+  /** How rules load when they have no frontmatter mode. Default "startup". */
+  load?: 'startup' | 'on-demand';
+  /** Frontmatter key that picks the mode, e.g. "trigger". */
+  modeKey?: string;
+  /** Values of modeKey that load at startup; any other value is on-demand. */
+  startupModes?: string[];
+  /** Frontmatter key whose presence makes the rule conditional (on-demand), e.g. "paths". */
+  conditionalKey?: string;
+}
+
+/**
+ * A tool described as data: which files it loads and its limits. Built-in tools and tools
+ * from ctxsize.json use the same shape.
+ */
+export interface ToolSpec {
+  label: string;
+  defaultContextTokens?: number;
+  /** File names or globs, relative to each searched directory. */
+  instructions?: string[];
+  /**
+   * Which directories are searched: repo root down to cwd (default), cwd only, root only, or
+   * "nearest": from cwd up to the root, only the first directory that has a match counts.
+   */
+  search?: 'root-to-cwd' | 'cwd' | 'root' | 'nearest';
+  /** In each directory only the first pattern that matches loads. */
+  firstMatchOnly?: boolean;
+  /** Same-named files in folders below cwd: on-demand (default) or ignored. */
+  nested?: 'on-demand' | 'ignore';
+  /** When instruction files load. Default "startup"; "on-demand" for files the user must pass in. */
+  instructionLoad?: 'startup' | 'on-demand';
+  rules?: RuleSpec[];
+  /** Folders (relative to the repo root) holding <skill>/SKILL.md. */
+  skills?: { dirs: string[] };
+  limits?: SpecLimits;
+  sources?: Source[];
+  /** Shown under the tool in reports, e.g. what the model does not cover. */
+  notes?: string[];
+}
+
 export type Loader = (ctx: LoaderContext) => Promise<LoaderResult>;
 
 export type DropKind =
@@ -81,7 +153,7 @@ export type DropKind =
 export type Certainty = 'will' | 'at-risk' | 'advice';
 
 export interface Drop {
-  agent: AgentId;
+  agent: ToolId;
   kind: DropKind;
   certainty: Certainty;
   path?: string;
@@ -93,7 +165,7 @@ export interface Drop {
 }
 
 export interface AgentReport {
-  agent: AgentId;
+  agent: ToolId;
   label: string;
   contextTokens: number;
   notes: string[];

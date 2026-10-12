@@ -1,15 +1,10 @@
-import type { AgentId } from './core/types.ts';
+import type { AgentId, Source, ToolSpec } from './core/types.ts';
+
+export type { Source };
 
 // Every documented limit ctxsize relies on, with where it comes from and when it was checked.
 // When an agent changes a limit, update the value, the source and the date together.
 // No other file may hard-code one of these numbers.
-
-export interface Source {
-  url: string;
-  /** ISO date the value was last checked against this source. */
-  checked: string;
-  note?: string;
-}
 
 interface BaseProfile {
   label: string;
@@ -20,6 +15,9 @@ interface BaseProfile {
 }
 
 const CHECKED = '2026-10-12';
+
+/** Used for every tool whose docs do not state a context window. */
+export const DEFAULT_CONTEXT_TOKENS = 200_000;
 
 export const profiles = {
   claude: {
@@ -105,3 +103,154 @@ export const profiles = {
 } as const satisfies Record<AgentId, BaseProfile>;
 
 export type Profiles = typeof profiles;
+
+// Tools described as data (ToolSpec). Where a tool's docs are silent we say so in `notes`
+// instead of guessing, and no limit is set. None of these tools documents a default
+// context window, so they use ctxsize's general default.
+export const specProfiles: Record<string, ToolSpec> = {
+  opencode: {
+    label: 'OpenCode',
+    instructions: ['AGENTS.md', 'CLAUDE.md'],
+    search: 'nearest',
+    firstMatchOnly: true,
+    nested: 'ignore',
+    skills: { dirs: ['.opencode/skills', '.claude/skills', '.agents/skills'] },
+    limits: { skillDescriptionMaxChars: 1024 },
+    sources: [
+      {
+        url: 'https://opencode.ai/docs/rules/',
+        checked: CHECKED,
+        note: 'AGENTS.md wins over CLAUDE.md; first match only; no size cap documented',
+      },
+      {
+        url: 'https://opencode.ai/docs/skills/',
+        checked: CHECKED,
+        note: 'Skill description is 1-1024 characters',
+      },
+    ],
+    notes: [
+      'Files listed under "instructions" in opencode.json are not read; only AGENTS.md / CLAUDE.md.',
+      'Where the upward search stops is undocumented; ctxsize stops at the repo root.',
+    ],
+  },
+  cline: {
+    label: 'Cline',
+    instructions: ['AGENTS.md', '.cursorrules', '.windsurfrules'],
+    search: 'root',
+    nested: 'ignore',
+    rules: [
+      { dir: '.clinerules', glob: '*.md', conditionalKey: 'paths' },
+      { dir: '.cline/rules', glob: '*.md', conditionalKey: 'paths' },
+    ],
+    skills: { dirs: ['.cline/skills', '.clinerules/skills', '.claude/skills'] },
+    limits: { skillDescriptionMaxChars: 1024 },
+    sources: [
+      {
+        url: 'https://docs.cline.bot/features/cline-rules',
+        checked: CHECKED,
+        note: 'No rule size cap documented; rules with `paths:` are conditional',
+      },
+      {
+        url: 'https://docs.cline.bot/customization/skills',
+        checked: CHECKED,
+        note: 'Skill description at most 1024 characters',
+      },
+    ],
+    notes: ['Rules are read from .md files only; other extensions are not modelled.'],
+  },
+  windsurf: {
+    label: 'Windsurf',
+    instructions: ['AGENTS.md', '.windsurfrules'],
+    search: 'root',
+    nested: 'on-demand',
+    rules: [
+      {
+        dir: '.devin/rules',
+        glob: '**/*.md',
+        modeKey: 'trigger',
+        startupModes: ['always_on'],
+      },
+      {
+        dir: '.windsurf/rules',
+        glob: '**/*.md',
+        modeKey: 'trigger',
+        startupModes: ['always_on'],
+      },
+    ],
+    skills: { dirs: ['.devin/skills', '.windsurf/skills', '.agents/skills'] },
+    limits: { maxFileChars: 12_000 },
+    sources: [
+      {
+        url: 'https://docs.devin.ai/desktop/cascade/memories',
+        checked: CHECKED,
+        note: 'Workspace rules are limited to 12,000 characters each; triggers: always_on, model_decision, glob, manual',
+      },
+      {
+        url: 'https://docs.devin.ai/desktop/cascade/agents-md',
+        checked: CHECKED,
+        note: 'Root AGENTS.md is always on; subdirectory AGENTS.md applies to its directory',
+      },
+      { url: 'https://docs.devin.ai/desktop/cascade/skills', checked: CHECKED },
+    ],
+    notes: [
+      'A rule without a `trigger` is counted as always on (the docs do not say).',
+      'model_decision rules put only their description in the prompt; they are counted as on-demand.',
+      'The 6,000-character global rules file is in your home directory and is not read.',
+    ],
+  },
+  aider: {
+    label: 'Aider',
+    instructions: ['CONVENTIONS.md'],
+    search: 'root',
+    instructionLoad: 'on-demand',
+    nested: 'ignore',
+    sources: [
+      {
+        url: 'https://aider.chat/docs/usage/conventions.html',
+        checked: CHECKED,
+        note: 'Conventions files load only when passed with --read or `read:` in .aider.conf.yml',
+      },
+      {
+        url: 'https://aider.chat/docs/repomap.html',
+        checked: CHECKED,
+        note: 'Repo map budget --map-tokens defaults to 1k tokens',
+      },
+    ],
+    notes: [
+      'Aider loads no instruction file by itself. CONVENTIONS.md counts only if you pass it with --read.',
+      'The repo map (about 1,000 tokens by default) is not counted. Aider has no skills.',
+    ],
+  },
+  zed: {
+    label: 'Zed',
+    instructions: [
+      '.rules',
+      '.cursorrules',
+      '.windsurfrules',
+      '.clinerules',
+      '.github/copilot-instructions.md',
+      'AGENT.md',
+      'AGENTS.md',
+      'CLAUDE.md',
+      'GEMINI.md',
+    ],
+    search: 'root',
+    firstMatchOnly: true,
+    nested: 'ignore',
+    skills: { dirs: ['.agents/skills'] },
+    limits: { skillListingMaxBytes: 50 * 1024, skillDescriptionMaxChars: 1024 },
+    sources: [
+      {
+        url: 'https://zed.dev/docs/preview/ai/instructions.html',
+        checked: CHECKED,
+        note: 'First match wins in the listed order; no size cap documented (preview docs)',
+      },
+      {
+        url: 'https://zed.dev/docs/preview/ai/skills.html',
+        checked: CHECKED,
+        note: 'Skill catalog (names + descriptions) is capped at 50KB; overflow is dropped',
+      },
+    ],
+    notes: ['Based on the preview docs: the stable rules page could not be fetched.'],
+  },
+};
