@@ -1,4 +1,5 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
+import { formatUsd } from '../core/usage.ts';
 import { tokenizerSentence } from './common.ts';
 
 export interface TerminalOptions {
@@ -27,6 +28,8 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   );
   out.push('');
   out.push(...table(report.agents, c));
+  out.push(...costLines(report, c));
+  out.push(...biggestFiles(report, c));
 
   const dropped = report.agents.filter((a) => a.drops.length > 0);
   if (dropped.length > 0) {
@@ -64,13 +67,14 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
 }
 
 function table(agents: AgentReport[], c: Colors): string[] {
-  const header = ['Agent', 'Instructions', 'Rules', 'Skills', 'Startup', 'On demand'];
+  const header = ['Agent', 'Instructions', 'Rules', 'Skills', 'Startup', '% ctx', 'On demand'];
   const rows = agents.map((a) => [
     a.label,
     num(a.startup.byCategory.instructions + a.startup.byCategory.memory),
     num(a.startup.byCategory.rules),
     num(a.startup.byCategory.skills),
     num(a.startup.total),
+    pct(a.usage.startupPctOfContext),
     a.onDemand.count ? `${num(a.onDemand.total)} (${a.onDemand.count})` : '0',
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)));
@@ -162,4 +166,72 @@ function colors(enabled: boolean) {
     red: wrap(31, 39),
     yellow: wrap(33, 39),
   };
+}
+
+const pct = (n: number) => (n === 0 ? '0%' : n < 0.1 ? '<0.1%' : `${n.toFixed(n < 10 ? 1 : 0)}%`);
+
+/** 1000000 -> "1M", 400000 -> "400k". */
+function windowLabel(tokens: number): string {
+  if (tokens >= 1_000_000) return `${+(tokens / 1_000_000).toFixed(2)}M`;
+  return `${Math.round(tokens / 1000)}k`;
+}
+
+function costLines(report: Report, c: Colors): string[] {
+  const header = [
+    'Agent',
+    'Model',
+    'Window',
+    'Per message',
+    `${num(report.messages)} messages`,
+    'Cost',
+  ];
+  const anyDefault = report.agents.some((a) => a.model.isDefault);
+  const rows = report.agents.map((a) => [
+    a.label,
+    `${a.model.label}${a.model.isDefault ? '*' : ''}`,
+    windowLabel(a.contextTokens),
+    num(a.startup.total),
+    num(a.usage.overheadTokens),
+    formatUsd(a.usage.overheadCostUsd),
+  ]);
+  const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)));
+  const line = (cells: string[], style: (s: string) => string) =>
+    `  ${cells
+      .map((cell, i) => style(i < 2 ? cell.padEnd(widths[i] ?? 0) : cell.padStart(widths[i] ?? 0)))
+      .join('  ')}`.trimEnd();
+  return [
+    '',
+    c.bold('Cost of carrying it'),
+    line(header, (s) => c.dim(s)),
+    ...rows.map((r) => line(r, (s) => s)),
+    c.dim("  Startup tokens x messages, at each model's uncached input price; caching lowers it."),
+    ...(anyDefault ? [c.dim('  * default model: pick one with --model.')] : []),
+  ];
+}
+
+function biggestFiles(report: Report, c: Colors): string[] {
+  const byPath = new Map<string, { tokens: number; tools: Set<string> }>();
+  for (const a of report.agents) {
+    for (const f of a.topFiles) {
+      const key = f.skill ? `skill: ${f.skill}` : f.path;
+      const entry = byPath.get(key) ?? { tokens: 0, tools: new Set<string>() };
+      entry.tokens = Math.max(entry.tokens, f.tokens);
+      entry.tools.add(a.label);
+      byPath.set(key, entry);
+    }
+  }
+  const top = [...byPath]
+    .sort((a, b) => b[1].tokens - a[1].tokens || (a[0] < b[0] ? -1 : 1))
+    .slice(0, 5);
+  if (top.length === 0) return [];
+  const pathWidth = Math.min(48, Math.max(...top.map(([p]) => p.length)));
+  const tokenWidth = Math.max(...top.map(([, v]) => num(v.tokens).length));
+  return [
+    '',
+    c.bold('Biggest files at startup'),
+    ...top.map(([p, v]) => {
+      const who = v.tools.size > 3 ? `${v.tools.size} tools` : [...v.tools].join(', ');
+      return `  ${p.length > pathWidth ? `…${p.slice(-(pathWidth - 1))}` : p.padEnd(pathWidth)}  ${num(v.tokens).padStart(tokenWidth)}  ${c.dim(who)}`;
+    }),
+  ];
 }

@@ -179,6 +179,24 @@ export interface ModelInfo {
   isDefault: boolean;
 }
 
+/** What the startup load costs relative to the context window, and over a session. */
+export interface Usage {
+  /** Startup tokens as a percentage of the context window. */
+  startupPctOfContext: number;
+  messages: number;
+  /** Startup tokens x messages: how much input the startup load adds over a session. */
+  overheadTokens: number;
+  /** USD at the model's uncached input price; null when no price is known. */
+  overheadCostUsd: number | null;
+}
+
+export interface TopFile {
+  path: string;
+  tokens: number;
+  category: Category;
+  skill?: string;
+}
+
 export interface AgentReport {
   agent: ToolId;
   label: string;
@@ -187,6 +205,9 @@ export interface AgentReport {
   notes: string[];
   /** Startup tokens after drops. */
   startup: { total: number; byCategory: Record<Category, number> };
+  usage: Usage;
+  /** The five items that cost the most at startup. */
+  topFiles: TopFile[];
   onDemand: { total: number; count: number };
   items: LoadedItem[];
   drops: Drop[];
@@ -198,5 +219,7 @@ export interface Report {
   tool: { name: 'ctxsize'; version: string };
   /** Always "." so output is reproducible. */
   root: '.';
+  /** Messages used for every tool's overhead figure. */
+  messages: number;
   agents: AgentReport[];
 }

@@ -14,6 +14,7 @@ import {
   type Report,
   type ToolId,
 } from './types.ts';
+import { DEFAULT_MESSAGES, topFiles, usageFor } from './usage.ts';
 
 export interface AnalyzeOptions {
   /** Directory the agents start in. */
@@ -26,6 +27,8 @@ export interface AnalyzeOptions {
   home?: string;
   env?: Record<string, string | undefined>;
   contextTokens?: number;
+  /** Messages for the overhead figure (default 50). */
+  messages?: number;
   /** Which model each tool is measured with; omit to use a generic 200k-window model. */
   models?: ModelSelection;
 }
@@ -80,6 +83,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
         tool.label,
         modelInfo(model, picked.isDefault, opts.models?.price),
         contextTokens,
+        opts.messages ?? DEFAULT_MESSAGES,
         sim.items,
         sim,
         result.warnings,
@@ -91,6 +95,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
     schemaVersion: 2,
     tool: { name: 'ctxsize', version: VERSION },
     root: '.',
+    messages: opts.messages ?? DEFAULT_MESSAGES,
     agents,
   };
 }
@@ -100,6 +105,7 @@ function summarize(
   label: string,
   model: AgentReport['model'],
   contextTokens: number,
+  messages: number,
   items: LoadedItem[],
   sim: { drops: AgentReport['drops']; notes: string[] },
   warnings: AgentReport['warnings'],
@@ -124,6 +130,8 @@ function summarize(
     contextTokens,
     notes: sim.notes,
     startup: { total, byCategory },
+    usage: usageFor(total, contextTokens, messages, model.pricePer1MInput),
+    topFiles: topFiles(items),
     onDemand: { total: onDemandTotal, count: onDemandCount },
     items,
     drops: sim.drops,

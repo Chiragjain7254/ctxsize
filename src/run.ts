@@ -6,6 +6,7 @@ import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
 import type { ToolId } from './core/types.ts';
+import { DEFAULT_MESSAGES } from './core/usage.ts';
 import { allModels, type ModelChoice, presets } from './models.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
@@ -37,6 +38,7 @@ Options:
   --context <tokens>   Context window to model (default: the model's own)
   --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
   --price <usd>        USD per 1M input tokens, replacing every model's price
+  --messages <n>       Messages assumed for the overhead cost (default: ${DEFAULT_MESSAGES})
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
@@ -75,8 +77,10 @@ export async function run(argv: string[], io: Io): Promise<number> {
   let tools: ReturnType<typeof buildTools>;
   let models: ReturnType<typeof allModels>;
   let choice: ModelChoice;
+  let messagesFromConfig: number | undefined;
   try {
     const config = loadConfig(findRoot(parsed.dir));
+    messagesFromConfig = config?.messages;
     tools = buildTools(config);
     models = allModels(config?.models);
     choice = modelChoice(
@@ -110,6 +114,7 @@ Run ctxsize --help for usage.
     cwd: parsed.dir,
     agents,
     tools,
+    messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
     models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
     env: io.env,
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
@@ -152,6 +157,7 @@ function parse(argv: string[], io: Io) {
       context: { type: 'string' },
       model: { type: 'string' },
       price: { type: 'string' },
+      messages: { type: 'string' },
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
@@ -192,6 +198,7 @@ function parse(argv: string[], io: Io) {
     context: positiveInt(values.context, '--context'),
     modelFlag: values.model,
     price: nonNegativeNumber(values.price, '--price'),
+    messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     includeUser: values['include-user'],
     json: values.json,
