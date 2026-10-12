@@ -1,0 +1,4 @@
+# Token counts depend on bytes: keep line endings identical on every OS.
+* text=auto eol=lf
+*.png binary
+*.gif binary
