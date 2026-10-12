@@ -47,5 +47,9 @@
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
+  },
+  "dependencies": {
+    "js-tiktoken": "^1.0.21",
+    "yaml": "^2.9.1"
   }
 }
