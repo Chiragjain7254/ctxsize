@@ -7,10 +7,21 @@ import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
 import type { ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
+import {
+  computeDiff,
+  computeHistory,
+  type DiffResult,
+  HistoryError,
+  MAX_HISTORY,
+  openRepo,
+  type SnapshotOptions,
+  validateRef,
+} from './history.ts';
 import { allModels, type ModelChoice, presets } from './models.ts';
+import { renderDiff, renderHistory } from './report/diff.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
-import { buildTools } from './tools.ts';
+import { buildTools, type Tool } from './tools.ts';
 import { VERSION } from './version.ts';
 
 export const EXIT = { ok: 0, overBudget: 1, usage: 2 } as const;
@@ -43,6 +54,8 @@ Options:
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
   --out <file>         Where to write --html
+  --diff <git ref>     Also compare with the same repo at <ref> (a branch, tag or commit)
+  --history <n>        Trend of startup tokens over the last n commits (1-200); no working tree
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
@@ -110,8 +123,7 @@ Run ctxsize --help for usage.
     agents = ids.filter((id) => parsed.agentNames?.includes(id));
   }
 
-  const report = await analyze({
-    cwd: parsed.dir,
+  const analyzeOpts = {
     agents,
     tools,
     messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
@@ -119,12 +131,30 @@ Run ctxsize --help for usage.
     env: io.env,
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
-  });
+  };
+
+  if (parsed.history !== undefined) {
+    return runHistory(parsed, analyzeOpts, tools, io);
+  }
+  const report = await analyze({ cwd: parsed.dir, ...analyzeOpts });
+
+  let diff: DiffResult | undefined;
+  if (parsed.diff !== undefined) {
+    try {
+      const repo = await openRepo(parsed.dir);
+      diff = await computeDiff(repo, parsed.diff, report, analyzeOpts, tools);
+    } catch (err) {
+      if (!(err instanceof HistoryError)) throw err;
+      io.stderr(`ctxsize: ${err.message}\n`);
+      return EXIT.usage;
+    }
+  }
 
   if (parsed.json) {
-    io.stdout(toJson(report));
+    io.stdout(toJson(report, diff ? { diff } : {}));
   } else {
     io.stdout(renderTerminal(report, { color: parsed.color }));
+    if (diff) io.stdout(renderDiff(diff, { color: parsed.color }));
   }
 
   if (parsed.html) {
@@ -148,6 +178,32 @@ Run ctxsize --help for usage.
   return EXIT.ok;
 }
 
+/** --history: startup tokens per commit; the working tree is not analyzed. */
+async function runHistory(
+  parsed: { dir: string; history?: number; json: boolean; color: boolean },
+  opts: SnapshotOptions,
+  tools: Tool[],
+  io: Io,
+): Promise<number> {
+  try {
+    const repo = await openRepo(parsed.dir);
+    const result = await computeHistory(repo, parsed.history ?? 1, opts, tools);
+    if (parsed.json) {
+      const { entries, ...meta } = result;
+      const tool = { name: 'ctxsize', version: VERSION };
+      io.stdout(`${JSON.stringify({ tool, root: '.', ...meta, history: entries }, null, 2)}\n`);
+    } else {
+      const labels = Object.fromEntries(tools.map((t) => [t.id, t.label]));
+      io.stdout(renderHistory(result, { color: parsed.color, labels }));
+    }
+    return EXIT.ok;
+  } catch (err) {
+    if (!(err instanceof HistoryError)) throw err;
+    io.stderr(`ctxsize: ${err.message}\n`);
+    return EXIT.usage;
+  }
+}
+
 function parse(argv: string[], io: Io) {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -158,6 +214,8 @@ function parse(argv: string[], io: Io) {
       model: { type: 'string' },
       price: { type: 'string' },
       messages: { type: 'string' },
+      diff: { type: 'string' },
+      history: { type: 'string' },
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
@@ -186,6 +244,26 @@ function parse(argv: string[], io: Io) {
 
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
 
+  const history = positiveInt(values.history, '--history');
+  if (history !== undefined && history > MAX_HISTORY) {
+    throw new UsageError(`--history must be between 1 and ${MAX_HISTORY}, got ${history}`);
+  }
+  if (values.diff !== undefined) {
+    try {
+      validateRef(values.diff);
+    } catch (err) {
+      throw new UsageError((err as Error).message);
+    }
+  }
+  if (history !== undefined) {
+    if (values.diff !== undefined) throw new UsageError('use --diff or --history, not both');
+    for (const flag of ['html', 'max-tokens'] as const) {
+      if (values[flag] !== undefined && values[flag] !== false) {
+        throw new UsageError(`--${flag} cannot be combined with --history`);
+      }
+    }
+  }
+
   const color =
     !values['no-color'] &&
     !values.json &&
@@ -200,6 +278,8 @@ function parse(argv: string[], io: Io) {
     price: nonNegativeNumber(values.price, '--price'),
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
+    diff: values.diff,
+    history,
     includeUser: values['include-user'],
     json: values.json,
     html: values.html,
