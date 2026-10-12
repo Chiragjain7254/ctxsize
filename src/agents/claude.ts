@@ -1,6 +1,14 @@
 import path from 'node:path';
 import { parseFrontmatter, stringField } from '../core/frontmatter.ts';
-import { ancestors, displayPath, fileExists, isInside, readText, walkFiles } from '../core/fs.ts';
+import {
+  ancestors,
+  displayPath,
+  fileExists,
+  isInside,
+  readText,
+  toPosixRel,
+  walkFiles,
+} from '../core/fs.ts';
 import { expandImports } from '../core/imports.ts';
 import { makeItem, readSkillsDir, skillEntry, warn } from '../core/items.ts';
 import type {
@@ -63,7 +71,16 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
   const agentsFiles: { abs: string; dir: string }[] = [];
   let hasClaudeFile = false;
 
-  const collectRules = (rulesDir: string): void => {
+  const cwd = path.resolve(ctx.cwd);
+  const root = path.resolve(ctx.root);
+  // Reason wording is shared across agents: "<name> in repo root|cwd|<dir>".
+  const relDir = (dir: string): string =>
+    ctx.home && path.resolve(ctx.home) === dir ? '~' : displayPath(dir, ctx);
+  const where = (dir: string): string =>
+    dir === root ? 'in repo root' : dir === cwd ? 'in cwd' : `in ${relDir(dir)}`;
+
+  /** startupReason gets the rule's POSIX path relative to the rules dir. */
+  const collectRules = (rulesDir: string, startupReason: (rel: string) => string): void => {
     // The rules dir supports symlinked folders (shared rule sets), so follow them here only.
     for (const abs of walkFiles(rulesDir, { followSymlinks: true })) {
       if (path.extname(abs) !== '.md') continue;
@@ -81,7 +98,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
           text,
           category: 'rules',
           load: 'on-demand',
-          reason: `paths: ${globs}`,
+          reason: `on demand: paths ${globs}`,
         });
       else
         add(startup, {
@@ -89,7 +106,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
           text,
           category: 'rules',
           load: 'startup',
-          reason: 'rule without paths:, always loaded',
+          reason: startupReason(toPosixRel(rulesDir, abs)),
         });
     }
   };
@@ -98,40 +115,46 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     if (fileExists(userClaude, 'CLAUDE.md')) {
       add(
         startup,
-        candidate(path.join(userClaude, 'CLAUDE.md'), 'instructions', 'startup', 'user CLAUDE.md'),
+        candidate(
+          path.join(userClaude, 'CLAUDE.md'),
+          'instructions',
+          'startup',
+          'user CLAUDE.md (~/.claude)',
+        ),
       );
     }
-    collectRules(path.join(userClaude, 'rules'));
+    collectRules(path.join(userClaude, 'rules'), (rel) => `user rules/${rel} (~/.claude)`);
   }
 
-  const cwd = path.resolve(ctx.cwd);
   for (const dir of dirs) {
-    const where = dir === cwd ? 'in cwd' : 'in ancestor';
     const dotClaude = path.join(dir, '.claude');
-    const files: [string, string, string][] = [
-      [dir, 'CLAUDE.md', `CLAUDE.md ${where}`],
-      [dotClaude, 'CLAUDE.md', `.claude/CLAUDE.md ${where}`],
-      [dir, 'CLAUDE.local.md', 'CLAUDE.local.md (personal)'],
+    const files: [string, string][] = [
+      [dir, 'CLAUDE.md'],
+      [dotClaude, 'CLAUDE.md'],
+      [dir, 'CLAUDE.local.md'],
     ];
-    for (const [d, name, reason] of files) {
+    for (const [d, name] of files) {
       if (!fileExists(d, name)) continue;
       hasClaudeFile = true;
-      add(startup, candidate(path.join(d, name), 'instructions', 'startup', reason));
+      const abs = path.join(d, name);
+      add(
+        startup,
+        candidate(abs, 'instructions', 'startup', `${toPosixRel(dir, abs)} ${where(dir)}`),
+      );
     }
     for (const d of [dir, dotClaude]) {
       if (fileExists(d, 'AGENTS.md')) agentsFiles.push({ abs: path.join(d, 'AGENTS.md'), dir });
     }
-    collectRules(path.join(dotClaude, 'rules'));
+    collectRules(path.join(dotClaude, 'rules'), (rel) => `.claude/rules/${rel} ${where(dir)}`);
   }
 
   // AGENTS.md is a fallback: used only when no CLAUDE-family file exists in cwd or above
   // (the user-level ~/.claude/CLAUDE.md does not count).
   if (!hasClaudeFile) {
     for (const { abs, dir } of agentsFiles) {
-      const where = dir === cwd ? 'in cwd' : 'in ancestor';
       add(
         startup,
-        candidate(abs, 'instructions', 'startup', `AGENTS.md ${where} (no CLAUDE.md found)`),
+        candidate(abs, 'instructions', 'startup', `${toPosixRel(dir, abs)} ${where(dir)}`),
       );
     }
   }
@@ -148,7 +171,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
         abs,
         'instructions',
         'on-demand',
-        `loads when Claude reads files in ${displayPath(owner, ctx)}`,
+        `on demand: loads when working in ${relDir(owner)}`,
       ),
     );
   }
@@ -247,7 +270,7 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
   if (hasClaudeFile) {
     for (const { abs } of agentsFiles) {
       if (seen.has(path.resolve(abs))) continue;
-      const c = candidate(abs, 'instructions', 'ignored', 'AGENTS.md ignored: CLAUDE.md present');
+      const c = candidate(abs, 'instructions', 'ignored', 'ignored: CLAUDE.md present');
       if (c) emit(c);
     }
   }

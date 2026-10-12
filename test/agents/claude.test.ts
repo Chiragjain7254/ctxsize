@@ -25,7 +25,7 @@ test('CLAUDE.md at root and in cwd both load, outermost first', async () => {
     ['CLAUDE.md', 'startup'],
     ['pkg/CLAUDE.md', 'startup'],
   ]);
-  expect(r.items.map((i) => i.reason)).toEqual(['CLAUDE.md in ancestor', 'CLAUDE.md in cwd']);
+  expect(r.items.map((i) => i.reason)).toEqual(['CLAUDE.md in repo root', 'CLAUDE.md in cwd']);
   expect(r.items.map((i) => i.order)).toEqual([0, 1]);
   expect(r.items[0]).toMatchObject({ scope: 'project', category: 'instructions', bytes: 4 });
 });
@@ -43,7 +43,32 @@ test('.claude/CLAUDE.md and CLAUDE.local.md load', async () => {
     ['.claude/CLAUDE.md', 'startup'],
     ['CLAUDE.local.md', 'startup'],
   ]);
-  expect(byPath(r, 'CLAUDE.local.md')?.reason).toBe('CLAUDE.local.md (personal)');
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'CLAUDE.md in repo root',
+    '.claude/CLAUDE.md in repo root',
+    'CLAUDE.local.md in repo root',
+  ]);
+});
+
+test('reasons name the directory between root and cwd', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'a/CLAUDE.md': 'a',
+    'a/.claude/rules/r.md': 'r',
+    'a/b/CLAUDE.md': 'b',
+  });
+  const r = await run(root, 'a/b');
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'CLAUDE.md in a',
+    '.claude/rules/r.md in a',
+    'CLAUDE.md in cwd',
+  ]);
+  const home = fakeHome({ '.claude/CLAUDE.md': 'u', '.claude/rules/s/x.md': 'x' });
+  const withHome = await run(root, 'a/b', home);
+  expect(withHome.items.slice(0, 2).map((i) => i.reason)).toEqual([
+    'user CLAUDE.md (~/.claude)',
+    'user rules/s/x.md (~/.claude)',
+  ]);
 });
 
 test('lowercase claude.md is not loaded', async () => {
@@ -58,6 +83,10 @@ test('AGENTS.md is used when there are no CLAUDE files', async () => {
     ['AGENTS.md', 'startup'],
     ['sub/.claude/AGENTS.md', 'startup'],
   ]);
+  expect(r.items.map((i) => i.reason)).toEqual([
+    'AGENTS.md in repo root',
+    '.claude/AGENTS.md in cwd',
+  ]);
 });
 
 test('AGENTS.md is ignored when CLAUDE.local.md exists in an ancestor', async () => {
@@ -67,7 +96,7 @@ test('AGENTS.md is ignored when CLAUDE.local.md exists in an ancestor', async ()
     ['CLAUDE.local.md', 'startup'],
     ['sub/AGENTS.md', 'ignored'],
   ]);
-  expect(byPath(r, 'sub/AGENTS.md')?.reason).toBe('AGENTS.md ignored: CLAUDE.md present');
+  expect(byPath(r, 'sub/AGENTS.md')?.reason).toBe('ignored: CLAUDE.md present');
 });
 
 test('AGENTS.md imported by CLAUDE.md is loaded once, not also ignored', async () => {
@@ -97,7 +126,7 @@ test('rules: nested files found, paths: makes them on-demand, only .md', async (
   ]);
   expect(byPath(r, '.claude/rules/ts.md')).toMatchObject({
     category: 'rules',
-    reason: 'paths: src/**/*.ts, lib/**',
+    reason: 'on demand: paths src/**/*.ts, lib/**',
   });
   expect(byPath(r, '.claude/rules/ts.md')?.text).toContain('paths:');
 });
@@ -115,9 +144,9 @@ test('subdirectory CLAUDE.md files are on-demand', async () => {
     ['pkg/api/CLAUDE.md', 'on-demand'],
     ['pkg/web/.claude/CLAUDE.md', 'on-demand'],
   ]);
-  expect(byPath(r, 'pkg/api/CLAUDE.md')?.reason).toBe('loads when Claude reads files in pkg/api');
+  expect(byPath(r, 'pkg/api/CLAUDE.md')?.reason).toBe('on demand: loads when working in pkg/api');
   expect(byPath(r, 'pkg/web/.claude/CLAUDE.md')?.reason).toBe(
-    'loads when Claude reads files in pkg/web',
+    'on demand: loads when working in pkg/web',
   );
 });
 
