@@ -1,3 +1,4 @@
+import { symlinkSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import { loadConfig, parseConfig } from '../src/config.ts';
 import { analyze } from '../src/core/analyze.ts';
@@ -186,5 +187,23 @@ describe('tools from ctxsize.json', () => {
     expect(() => buildTools(parseConfig({ tools: { x: { instructions: ['x'] } } }, 'cfg'))).toThrow(
       /"label" is required/,
     );
+  });
+});
+
+describe('linked folders', () => {
+  test('a skills folder linked into two places counts once', async () => {
+    const repo = tmpRepo({
+      '.git/': '',
+      '.agents/skills/a/SKILL.md': '---\nname: a\ndescription: does a\n---\nbody\n',
+      '.claude/': '',
+    });
+    try {
+      symlinkSync(`${repo}/.agents/skills`, `${repo}/.claude/skills`, 'junction');
+    } catch {
+      return; // creating links is not allowed on this machine
+    }
+    const report = await analyze({ cwd: repo, agents: ['opencode'] });
+    const skills = report.agents[0]?.items.filter((i) => i.category === 'skills') ?? [];
+    expect(skills).toHaveLength(1);
   });
 });

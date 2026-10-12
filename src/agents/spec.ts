@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseFrontmatter, stringField } from '../core/frontmatter.ts';
 import { ancestors, fileExists, isInside, readText, toPosixRel, walkFiles } from '../core/fs.ts';
@@ -25,7 +26,8 @@ export function specLoader(id: ToolId, spec: ToolSpec): Loader {
     let order = 0;
     const seen = new Set<string>();
     const add = (item: LoaderItem, abs: string) => {
-      const key = path.resolve(abs);
+      // A folder linked into two places (.claude/skills -> .agents/skills) is one set of files.
+      const key = realPath(abs);
       if (seen.has(key)) return;
       seen.add(key);
       items.push(item);
@@ -188,4 +190,12 @@ function ruleMode(
     load: startup ? 'startup' : 'on-demand',
     reason: `${rule.modeKey}: ${mode}`,
   };
+}
+
+function realPath(abs: string): string {
+  try {
+    return realpathSync(abs);
+  } catch {
+    return path.resolve(abs);
+  }
 }
