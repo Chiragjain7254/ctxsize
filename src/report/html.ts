@@ -1,4 +1,5 @@
 import type { AgentReport, Category, Report } from '../core/types.ts';
+import { tokenizerSentence } from './common.ts';
 import { toJson } from './json.ts';
 import { squarify } from './treemap.ts';
 
@@ -229,7 +230,7 @@ footer{margin-top:28px;color:var(--ink3);font-size:13px}
 <body>
 <main>
 <h1>What each agent loads before your first prompt</h1>
-<p class="sub">Tokens per file, as an ${esc(report.tokenizer)}. Only your files; agents' own system prompts and tools are not included.</p>
+<p class="sub">Tokens per file. ${esc(tokenizerSentence(report))} Only your files; agents' own system prompts and tools are not included.</p>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--bg)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--bad)" stroke-width="2"/></pattern></defs></svg>
 <div role="tablist" aria-label="Agents">${tabs}</div>
 ${panels}

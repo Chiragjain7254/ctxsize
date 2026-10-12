@@ -52,7 +52,8 @@ test('empty repo gives every agent a zero report with no absolute paths', async 
   const repo = tmpRepo({ '.git/': '' });
   const report = await analyze({ cwd: repo, agents: AGENT_IDS.filter((a) => a !== 'codex') });
   expect(report.root).toBe('.');
-  expect(report.tokenizer).toBe('o200k_base (estimate)');
+  expect(report.schemaVersion).toBe(2);
+  expect(new Set(report.agents.map((x) => x.model.tokenizer))).toEqual(new Set(['o200k_base']));
   expect(report.agents.map((a) => a.startup.total)).toEqual([0, 0, 0, 0]);
   expect(JSON.stringify(report)).not.toContain(repo.replaceAll('\\', '\\\\'));
 });

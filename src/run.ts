@@ -6,6 +6,7 @@ import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
 import type { ToolId } from './core/types.ts';
+import { allModels, type ModelChoice, presets } from './models.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
 import { buildTools } from './tools.ts';
@@ -21,6 +22,7 @@ export interface Io {
   cwd: string;
 }
 
+const presetIds = () => presets.map((m) => m.id).join(', ');
 const BUILT_IN = buildTools().map((t) => t.id);
 
 const HELP = `ctxsize v${VERSION}
@@ -32,7 +34,9 @@ Usage: ctxsize [dir] [options]
 Options:
   --agents <list>      Comma-separated tool ids (default: all). Built in: ${BUILT_IN.join(',')}
                        plus any tool defined in ctxsize.json
-  --context <tokens>   Context window to model (default: 200000)
+  --context <tokens>   Context window to model (default: the model's own)
+  --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
+  --price <usd>        USD per 1M input tokens, replacing every model's price
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
@@ -41,6 +45,8 @@ Options:
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
   -h, --help           Print this help
+
+Models: ${presetIds()} (add or change them in ctxsize.json)
 
 Exit codes: 0 ok, 1 over --max-tokens, 2 usage error.
 Tokens are estimates (o200k_base). Nothing is sent anywhere.
@@ -67,8 +73,18 @@ export async function run(argv: string[], io: Io): Promise<number> {
   }
 
   let tools: ReturnType<typeof buildTools>;
+  let models: ReturnType<typeof allModels>;
+  let choice: ModelChoice;
   try {
-    tools = buildTools(loadConfig(findRoot(parsed.dir)));
+    const config = loadConfig(findRoot(parsed.dir));
+    tools = buildTools(config);
+    models = allModels(config?.models);
+    choice = modelChoice(
+      config,
+      parsed.modelFlag,
+      tools.map((t) => t.id),
+      models,
+    );
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     io.stderr(`ctxsize: ${err.message}
@@ -94,6 +110,7 @@ Run ctxsize --help for usage.
     cwd: parsed.dir,
     agents,
     tools,
+    models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
     env: io.env,
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
@@ -133,6 +150,8 @@ function parse(argv: string[], io: Io) {
     options: {
       agents: { type: 'string' },
       context: { type: 'string' },
+      model: { type: 'string' },
+      price: { type: 'string' },
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
@@ -171,6 +190,8 @@ function parse(argv: string[], io: Io) {
     dir,
     agentNames,
     context: positiveInt(values.context, '--context'),
+    modelFlag: values.model,
+    price: nonNegativeNumber(values.price, '--price'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     includeUser: values['include-user'],
     json: values.json,
@@ -195,4 +216,53 @@ function positiveInt(
     );
   }
   return n;
+}
+
+function nonNegativeNumber(value: string | undefined, flag: string): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new UsageError(`${flag} must be a number of USD, 0 or more, got "${value}"`);
+  }
+  return n;
+}
+
+/** Combines the config's per-tool models with --model (which wins). */
+function modelChoice(
+  config: ReturnType<typeof loadConfig>,
+  flag: string | undefined,
+  toolIds: string[],
+  models: Map<string, unknown>,
+): ModelChoice {
+  const choice: ModelChoice = { perTool: {} };
+  for (const [id, tool] of Object.entries(config?.tools ?? {})) {
+    if (tool.model !== undefined) choice.perTool[id] = tool.model;
+  }
+  if (flag !== undefined) {
+    for (const part of flag
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)) {
+      const eq = part.indexOf('=');
+      if (eq === -1) {
+        choice.all = part;
+      } else {
+        const tool = part.slice(0, eq).toLowerCase();
+        if (!toolIds.includes(tool)) {
+          throw new ConfigError(
+            `--model: unknown tool "${tool}" (choose from ${toolIds.join(', ')})`,
+          );
+        }
+        choice.perTool[tool] = part.slice(eq + 1);
+      }
+    }
+  }
+  for (const wanted of [choice.all, ...Object.values(choice.perTool)]) {
+    if (wanted !== undefined && !models.has(wanted)) {
+      throw new ConfigError(
+        `unknown model "${wanted}" (choose from ${[...models.keys()].join(', ')})`,
+      );
+    }
+  }
+  return choice;
 }

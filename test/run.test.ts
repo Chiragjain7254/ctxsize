@@ -43,7 +43,7 @@ describe('ctxsize CLI', () => {
     const dir = repo();
     const r = await cli(['--json'], dir);
     const report = JSON.parse(r.stdout);
-    expect(report.schemaVersion).toBe(1);
+    expect(report.schemaVersion).toBe(2);
     expect(report.root).toBe('.');
     expect(r.stdout).not.toContain('Use npm');
     expect(r.stdout).not.toContain(path.basename(dir));

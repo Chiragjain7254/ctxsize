@@ -2,6 +2,9 @@ import { countTokens } from './core/tokenize.ts';
 import type { Drop, LoadedItem, ToolId, ToolSpec } from './core/types.ts';
 import { profiles } from './profiles.ts';
 
+/** Counts tokens the way the tool's model would; set per simulate() call. */
+let count: (text: string) => number = (text) => countTokens(text);
+
 export interface SimulateInput {
   agent: ToolId;
   items: LoadedItem[];
@@ -11,6 +14,8 @@ export interface SimulateInput {
   env: Record<string, string | undefined>;
   /** For tools described as data: their limits are applied after the per-agent rules. */
   spec?: ToolSpec;
+  /** Token counter for the tool's model; default o200k_base. */
+  count?: (text: string) => number;
 }
 
 export interface SimulateResult {
@@ -25,6 +30,8 @@ export interface SimulateResult {
  * system access. Only `will` drops change the items; `at-risk` and `advice` only report.
  */
 export function simulate(input: SimulateInput): SimulateResult {
+  // simulate() is synchronous, so a module-level counter cannot leak between calls.
+  count = input.count ?? ((text) => countTokens(text));
   const result: SimulateResult = {
     items: input.items.map((i) => ({ ...i })),
     drops: [],
@@ -75,7 +82,7 @@ function setText(item: LoadedItem, text: string): { bytesLost: number; tokensLos
   const before = { bytes: item.bytes, tokens: item.tokens };
   item.text = text;
   item.bytes = Buffer.byteLength(text, 'utf8');
-  item.tokens = countTokens(text);
+  item.tokens = count(text);
   return { bytesLost: before.bytes - item.bytes, tokensLost: before.tokens - item.tokens };
 }
 
@@ -130,7 +137,7 @@ function claudeSkills(input: SimulateInput, result: SimulateResult): void {
   const size = (i: LoadedItem) => (useChars ? i.text.length : i.tokens);
   const nameOnly = (i: LoadedItem) => {
     const entry = skillEntry(i.skill?.name ?? '', '');
-    return useChars ? entry.length : countTokens(entry);
+    return useChars ? entry.length : count(entry);
   };
   const used = skills.reduce((sum, i) => sum + size(i), 0);
   if (used <= budget) return;
@@ -151,7 +158,7 @@ function claudeSkills(input: SimulateInput, result: SimulateResult): void {
       'names stay listed.',
   );
   for (const item of skills) {
-    const descTokens = item.tokens - countTokens(skillEntry(item.skill?.name ?? '', ''));
+    const descTokens = item.tokens - count(skillEntry(item.skill?.name ?? '', ''));
     result.drops.push({
       agent: 'claude',
       kind: 'skill-description-dropped',
@@ -230,7 +237,7 @@ function codexSkills(input: SimulateInput, result: SimulateResult): void {
   const budget = useChars
     ? p.skillListingFallbackChars
     : Math.floor(input.contextTokens * p.skillListingBudgetFraction);
-  const measure = (text: string) => (useChars ? text.length : countTokens(text));
+  const measure = (text: string) => (useChars ? text.length : count(text));
   const unit = useChars ? 'chars' : 'tokens';
   const used = skills.reduce((sum, i) => sum + measure(i.text), 0);
   if (useChars) {

@@ -1,4 +1,5 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
+import { tokenizerSentence } from './common.ts';
 
 export interface TerminalOptions {
   color: boolean;
@@ -55,7 +56,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   out.push(
     '',
     c.dim(
-      `Tokens are estimates (${report.tokenizer.replace(' (estimate)', '')}). Your files only: ` +
+      `${tokenizerSentence(report)} Your files only: ` +
         "agents' own system prompts and tools are not counted.",
     ),
   );

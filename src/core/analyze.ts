@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { loadConfig } from '../config.ts';
+import { genericModel, type Model, type ModelChoice, modelForTool, modelInfo } from '../models.ts';
 import { simulate } from '../simulate.ts';
 import { buildTools, type Tool } from '../tools.ts';
 import { VERSION } from '../version.ts';
@@ -25,6 +26,15 @@ export interface AnalyzeOptions {
   home?: string;
   env?: Record<string, string | undefined>;
   contextTokens?: number;
+  /** Which model each tool is measured with; omit to use a generic 200k-window model. */
+  models?: ModelSelection;
+}
+
+export interface ModelSelection {
+  models: Map<string, Model>;
+  choice: ModelChoice;
+  /** USD per 1M input tokens, replacing every model's own price. */
+  price?: number;
 }
 
 export async function analyze(opts: AnalyzeOptions): Promise<Report> {
@@ -38,6 +48,10 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
   for (const agent of opts.agents ?? tools.map((t) => t.id)) {
     const tool = tools.find((t) => t.id === agent);
     if (!tool) throw new Error(`unknown tool: ${agent}`);
+    const picked = opts.models
+      ? modelForTool(agent, opts.models.models, opts.models.choice)
+      : { model: genericModel, isDefault: true };
+    const { model } = picked;
     const ctx = {
       root,
       cwd,
@@ -47,24 +61,35 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
     };
     const result = await tool.loader(ctx);
     const loaded: LoadedItem[] = result.items
-      .map((item) => ({ ...item, tokens: countTokens(item.text) }))
+      .map((item) => ({ ...item, tokens: countTokens(item.text, model.tokenizer) }))
       .sort((a, b) => a.order - b.order);
-    const contextTokens = opts.contextTokens ?? tool.defaultContextTokens;
+    const contextTokens = opts.contextTokens ?? model.contextTokens;
     const sim = simulate({
       agent,
       items: loaded,
       contextTokens,
-      contextGiven: opts.contextTokens !== undefined,
+      // The window is known when the user gave one or picked the model themselves.
+      contextGiven: opts.contextTokens !== undefined || !picked.isDefault,
+      count: (text: string) => countTokens(text, model.tokenizer),
       env,
       ...(tool.spec ? { spec: tool.spec } : {}),
     });
-    agents.push(summarize(agent, tool.label, contextTokens, sim.items, sim, result.warnings));
+    agents.push(
+      summarize(
+        agent,
+        tool.label,
+        modelInfo(model, picked.isDefault, opts.models?.price),
+        contextTokens,
+        sim.items,
+        sim,
+        result.warnings,
+      ),
+    );
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     tool: { name: 'ctxsize', version: VERSION },
-    tokenizer: 'o200k_base (estimate)',
     root: '.',
     agents,
   };
@@ -73,6 +98,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
 function summarize(
   agent: ToolId,
   label: string,
+  model: AgentReport['model'],
   contextTokens: number,
   items: LoadedItem[],
   sim: { drops: AgentReport['drops']; notes: string[] },
@@ -94,6 +120,7 @@ function summarize(
   return {
     agent,
     label,
+    model,
     contextTokens,
     notes: sim.notes,
     startup: { total, byCategory },

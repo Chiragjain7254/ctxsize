@@ -164,9 +164,25 @@ export interface Drop {
   limit: string;
 }
 
+/** The model a tool was measured with. */
+export interface ModelInfo {
+  id: string;
+  label: string;
+  contextTokens: number;
+  /** "o200k_base", "cl100k_base" or "~3.5 chars per token". */
+  tokenizer: string;
+  /** True when the tokenizer is the model's own, so counts are exact; false: an estimate. */
+  exactTokenizer: boolean;
+  /** USD per 1M uncached input tokens; null when no price is known. */
+  pricePer1MInput: number | null;
+  /** True when ctxsize picked the model; pass --model or set it in ctxsize.json to choose. */
+  isDefault: boolean;
+}
+
 export interface AgentReport {
   agent: ToolId;
   label: string;
+  model: ModelInfo;
   contextTokens: number;
   notes: string[];
   /** Startup tokens after drops. */
@@ -178,9 +194,8 @@ export interface AgentReport {
 }
 
 export interface Report {
-  schemaVersion: 1;
+  schemaVersion: 2;
   tool: { name: 'ctxsize'; version: string };
-  tokenizer: 'o200k_base (estimate)';
   /** Always "." so output is reproducible. */
   root: '.';
   agents: AgentReport[];

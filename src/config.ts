@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { fileExists, readText } from './core/fs.ts';
+import type { Tokenizer } from './core/tokenize.ts';
 import type { RuleSpec, Source, SpecLimits, ToolSpec } from './core/types.ts';
+import type { UserModel } from './models.ts';
 
 // Reads `ctxsize.json` (or the "ctxsize" key of package.json) at the repo root.
 // Validation is deliberate and strict: a typo in a key should fail loudly, not silently
@@ -9,16 +11,22 @@ import type { RuleSpec, Source, SpecLimits, ToolSpec } from './core/types.ts';
 export class ConfigError extends Error {}
 
 /** A tool from the config file. Fields left out inherit from a built-in tool of the same id. */
-export type UserTool = Partial<ToolSpec>;
+export type UserTool = Partial<ToolSpec> & { model?: string };
 
 export interface Config {
   /** Where the config came from, for error messages. */
   origin: string;
   tools: Record<string, UserTool>;
+  /** Model definitions; an id that matches a preset overrides fields of that preset. */
+  models: Record<string, UserModel>;
+  /** Messages for the overhead calculation (default 50). */
+  messages?: number;
 }
 
-const TOP_KEYS = ['tools'];
+const TOP_KEYS = ['tools', 'models', 'messages'];
+const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
 const TOOL_KEYS = [
+  'model',
   'label',
   'defaultContextTokens',
   'instructions',
@@ -42,6 +50,7 @@ const LIMIT_KEYS = [
   'recommendedMaxLines',
 ];
 const TOOL_ID = /^[a-z][a-z0-9-]{0,39}$/;
+const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,59}$/;
 
 export function loadConfig(root: string): Config | undefined {
   if (fileExists(root, 'ctxsize.json')) {
@@ -81,13 +90,63 @@ export function parseConfig(raw: unknown, origin: string): Config {
       tools[id] = parseTool(value, `${origin}: tools.${id}`);
     }
   }
-  return { origin, tools };
+  const models: Record<string, UserModel> = {};
+  if (raw.models !== undefined) {
+    if (!isObject(raw.models)) throw new ConfigError(at('"models" must be an object'));
+    for (const [id, value] of Object.entries(raw.models)) {
+      if (!MODEL_ID.test(id)) {
+        throw new ConfigError(
+          at(`model id "${id}" must be lowercase letters, digits, dashes, dots or underscores`),
+        );
+      }
+      models[id] = parseModel(value, `${origin}: models.${id}`);
+    }
+  }
+  const config: Config = { origin, tools, models };
+  if (raw.messages !== undefined) config.messages = posInt(raw.messages, at('messages'));
+  return config;
+}
+
+function parseModel(value: unknown, where: string): UserModel {
+  if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
+  rejectUnknown(value, MODEL_KEYS, where);
+  const model: UserModel = {};
+  if (value.label !== undefined) model.label = str(value.label, `${where}.label`);
+  if (value.contextTokens !== undefined) {
+    model.contextTokens = posInt(value.contextTokens, `${where}.contextTokens`);
+  }
+  if (value.tokenizer !== undefined) model.tokenizer = parseTokenizer(value.tokenizer, where);
+  if (value.pricePer1MInput !== undefined) {
+    const p = value.pricePer1MInput;
+    if (typeof p !== 'number' || !Number.isFinite(p) || p < 0) {
+      throw new ConfigError(`${where}.pricePer1MInput: expected a number of USD, 0 or more`);
+    }
+    model.pricePer1MInput = p;
+  }
+  if (value.sources !== undefined) model.sources = parseSources(value.sources, `${where}.sources`);
+  return model;
+}
+
+function parseTokenizer(value: unknown, where: string): Tokenizer {
+  if (value === 'o200k_base' || value === 'cl100k_base') return value;
+  if (isObject(value)) {
+    rejectUnknown(value, ['charsPerToken'], `${where}.tokenizer`);
+    const r = value.charsPerToken;
+    if (typeof r !== 'number' || !Number.isFinite(r) || r <= 0 || r > 20) {
+      throw new ConfigError(`${where}.tokenizer.charsPerToken: expected a number between 0 and 20`);
+    }
+    return { charsPerToken: r };
+  }
+  throw new ConfigError(
+    `${where}.tokenizer: expected "o200k_base", "cl100k_base" or { "charsPerToken": 3.5 }`,
+  );
 }
 
 function parseTool(value: unknown, where: string): UserTool {
   if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
   rejectUnknown(value, TOOL_KEYS, where);
   const tool: UserTool = {};
+  if (value.model !== undefined) tool.model = str(value.model, `${where}.model`);
   if (value.label !== undefined) tool.label = str(value.label, `${where}.label`);
   if (value.defaultContextTokens !== undefined) {
     tool.defaultContextTokens = posInt(value.defaultContextTokens, `${where}.defaultContextTokens`);

@@ -179,7 +179,7 @@ describe('tools from ctxsize.json', () => {
   test('buildTools rejects redefining a hand-written tool and a tool that loads nothing', () => {
     expect(() =>
       buildTools(parseConfig({ tools: { claude: { label: 'C', instructions: ['x'] } } }, 'cfg')),
-    ).toThrow(/cannot be redefined/);
+    ).toThrow(/only "model" can be set/);
     expect(() => buildTools(parseConfig({ tools: { x: { label: 'X' } } }, 'cfg'))).toThrow(
       /at least one of/,
     );

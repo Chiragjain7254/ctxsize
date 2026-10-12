@@ -37,13 +37,17 @@ export function buildTools(config?: Config): Tool[] {
 
   for (const [id, user] of Object.entries(config?.tools ?? {})) {
     const where = `${config?.origin ?? 'config'}: tools.${id}`;
+    const { model: _model, ...fields } = user;
     if (id in loaders) {
-      throw new ConfigError(
-        `${where}: "${id}" is a built-in tool with its own loader and cannot be redefined; use another id`,
-      );
+      if (Object.keys(fields).length > 0) {
+        throw new ConfigError(
+          `${where}: "${id}" is a built-in tool with its own loader; only "model" can be set. Use another id to define a new tool`,
+        );
+      }
+      continue;
     }
     const base = specs.get(id);
-    const merged = { ...(base?.spec ?? {}), ...user } as Partial<ToolSpec>;
+    const merged = { ...(base?.spec ?? {}), ...fields } as Partial<ToolSpec>;
     if (!merged.label) throw new ConfigError(`${where}: "label" is required for a new tool`);
     if (!merged.instructions && !merged.rules && !merged.skills) {
       throw new ConfigError(`${where}: define at least one of "instructions", "rules" or "skills"`);
