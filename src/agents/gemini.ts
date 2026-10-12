@@ -51,9 +51,11 @@ export const load: Loader = async (ctx) => {
       if (fileExists(dir, name)) add(path.join(dir, name), 'startup', 'global context file');
   }
 
-  // Workspace and ancestors, outermost first. Without a home the walk stops at the repo root.
+  // Workspace and ancestors, outermost first. Gemini stops the upward walk at the project
+  // (.git) root, so even with --include-user nothing above the repo is read; only the global
+  // ~/.gemini file above comes from home.
   const cwd = path.resolve(ctx.cwd);
-  for (const dir of ancestors(cwd, ctx.home ? undefined : ctx.root).reverse()) {
+  for (const dir of ancestors(cwd, ctx.root).reverse()) {
     const where = dir === cwd ? 'workspace' : 'ancestor';
     for (const name of names) {
       if (fileExists(dir, name)) add(path.join(dir, name), 'startup', `${name} in ${where}`);

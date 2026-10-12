@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test } from 'vitest';
-import { load as rawLoad } from '../../src/agents/gemini.ts';
+import { load } from '../../src/agents/gemini.ts';
 import type { LoaderContext } from '../../src/core/types.ts';
 import { fakeHome, tmpRepo } from '../helpers.ts';
 
@@ -10,13 +10,6 @@ const ctxFor = (root: string, opts: { cwd?: string; home?: string } = {}): Loade
   env: {},
   ...(opts.home ? { home: opts.home } : {}),
 });
-
-// With a home the walk goes up to the filesystem root, so a stray GEMINI.md above the temp dir
-// on the test machine would show up with an absolute path. Keep only repo and home items.
-const load = async (ctx: LoaderContext) => {
-  const result = await rawLoad(ctx);
-  return { ...result, items: result.items.filter((i) => !/^(\/|[A-Za-z]:)/.test(i.path)) };
-};
 
 const summary = (items: { path: string; load: string; order: number }[]) =>
   [...items].sort((a, b) => a.order - b.order).map((i) => [i.path, i.load]);
@@ -210,8 +203,7 @@ test('order is one counter and every path is POSIX', async () => {
     'a/b/c/GEMINI.md': 'abc',
   });
   const { items } = await load(ctxFor(root, { cwd: 'a/b', home }));
-  const raw = (await rawLoad(ctxFor(root, { cwd: 'a/b', home }))).items;
-  expect(raw.map((i) => i.order)).toEqual(raw.map((_, n) => n));
+  expect(items.map((i) => i.order)).toEqual(items.map((_, n) => n));
   expect(summary(items)).toEqual([
     ['~/.gemini/GEMINI.md', 'startup'],
     ['GEMINI.md', 'startup'],
@@ -225,4 +217,15 @@ test('order is one counter and every path is POSIX', async () => {
     expect(item.importedFrom ?? '').not.toContain('\\');
     expect(item.skill?.bodyPath ?? '').not.toContain('\\');
   }
+});
+
+test('with a home the upward walk still stops at the repo root', async () => {
+  const outer = tmpRepo({ 'GEMINI.md': 'above the repo', 'repo/.git/': '', 'repo/GEMINI.md': 'r' });
+  const root = path.join(outer, 'repo');
+  const home = fakeHome({ '.gemini/GEMINI.md': 'global' });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(summary(items)).toEqual([
+    ['~/.gemini/GEMINI.md', 'startup'],
+    ['GEMINI.md', 'startup'],
+  ]);
 });
