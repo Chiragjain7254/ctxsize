@@ -43,6 +43,10 @@ Options:
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
   --out <file>         Where to write --html
+  --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
+  --card <file.svg>    Write an SVG summary card (--title sets its heading)
+  --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
+  --title <text>       Heading for --card
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
@@ -121,8 +125,13 @@ Run ctxsize --help for usage.
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   });
 
+  // Sharing outputs load lazily: most runs never use them.
+  const share =
+    parsed.markdown || parsed.card || parsed.badge ? await import('./report/share.ts') : undefined;
   if (parsed.json) {
     io.stdout(toJson(report));
+  } else if (parsed.markdown === '-' && share) {
+    io.stdout(share.renderMarkdown(report));
   } else {
     io.stdout(renderTerminal(report, { color: parsed.color }));
   }
@@ -132,6 +141,25 @@ Run ctxsize --help for usage.
     const { renderHtml } = await import('./report/html.ts');
     writeFileSync(parsed.out, renderHtml(report));
     io.stderr(`Wrote ${parsed.out}\n`);
+  }
+
+  if (share) {
+    if (parsed.markdown && parsed.markdown !== '-') {
+      writeFileSync(parsed.markdown, share.renderMarkdown(report));
+      io.stderr(`Wrote ${parsed.markdown}
+`);
+    }
+    if (parsed.card) {
+      writeFileSync(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
+      io.stderr(`Wrote ${parsed.card}
+`);
+    }
+    if (parsed.badge) {
+      writeFileSync(parsed.badge, share.renderBadgeSvg(report));
+      io.stderr(`Wrote ${parsed.badge}
+README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
+`);
+    }
   }
 
   if (parsed.maxTokens !== undefined) {
@@ -162,6 +190,10 @@ function parse(argv: string[], io: Io) {
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
       out: { type: 'string' },
+      markdown: { type: 'string' },
+      card: { type: 'string' },
+      badge: { type: 'string' },
+      title: { type: 'string' },
       'max-tokens': { type: 'string' },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
@@ -204,6 +236,11 @@ function parse(argv: string[], io: Io) {
     json: values.json,
     html: values.html,
     out: path.resolve(io.cwd, values.out ?? 'ctxsize-report.html'),
+    markdown:
+      values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),
+    card: values.card && path.resolve(io.cwd, values.card),
+    badge: values.badge && path.resolve(io.cwd, values.badge),
+    title: values.title,
     color,
     help: values.help,
     version: values.version,
