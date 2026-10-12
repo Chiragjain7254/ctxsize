@@ -30,7 +30,7 @@ test.fails('an import outside the repo never shows an absolute path', async () =
 // read under project_doc_max_bytes; it does not use up that 32 KiB budget. The simulator
 // counts it (src/simulate.ts:187, it is the first 'startup' instructions item from
 // src/agents/codex.ts:27), so a 10 KiB project AGENTS.md is reported as cut to 2 KiB.
-test.fails('global ~/.codex/AGENTS.md does not eat the project AGENTS.md budget', async () => {
+test('global ~/.codex/AGENTS.md does not eat the project AGENTS.md budget', async () => {
   const home = fakeHome({ '.codex/AGENTS.md': 'g'.repeat(30 * 1024) });
   const repo = tmpRepo({ '.git/': '', 'AGENTS.md': 'p'.repeat(10 * 1024) });
   const [codex] = (await analyze({ cwd: repo, agents: ['codex'], home })).agents;
