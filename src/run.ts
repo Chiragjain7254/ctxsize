@@ -130,7 +130,7 @@ Run ctxsize --help for usage.
   if (parsed.html) {
     // Loaded lazily: most runs never write HTML.
     const { renderHtml } = await import('./report/html.ts');
-    writeFileSync(parsed.out, renderHtml(report));
+    writeFileSync(parsed.out, renderHtml(report, { models }));
     io.stderr(`Wrote ${parsed.out}\n`);
   }
 

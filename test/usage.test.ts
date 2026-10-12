@@ -140,7 +140,8 @@ describe('usage in reports', () => {
     const out = `${html}/r.html`;
     expect((await cli(['--html', '--out', out, '--agents', 'codex'], dir)).code).toBe(EXIT.ok);
     const text = (await import('node:fs')).readFileSync(out, 'utf8');
-    expect(text).toContain('Cost of carrying the startup load for 50 messages');
+    expect(text).toContain('Cost of carrying the startup load for'); // the page's table caption
+    expect(text).toContain('"messages":50');
     expect(text).toContain('GPT-5.3-Codex');
   });
 
