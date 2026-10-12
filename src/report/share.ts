@@ -61,7 +61,7 @@ export function renderMarkdown(report: Report): string {
     lines.push('', '</details>', '');
   }
 
-  const checks = (report as { checks?: { message: string }[] }).checks ?? [];
+  const checks = report.checks;
   if (checks.length > 0) {
     lines.push('<details><summary>Checks</summary>', '');
     for (const c of checks.slice(0, 15)) lines.push(`- ${c.message}`);

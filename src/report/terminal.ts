@@ -39,6 +39,8 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
     for (const agent of dropped) out.push(...dropLines(agent, c));
   }
 
+  out.push(...checkLines(report, c));
+
   const noted = report.agents.filter((a) => a.notes.length > 0);
   if (noted.length > 0) {
     out.push('', c.bold('Notes'));
@@ -318,4 +320,16 @@ function mcpLines(report: Report, c: Colors): string[] {
     );
   }
   return out;
+}
+
+function checkLines(report: Report, c: Colors): string[] {
+  if (report.checks.length === 0) return [];
+  const label = new Map(report.agents.map((a) => [a.agent, a.label]));
+  const lines = report.checks.map((k) => {
+    const mark = k.severity === 'warn' ? c.yellow('!') : c.dim('i');
+    const who = k.tool ? `${label.get(k.tool) ?? k.tool}: ` : '';
+    const where = k.paths.filter((p) => !k.message.includes(p)).slice(0, 2);
+    return `  ${mark} ${who}${k.message}${where.length ? c.dim(` (${where.join(', ')})`) : ''}`;
+  });
+  return ['', c.bold('Checks'), ...capped(lines, c)];
 }

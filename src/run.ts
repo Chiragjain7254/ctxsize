@@ -51,6 +51,7 @@ Options:
   --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
   --title <text>       Heading for --card
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
+  --no-checks          Skip the duplicate, suggestion and skill-health checks
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
   -h, --help           Print this help
@@ -126,6 +127,7 @@ Run ctxsize --help for usage.
     messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
     models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
     env: io.env,
+    checks: !parsed.noChecks,
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   });
@@ -142,7 +144,9 @@ Run ctxsize --help for usage.
   }
   if (parsed.tree) {
     const { analyzeTree } = await import('./tree.ts');
-    const tree = await analyzeTree(report, root, (cwd) => analyze(analyzeOptions(cwd)));
+    const tree = await analyzeTree(report, root, (cwd) =>
+      analyze({ ...analyzeOptions(cwd), checks: false }),
+    );
     report.tree = tree.rows;
     if (tree.skipped > 0) {
       io.stderr(`ctxsize: --tree lists ${tree.rows.length} folders; ${tree.skipped} more were skipped
@@ -222,6 +226,7 @@ function parse(argv: string[], io: Io) {
       badge: { type: 'string' },
       title: { type: 'string' },
       'max-tokens': { type: 'string' },
+      'no-checks': { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -260,6 +265,7 @@ function parse(argv: string[], io: Io) {
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     includeUser: values['include-user'],
+    noChecks: values['no-checks'],
     json: values.json,
     html: values.html,
     tree: values.tree,
