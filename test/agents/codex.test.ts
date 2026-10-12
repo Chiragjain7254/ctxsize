@@ -21,8 +21,8 @@ test('AGENTS.override.md beats AGENTS.md in the same dir; the loser is ignored',
   const root = tmpRepo({ '.git/': '', 'AGENTS.override.md': 'override', 'AGENTS.md': 'base' });
   const { items } = await load(ctxFor(root));
   expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
-    ['AGENTS.override.md', 'startup', 'AGENTS.override.md (root)'],
-    ['AGENTS.md', 'ignored', 'AGENTS.md shadowed by AGENTS.override.md'],
+    ['AGENTS.override.md', 'startup', 'AGENTS.override.md in repo root'],
+    ['AGENTS.md', 'ignored', 'ignored: shadowed by AGENTS.override.md'],
   ]);
   expect(items[0]).toMatchObject({ category: 'instructions', scope: 'project', text: 'override' });
 });
@@ -39,14 +39,41 @@ test('one file per dir, root to cwd, intermediate dirs included', async () => {
   const { items } = await load(ctxFor(root, { cwd: 'a/b' }));
   expect(startup(items)).toEqual(['AGENTS.md', 'a/AGENTS.md', 'a/b/AGENTS.override.md']);
   expect(items.map((i) => i.order)).toEqual([0, 1, 2, 3]);
-  expect(items.find((i) => i.path === 'a/AGENTS.md')?.reason).toBe('AGENTS.md in a');
+  expect(items.map((i) => i.reason)).toEqual([
+    'AGENTS.md in repo root',
+    'AGENTS.md in a',
+    'AGENTS.override.md in cwd',
+    'ignored: shadowed by AGENTS.override.md',
+  ]);
   expect(items.find((i) => i.path === 'a/b/AGENTS.md')?.load).toBe('ignored');
 });
 
-test('whitespace-only AGENTS.override.md falls through to AGENTS.md', async () => {
+test('whitespace-only AGENTS.override.md still wins: the dir contributes nothing', async () => {
   const root = tmpRepo({ '.git/': '', 'AGENTS.override.md': ' \n\t\n', 'AGENTS.md': 'base' });
   const { items } = await load(ctxFor(root));
-  expect(items.map((i) => [i.path, i.load])).toEqual([['AGENTS.md', 'startup']]);
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['AGENTS.override.md', 'ignored', 'ignored: empty file'],
+    ['AGENTS.md', 'ignored', 'ignored: shadowed by AGENTS.override.md'],
+  ]);
+});
+
+test('an empty AGENTS.md in a middle dir silences only that dir', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'AGENTS.md': 'root',
+    'a/AGENTS.md': '',
+    'a/TEAM.md': 'team',
+    'a/b/AGENTS.md': 'leaf',
+  });
+  const config = 'project_doc_fallback_filenames = ["TEAM.md"]\n';
+  const home = fakeHome({ '.codex/config.toml': config });
+  const { items } = await load(ctxFor(root, { cwd: 'a/b', home }));
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['AGENTS.md', 'startup', 'AGENTS.md in repo root'],
+    ['a/AGENTS.md', 'ignored', 'ignored: empty file'],
+    ['a/TEAM.md', 'ignored', 'ignored: shadowed by AGENTS.md'],
+    ['a/b/AGENTS.md', 'startup', 'AGENTS.md in cwd'],
+  ]);
 });
 
 test('lowercase agents.md is not loaded', async () => {
@@ -61,7 +88,10 @@ test('fallback filenames come from the home config.toml, and only with home', as
   const root = tmpRepo(files);
   const withHome = await load(ctxFor(root, { cwd: 'sub', home }));
   expect(startup(withHome.items)).toEqual(['README.agent.md', 'sub/TEAM.md']);
-  expect(withHome.items[0]?.reason).toBe('README.agent.md (root)');
+  expect(withHome.items.map((i) => i.reason)).toEqual([
+    'README.agent.md in repo root',
+    'TEAM.md in cwd',
+  ]);
   const without = await load(ctxFor(root, { cwd: 'sub' }));
   expect(without.items).toEqual([]);
 });
@@ -77,18 +107,31 @@ test('global override beats global AGENTS.md and comes first', async () => {
   const home = fakeHome({ '.codex/AGENTS.override.md': 'g over', '.codex/AGENTS.md': 'g base' });
   const root = tmpRepo({ '.git/': '', 'AGENTS.md': 'root' });
   const { items } = await load(ctxFor(root, { home }));
-  expect(items.map((i) => [i.path, i.load, i.scope, i.order])).toEqual([
-    ['~/.codex/AGENTS.override.md', 'startup', 'user', 0],
-    ['~/.codex/AGENTS.md', 'ignored', 'user', 1],
-    ['AGENTS.md', 'startup', 'project', 2],
+  expect(items.map((i) => [i.path, i.load, i.scope, i.order, i.reason])).toEqual([
+    ['~/.codex/AGENTS.override.md', 'startup', 'user', 0, 'user AGENTS.override.md (~/.codex)'],
+    ['~/.codex/AGENTS.md', 'ignored', 'user', 1, 'ignored: shadowed by AGENTS.override.md'],
+    ['AGENTS.md', 'startup', 'project', 2, 'AGENTS.md in repo root'],
   ]);
 });
 
-test('global AGENTS.md is used when the override is empty, and skipped without home', async () => {
+test('an empty global override still wins over global AGENTS.md; nothing without home', async () => {
   const home = fakeHome({ '.codex/AGENTS.override.md': '\n', '.codex/AGENTS.md': 'g base' });
   const root = tmpRepo({ '.git/': '' });
-  expect(startup((await load(ctxFor(root, { home }))).items)).toEqual(['~/.codex/AGENTS.md']);
+  const { items } = await load(ctxFor(root, { home }));
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['~/.codex/AGENTS.override.md', 'ignored', 'ignored: empty file'],
+    ['~/.codex/AGENTS.md', 'ignored', 'ignored: shadowed by AGENTS.override.md'],
+  ]);
   expect((await load(ctxFor(root))).items).toEqual([]);
+});
+
+test('global AGENTS.md alone loads with the user reason', async () => {
+  const home = fakeHome({ '.codex/AGENTS.md': 'g base' });
+  const root = tmpRepo({ '.git/': '' });
+  const { items } = await load(ctxFor(root, { home }));
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['~/.codex/AGENTS.md', 'startup', 'user AGENTS.md (~/.codex)'],
+  ]);
 });
 
 test('CODEX_HOME replaces ~/.codex', async () => {
