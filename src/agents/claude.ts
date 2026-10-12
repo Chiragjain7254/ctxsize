@@ -159,12 +159,24 @@ export const load = async (ctx: LoaderContext): Promise<LoaderResult> => {
     }
   }
 
-  // Subdirectory CLAUDE.md files load lazily, when Claude reads files there.
+  // Subdirectory CLAUDE.md / CLAUDE.local.md files load lazily, when Claude reads files
+  // there. With AGENTS.md as the fallback, a subdirectory AGENTS.md does too, unless that
+  // directory has a CLAUDE-family file of its own.
+  const hasClaudeIn = (dir: string): boolean =>
+    fileExists(dir, 'CLAUDE.md') ||
+    fileExists(path.join(dir, '.claude'), 'CLAUDE.md') ||
+    fileExists(dir, 'CLAUDE.local.md');
   for (const abs of walkFiles(cwd)) {
-    if (path.basename(abs) !== 'CLAUDE.md') continue;
-    let owner = path.dirname(abs);
-    if (path.basename(owner) === '.claude') owner = path.dirname(owner);
+    const name = path.basename(abs);
+    const parent = path.dirname(abs);
+    const inDotClaude = path.basename(parent) === '.claude';
+    const owner = inDotClaude ? path.dirname(parent) : parent;
     if (owner === cwd) continue;
+    const wanted =
+      name === 'CLAUDE.md' ||
+      (name === 'CLAUDE.local.md' && !inDotClaude) ||
+      (name === 'AGENTS.md' && !hasClaudeFile && !hasClaudeIn(owner));
+    if (!wanted) continue;
     add(
       onDemand,
       candidate(

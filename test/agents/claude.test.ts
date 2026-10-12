@@ -150,6 +150,47 @@ test('subdirectory CLAUDE.md files are on-demand', async () => {
   );
 });
 
+test('subdirectory CLAUDE.local.md is on-demand, but not inside .claude/', async () => {
+  const root = tmpRepo({
+    '.git/': '',
+    'CLAUDE.md': 'root',
+    'pkg/CLAUDE.local.md': 'mine',
+    'lib/.claude/CLAUDE.local.md': 'not a location',
+  });
+  const r = await run(root);
+  expect(summary(r)).toEqual([
+    ['CLAUDE.md', 'startup'],
+    ['pkg/CLAUDE.local.md', 'on-demand'],
+  ]);
+  expect(byPath(r, 'pkg/CLAUDE.local.md')?.reason).toBe('on demand: loads when working in pkg');
+});
+
+test('subdirectory AGENTS.md is on-demand only when AGENTS.md is the fallback', async () => {
+  const files = {
+    '.git/': '',
+    'AGENTS.md': 'root',
+    'a/AGENTS.md': 'a',
+    'b/.claude/AGENTS.md': 'b',
+    'c/AGENTS.md': 'c',
+    'c/CLAUDE.md': 'c claude',
+  };
+  const r = await run(tmpRepo(files));
+  expect(summary(r)).toEqual([
+    ['AGENTS.md', 'startup'],
+    ['a/AGENTS.md', 'on-demand'],
+    ['b/.claude/AGENTS.md', 'on-demand'],
+    ['c/CLAUDE.md', 'on-demand'],
+  ]);
+  expect(byPath(r, 'b/.claude/AGENTS.md')?.reason).toBe('on demand: loads when working in b');
+  // A CLAUDE file in cwd or above turns the fallback off everywhere.
+  const r2 = await run(tmpRepo({ ...files, 'CLAUDE.md': 'root claude' }));
+  expect(summary(r2)).toEqual([
+    ['CLAUDE.md', 'startup'],
+    ['c/CLAUDE.md', 'on-demand'],
+    ['AGENTS.md', 'ignored'],
+  ]);
+});
+
 test('imports from a rule resolve relative to the rule file', async () => {
   const root = tmpRepo({
     '.git/': '',
