@@ -33,4 +33,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Smoke test the built CLI
-        run: node dist/cli.mjs --version
+        run: |
+          node dist/cli.mjs --version
+          node dist/cli.mjs .
+          node dist/cli.mjs --json --max-tokens 100000 . > report.json
