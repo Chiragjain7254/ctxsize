@@ -162,6 +162,58 @@ test('AGENTS.md and .cursor/rules between root and cwd load; outer first', async
   ]);
 });
 
+test('nested .cursor/rules below cwd are on-demand whatever their type', async () => {
+  const { items, warnings } = await loadRepo({
+    '.cursor/rules/root.mdc': '---\nalwaysApply: true\n---\nRoot',
+    'packages/x/.cursor/rules/always.mdc': '---\nalwaysApply: true\n---\nAlways',
+    'packages/x/.cursor/rules/sub/globs.mdc': '---\nglobs: *.tsx\n---\nGlobs',
+    'packages/x/.cursor/rules/readme.md': 'not a rule',
+    'packages/x/src/deep/.cursor/rules/d.mdc': 'Deep',
+    'packages/x/node_modules/y/.cursor/rules/n.mdc': 'skipped',
+  });
+  expect(warnings).toEqual([]);
+  expect(items.map((i) => [i.path, i.load, i.reason, i.text])).toEqual([
+    ['.cursor/rules/root.mdc', 'startup', 'alwaysApply', 'Root'],
+    [
+      'packages/x/.cursor/rules/always.mdc',
+      'on-demand',
+      'on demand: nested rules for packages/x',
+      'Always',
+    ],
+    ['packages/x/.cursor/rules/readme.md', 'ignored', 'only .mdc files are rules', 'not a rule'],
+    [
+      'packages/x/.cursor/rules/sub/globs.mdc',
+      'on-demand',
+      'on demand: nested rules for packages/x',
+      'Globs',
+    ],
+    [
+      'packages/x/src/deep/.cursor/rules/d.mdc',
+      'on-demand',
+      'on demand: nested rules for packages/x/src/deep',
+      'Deep',
+    ],
+  ]);
+});
+
+test("cwd's own .cursor/rules keep their type; rules below cwd are nested", async () => {
+  const { items } = await loadRepo(
+    {
+      'packages/x/.cursor/rules/own.mdc': '---\nalwaysApply: true\n---\nOwn',
+      'packages/x/lib/.cursor/rules/lib.mdc': '---\nalwaysApply: true\n---\nLib',
+    },
+    'packages/x',
+  );
+  expect(items.map((i) => [i.path, i.load, i.reason])).toEqual([
+    ['packages/x/.cursor/rules/own.mdc', 'startup', 'alwaysApply'],
+    [
+      'packages/x/lib/.cursor/rules/lib.mdc',
+      'on-demand',
+      'on demand: nested rules for packages/x/lib',
+    ],
+  ]);
+});
+
 test('.cursorrules is emitted as a legacy startup rule after AGENTS.md', async () => {
   const { items } = await loadRepo({
     '.cursorrules': 'old rules',
