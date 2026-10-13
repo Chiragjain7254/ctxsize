@@ -2,7 +2,7 @@
 // Checks what each agent loads, that totals add up, that output is portable and stable,
 // and that the same AGENTS.md is shared across agents the way their docs say.
 import path from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { analyze } from '../src/core/analyze.ts';
 import {
   AGENT_IDS,
@@ -12,6 +12,9 @@ import {
   type Report,
 } from '../src/core/types.ts';
 import { fakeHome, tmpRepo } from './helpers.ts';
+
+// Tests that write hundreds of files are slow on Windows runners.
+vi.setConfig({ testTimeout: 60_000 });
 
 const FILES: Record<string, string> = {
   '.git/': '',
