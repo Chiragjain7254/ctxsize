@@ -171,7 +171,6 @@ describe('--history', () => {
       ['--history', 'x'],
       ['--history', '3', '--diff', 'HEAD'],
       ['--history', '3', '--max-tokens', '5'],
-      ['--history', '3', '--html'],
     ];
     for (const argv of bad) expect((await cli([...argv, dir], dir)).code).toBe(EXIT.usage);
   });
@@ -385,5 +384,42 @@ describe('sparkline', () => {
     expect(sparkline([5, 5, 5])).toBe('▁▁▁');
     expect(sparkline([])).toBe('');
     expect(sparkline(Array.from({ length: 200 }, (_, i) => i))).toHaveLength(60);
+  });
+});
+
+describe('--history --html', () => {
+  test('writes a self-contained chart page with a legend and a table', async () => {
+    const dir = story();
+    const out = path.join(tmpRepo({}), 'history.html');
+    const r = await cli(
+      ['--history', '5', '--html', '--out', out, '--agents', 'claude,codex', dir],
+      dir,
+    );
+    expect(r.code).toBe(EXIT.ok);
+    const html = readFileSync(out, 'utf8');
+    expect(html).toContain('Startup tokens over the last 5 commits');
+    expect(html).toContain('<polyline');
+    expect(html).toContain('Claude Code');
+    expect(html).not.toMatch(/(src|href)="https?:/);
+    expect(html).not.toContain('<script');
+    expect((html.match(/<circle/g) ?? []).length).toBeGreaterThanOrEqual(5);
+  });
+
+  test('a subject with markup is escaped', async () => {
+    const dir = newRepo();
+    commit(dir, '<img src=x onerror=alert(1)>', { 'CLAUDE.md': words(50) });
+    const out = path.join(tmpRepo({}), 'h.html');
+    await cli(['--history', '1', '--html', '--out', out, '--agents', 'claude', dir], dir);
+    expect(readFileSync(out, 'utf8')).not.toContain('<img src=x');
+  });
+});
+
+describe('niceAxis', () => {
+  test('rounds up to a readable top with about five ticks', async () => {
+    const { niceAxis } = await import('../src/report/history-html.ts');
+    expect(niceAxis(0)).toEqual({ top: 1, ticks: [0, 1] });
+    expect(niceAxis(8819).top).toBe(10000);
+    expect(niceAxis(8819).ticks).toEqual([0, 2000, 4000, 6000, 8000, 10000]);
+    expect(niceAxis(283).top).toBe(300);
   });
 });

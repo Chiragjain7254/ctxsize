@@ -280,7 +280,14 @@ Run ctxsize --help for usage.
 
 /** --history: startup tokens per commit; the working tree is not analyzed. */
 async function runHistory(
-  parsed: { dir: string; history?: number; json: boolean; color: boolean },
+  parsed: {
+    dir: string;
+    history?: number;
+    json: boolean;
+    color: boolean;
+    html: boolean;
+    out: string;
+  },
   opts: SnapshotOptions,
   tools: Tool[],
   io: Io,
@@ -288,12 +295,18 @@ async function runHistory(
   try {
     const repo = await openRepo(parsed.dir);
     const result = await computeHistory(repo, parsed.history ?? 1, opts, tools);
+    const labels = Object.fromEntries(tools.map((t) => [t.id, t.label]));
+    if (parsed.html) {
+      const { renderHistoryHtml } = await import('./report/history-html.ts');
+      writeFileSync(parsed.out, renderHistoryHtml(result, { labels, version: VERSION }));
+      io.stderr(`Wrote ${parsed.out}
+`);
+    }
     if (parsed.json) {
       const { entries, ...meta } = result;
       const tool = { name: 'ctxsize', version: VERSION };
       io.stdout(`${JSON.stringify({ tool, root: '.', ...meta, history: entries }, null, 2)}\n`);
     } else {
-      const labels = Object.fromEntries(tools.map((t) => [t.id, t.label]));
       io.stdout(renderHistory(result, { color: parsed.color, labels }));
     }
     return EXIT.ok;
@@ -375,10 +388,8 @@ function parse(argv: string[], io: Io) {
   }
   if (history !== undefined) {
     if (values.diff !== undefined) throw new UsageError('use --diff or --history, not both');
-    for (const flag of ['html', 'max-tokens'] as const) {
-      if (values[flag] !== undefined && values[flag] !== false) {
-        throw new UsageError(`--${flag} cannot be combined with --history`);
-      }
+    if (values['max-tokens'] !== undefined) {
+      throw new UsageError('--max-tokens cannot be combined with --history');
     }
   }
 
