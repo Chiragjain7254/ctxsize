@@ -148,8 +148,14 @@ export async function openRepo(dir: string): Promise<Repo> {
     if (err instanceof HistoryError && err.message.includes('not found on PATH')) throw err;
     throw new HistoryError(`not a git repository: ${dir}`);
   }
-  const realTop = realpathSync(path.resolve(top));
-  return { top: realTop, sub: path.relative(realTop, realpathSync(dir)) };
+  // The native call expands Windows 8.3 short names (RUNNER~1), which git reports in full;
+  // two spellings of one folder would otherwise give a "sub" that climbs out of the snapshot.
+  const realTop = realpathSync.native(path.resolve(top));
+  const sub = path.relative(realTop, realpathSync.native(dir));
+  if (sub.startsWith('..') || path.isAbsolute(sub)) {
+    throw new HistoryError(`${dir} is not inside the repository at ${realTop}`);
+  }
+  return { top: realTop, sub };
 }
 
 /** Full commit id for a ref. */
