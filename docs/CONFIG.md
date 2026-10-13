@@ -96,3 +96,63 @@ Choosing a model, strongest first: `--model tool=id` (or `--model id` for all to
 
 How many messages a session is assumed to have when the overhead is estimated
 (overhead = startup tokens x messages). Default 50; `--messages` overrides it.
+
+## One example per option
+
+```json
+{
+  "messages": 100,
+  "tools": {
+    "acme": {
+      "label": "Acme Agent",
+      "model": "my-llama",
+      "defaultContextTokens": 64000,
+      "instructions": ["ACME.md", "docs/*.agent.md"],
+      "search": "nearest",
+      "firstMatchOnly": true,
+      "nested": "ignore",
+      "instructionLoad": "startup",
+      "rules": [
+        { "dir": ".acme/rules", "glob": "**/*.md", "conditionalKey": "paths" },
+        { "dir": ".acme/modes", "modeKey": "mode", "startupModes": ["always"] }
+      ],
+      "skills": { "dirs": [".acme/skills"] },
+      "limits": {
+        "maxFileBytes": 32768,
+        "maxTotalBytes": 65536,
+        "maxFileChars": 12000,
+        "skillListingMaxBytes": 51200,
+        "skillDescriptionMaxChars": 1024,
+        "recommendedMaxLines": 500
+      },
+      "sources": [{ "url": "https://acme.example/docs", "checked": "2026-10-13" }],
+      "notes": ["Global rules in ~/.acme are not read."]
+    },
+    "aider": { "instructionLoad": "startup" },
+    "codex": { "model": "gpt-5.3-codex" }
+  },
+  "models": {
+    "my-llama": {
+      "label": "My Llama",
+      "contextTokens": 128000,
+      "tokenizer": { "charsPerToken": 3.8 },
+      "pricePer1MInput": 0.9
+    },
+    "claude-sonnet-5-5": { "pricePer1MInput": 2.5 }
+  }
+}
+```
+
+- `aider` with `instructionLoad: "startup"`: count `CONVENTIONS.md` because you always pass it with `--read`.
+- `codex` with only `model`: built-in tools with their own loader accept nothing else.
+- `claude-sonnet-5-5` with only a price: keeps the built-in window and tokenizer.
+
+## Command-line options that override the file
+
+| Option | Overrides |
+| --- | --- |
+| `--messages 50` | `messages` |
+| `--model claude-haiku-5-5` or `--model codex=gpt-5.3-codex,claude=claude-haiku-5-5` | each tool's `model` |
+| `--context 200000` | the context window of every tool |
+| `--price 3` | the input price (USD per 1M tokens) of every tool |
+| `--agents claude,acme` | which tools run (built-in and your own) |

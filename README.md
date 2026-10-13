@@ -1,111 +1,128 @@
 # ctxsize
 
-See what every coding agent loads before your first prompt, in tokens, and what each one silently drops.
+![ctxsize terminal output](docs/img/terminal.png)
 
-Claude Code, Codex, Cursor, GitHub Copilot and Gemini CLI each read a different set of
-instruction files, rules and skills at startup, and each one has limits that cut things off
-without telling you. `ctxsize` models that statically: it reads your repo, never runs an agent
-and never touches the network.
+![ctxsize HTML report](docs/img/report.png)
 
-> v0.1.0 is not published to npm yet. Run it from a clone for now (see [Development](#development)).
+Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
+`ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
 
-## Usage
+> **Not published to npm yet.** For now, run it from a clone (see [Development](#development)).
+
+## Install
 
 ```sh
-npx ctxsize            # the current directory
-npx ctxsize path/to/repo
-npx ctxsize --json     # stable, diffable report
-npx ctxsize --html     # treemap in ctxsize-report.html
+npx ctxsize            # once it is on npm: no install needed
+npm install -g ctxsize # or keep it
 ```
 
-Options:
+Needs Node 22.12 or newer.
 
-| Option | Meaning |
-| --- | --- |
-| `--agents <list>` | Comma-separated: `claude,codex,cursor,copilot,gemini` (default: all) |
-| `--context <tokens>` | Context window to model (default: 200000) |
-| `--include-user` | Also read files from your home directory (not reproducible) |
-| `--json` | Print the report as JSON |
-| `--html` | Write a treemap to `ctxsize-report.html` (or the file given with `--out`) |
-| `--out <file>` | Where to write `--html` |
-| `--max-tokens <n>` | Exit 1 if any agent loads more than `n` tokens at startup |
-| `--no-color` | Disable colors (`NO_COLOR` is honoured too) |
+## Three examples
 
-Exit codes: `0` ok, `1` over `--max-tokens`, `2` usage error.
+**1. See the load.** Run it in any repo. Real output on [vercel/next.js](https://github.com/vercel/next.js):
 
-## Example
-
-`vercel/next.js` at commit `500ed3f24097a522decee5bf669ceb0c01320efc`:
+```sh
+npx ctxsize
+```
 
 ```text
-ctxsize v0.1.0  what each agent loads before your first prompt
+  Agent        Instructions  Rules  Skills  Startup  % ctx   On demand
+  Claude Code         6,819      0   2,000    8,819   0.9%  1,420 (10)
+  Codex               6,819      0   1,712    8,531   2.1%           0
+  Cursor              6,819      0       0    6,819   0.7%   1,410 (8)
+  Gemini CLI              0      0   2,099    2,099   0.2%           0
 
-  Agent           Instructions  Rules  Skills  Startup   On demand
-  Claude Code            6,819      0   2,000    8,819  1,420 (10)
-  Codex                  6,819      0   1,712    8,531           0
-  Cursor                 6,819      0       0    6,819   1,410 (8)
-  GitHub Copilot         6,819      0       0    6,819   1,410 (8)
-  Gemini CLI                 0      0   2,099    2,099           0
-
-Dropped or at risk
-  Codex
-    ✗ description cut: skill backport-pr  (−72 B, 16 tokens)
-    ✗ description cut: skill dce-edge  (−40 B, 8 tokens)
-    ✗ description cut: skill deploy-release-test  (−211 B, 40 tokens)
-    … 11 more (see --json)
-
-Notes
-  Codex: Skill listing is 9,653 chars, over its 8,000 chars budget: descriptions are shortened.
+Cost of carrying it
+  Agent        Model                    Window  Per message  50 messages     Cost
+  Claude Code  Claude Sonnet 5.5*           1M        8,819      440,950  $0.8819
+  Codex        GPT-5.3-Codex*             400k        8,531      426,550  $0.7465
 ```
 
-The run takes about 2.5 s on that 34,000-file repo (Windows, cold cache). Its `.claude/skills`
-is a symlink to `.agents/skills`; the numbers above were taken with that link in place.
+"Startup" is what loads before your first prompt. "On demand" loads later, only when needed.
+The cost is startup tokens times 50 messages, at the model's uncached input price.
 
-## What is counted, and what is not
-
-- **Counted:** your files only: `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, rules, `@imports`, and the
-  skill listing each agent builds from skill names and descriptions.
-- **Not counted:** the agents' own system prompts and built-in tools, MCP tool schemas, and
-  anything an agent reads later on demand (those files are shown in the "On demand" column).
-- **Estimates:** token counts use the `o200k_base` tokenizer for every agent, so they are
-  comparable with each other but not exact. Anthropic's tokenizer is not public.
-- **Reproducible by default:** without `--include-user` your home directory is never read, and
-  searches for ancestor files stop at the repo root.
-
-## Where the rules come from
-
-Every limit lives in [`src/profiles.ts`](src/profiles.ts) with its source and the date it was
-checked. Behaviour claims link to the official docs:
-
-- Claude Code: [memory](https://code.claude.com/docs/en/memory.md), [skills](https://code.claude.com/docs/en/skills.md)
-- Codex: [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills)
-- Cursor: [rules](https://cursor.com/docs/context/rules)
-- GitHub Copilot (cloud agent): [repository instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions), [support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)
-- Gemini CLI: [GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), [skills](https://geminicli.com/docs/cli/skills/)
-
-Where the docs are silent, ctxsize says so in the output rather than guessing.
-
-## Gate your CI on it
+**2. Fail CI when it grows too big.**
 
 ```sh
-npx ctxsize --max-tokens 10000 --agents claude,codex
+npx ctxsize --agents claude,codex --max-tokens 8600
 ```
-
-Exits `1` and names the agent when its startup load is over the limit, for example:
 
 ```text
 ctxsize: Claude Code loads 8,819 tokens at startup, over --max-tokens 8,600
 ```
 
+The exit code is `1`, so the CI job fails.
+
+**3. Open an interactive report, or comment on a pull request.**
+
+```sh
+npx ctxsize --html                      # writes ctxsize-report.html
+npx ctxsize --markdown summary.md       # a table for a PR comment
+```
+
+The HTML page lets you switch model, window and price, untick files to see "what if I removed this", reorder and sort tools, search files, and switch to dark mode.
+
+## Features
+
+| Feature | How |
+| --- | --- |
+| 10 built-in tools: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Cline, Windsurf, Aider, Zed | `--agents claude,codex` |
+| Your own tools | `ctxsize.json` ([CONFIG](docs/CONFIG.md)) |
+| Model, context window, tokenizer and price per tool | `--model`, `--context`, `--price` |
+| Share of the window, cost over N messages | `--messages 80` |
+| Biggest files | in every report |
+| What each agent drops or may drop (with the docs link) | in every report |
+| Duplicate instructions and skill health checks | on by default, `--no-checks` to skip |
+| Interactive HTML report | `--html` |
+| Compare with another commit | `--diff main` |
+| Trend over the last commits | `--history 20` (add `--html` for a chart) |
+| Re-run when files change | `--watch` |
+| Startup load per nested folder (monorepos) | `--tree` |
+| MCP servers (count their tool tokens) | `--mcp` (runs the configured commands) |
+| Pull request summary, SVG card, README badge | `--markdown`, `--card`, `--badge` |
+| CI gate | `--max-tokens 10000` |
+| JSON output | `--json` |
+
+New here? Read the [5-minute walkthrough](docs/GETTING-STARTED.md). What each tool reads: [docs/tools.md](docs/tools.md).
+
+## Config
+
+Optional. Put a `ctxsize.json` in the repo root:
+
+```json
+{
+  "messages": 80,
+  "tools": {
+    "claude": { "model": "claude-haiku-5-5" },
+    "acme": {
+      "label": "Acme Agent",
+      "instructions": ["ACME.md"],
+      "skills": { "dirs": [".acme/skills"] }
+    }
+  }
+}
+```
+
+Every option is in [docs/CONFIG.md](docs/CONFIG.md).
+
 ## FAQ
 
-**Why not exact token counts?** That needs each provider's tokenizer or API. ctxsize makes no
-network calls, so it gives one consistent estimate instead.
+**Are the numbers exact?** No. They are estimates. Each provider counts tokens its own way, and ctxsize does not call any API.
 
-**Does it work on Windows?** Yes. Paths in the report are always POSIX-style relative paths, and
-CI runs on Windows, macOS and Linux.
+**Does it send my files anywhere?** No. It makes no network calls.
 
-**Does it read my home directory?** Only with `--include-user`.
+**Does it run my agents?** No. It reads files and applies the limits from each tool's public docs.
+
+**Where do the limits come from?** [`src/profiles.ts`](src/profiles.ts). Each limit has a docs link and the date it was last checked. If a doc says nothing, ctxsize says "not documented" instead of guessing.
+
+**Does it read my home folder?** Only with `--include-user`.
+
+**Does it work on Windows?** Yes. CI runs on Linux, macOS and Windows. Paths in reports always use `/`.
+
+**What does `--mcp` run?** The local MCP server commands in the repo's config. Use it only on repos you trust.
+
+**What does `*` after a model mean?** ctxsize picked that model for you. Choose one with `--model`.
 
 ## Development
 

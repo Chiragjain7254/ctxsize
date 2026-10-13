@@ -8,7 +8,7 @@ All notable changes are documented here. This project follows
 ### Added
 - Built-in profiles for OpenCode, Cline, Windsurf, Aider and Zed, each limit with its source and date.
 - Your own tools in `ctxsize.json` (or a `"ctxsize"` key in `package.json`): instruction globs, rules
-  and skills folders, limits. Merged with the built-ins. See `docs/config.md`.
+  and skills folders, limits. Merged with the built-ins. See `docs/CONFIG.md`.
 - Models: pick one per tool (`--model`, or in `ctxsize.json`) with its context window, tokenizer
   (`o200k_base`, `cl100k_base`, or a chars-per-token ratio) and input price per 1M tokens.
 - Share of the context window, overhead over N messages (`--messages`, default 50), estimated cost,

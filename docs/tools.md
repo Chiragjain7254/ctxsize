@@ -5,7 +5,7 @@ ctxsize models what a tool loads **before your first prompt** ("startup") and wh
 [`src/profiles.ts`](../src/profiles.ts) with its source URL and the date it was checked. Where the docs
 are silent, ctxsize says so in the report's notes rather than guessing.
 
-Add your own tool, or change one of these, in [`ctxsize.json`](config.md).
+Add your own tool, or change one of these, in [`ctxsize.json`](CONFIG.md).
 
 | Tool | Reads at startup | Limits modelled | Sources |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ Add your own tool, or change one of these, in [`ctxsize.json`](config.md).
 - **Linked folders count once.** If `.claude/skills` is a symlink to `.agents/skills`, the skills are
   not counted twice.
 - **Models.** Each tool is measured with a model (context window, tokenizer, price). Reports mark a
-  model ctxsize picked itself with `*`; see [config.md](config.md#models).
+  model ctxsize picked itself with `*`; see [CONFIG.md](CONFIG.md#models).
 
 ## MCP servers
 
