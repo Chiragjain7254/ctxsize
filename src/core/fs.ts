@@ -1,5 +1,6 @@
 import { type Dirent, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { type Ignore, parseGitignore } from './gitignore.ts';
 
 type PathApi = typeof path.posix;
 
@@ -112,6 +113,24 @@ const SKIP_DIRS = new Set([
   '.gradle',
 ]);
 
+/** Folders agents read config from; a .gitignore never hides these from the walk. */
+const AGENT_DIRS = new Set(['.claude', '.cursor', '.github', '.gemini', '.codex', '.agents']);
+
+interface Scope {
+  base: string;
+  ignore: Ignore;
+}
+
+/** True when a .gitignore on the way down ignores this directory. */
+function gitIgnored(scopes: Scope[], full: string): boolean {
+  let result = false;
+  for (const { base, ignore } of scopes) {
+    const hit = ignore.ignores(toPosixRel(base, full), true);
+    if (hit !== undefined) result = hit;
+  }
+  return result;
+}
+
 function skipDir(parent: string, name: string): boolean {
   if (SKIP_DIRS.has(name)) return true;
   // .claude/worktrees and similar hold full copies of the repo.
@@ -121,6 +140,8 @@ function skipDir(parent: string, name: string): boolean {
 export interface WalkOptions {
   /** Follow symlinked directories (Claude Code's .claude/rules allows them). Default false. */
   followSymlinks?: boolean;
+  /** Skip directories that .gitignore files inside dir ignore. Default true. */
+  gitignore?: boolean;
 }
 
 const walkCache = new Map<string, string[]>();
@@ -132,17 +153,25 @@ export function clearWalkCache(): void {
 
 /** All files under dir, recursively, in stable code-point order. Cached per run. */
 export function walkFiles(dir: string, opts: WalkOptions = {}): string[] {
-  const key = `${opts.followSymlinks ? 'L' : 'P'}:${path.resolve(dir)}`;
+  const useIgnore = opts.gitignore !== false;
+  const key = `${opts.followSymlinks ? 'L' : 'P'}${useIgnore ? '' : 'N'}:${path.resolve(dir)}`;
   const cached = walkCache.get(key);
   if (cached) return cached;
+  const ignored = (scopes: Scope[], _parent: string, name: string, full: string): boolean =>
+    useIgnore && !AGENT_DIRS.has(name) && gitIgnored(scopes, full);
   const out: string[] = [];
   const seen = new Set<string>();
-  const visit = (current: string): void => {
+  const visit = (current: string, outer: Scope[]): void => {
     // Symlinks are only followed on request, so only then can a walk loop back on itself.
     if (opts.followSymlinks) {
       const id = dirKey(current);
       if (id === undefined || seen.has(id)) return;
       seen.add(id);
+    }
+    let scopes = outer;
+    if (useIgnore) {
+      const text = readText(path.join(current, '.gitignore'));
+      if (text !== undefined) scopes = [...outer, { base: current, ignore: parseGitignore(text) }];
     }
     let entries: Dirent[];
     try {
@@ -156,19 +185,25 @@ export function walkFiles(dir: string, opts: WalkOptions = {}): string[] {
       if (entry.isFile()) {
         out.push(full);
       } else if (entry.isDirectory()) {
-        if (!skipDir(current, entry.name)) visit(full);
+        if (!skipDir(current, entry.name) && !ignored(scopes, current, entry.name, full))
+          visit(full, scopes);
       } else if (entry.isSymbolicLink() && opts.followSymlinks) {
         try {
           const st = statSync(full);
           if (st.isFile()) out.push(full);
-          else if (st.isDirectory() && !skipDir(current, entry.name)) visit(full);
+          else if (
+            st.isDirectory() &&
+            !skipDir(current, entry.name) &&
+            !ignored(scopes, current, entry.name, full)
+          )
+            visit(full, scopes);
         } catch {
           // Broken link.
         }
       }
     }
   };
-  visit(dir);
+  visit(dir, []);
   walkCache.set(key, out);
   return out;
 }

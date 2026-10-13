@@ -121,3 +121,46 @@ describe('real file system', () => {
     expect(fakeHome()).not.toBe(os.homedir());
   });
 });
+
+describe('walkFiles and .gitignore', () => {
+  test('skips ignored folders but keeps ignored files and agent folders', () => {
+    const files: Record<string, string> = {
+      '.git/': '',
+      '.gitignore': 'big-cache/\n/generated\n*.log\nsub/tmp\n!keep\n.claude/\n',
+      'CLAUDE.local.md': 'x',
+      'a.log': 'x',
+      'src/AGENTS.md': 'x',
+      'sub/tmp/AGENTS.md': 'x',
+      'sub/ok/AGENTS.md': 'x',
+      'generated/AGENTS.md': 'x',
+      '.claude/rules/r.md': 'x',
+    };
+    // A large ignored folder: many files that must never be visited.
+    for (let i = 0; i < 300; i++) files[`big-cache/d${i % 10}/f${i}.md`] = 'x';
+    const root = tmpRepo(files);
+    clearWalkCache();
+    const rel = walkFiles(root).map((f) => toPosixRel(root, f));
+    expect(rel.some((r) => r.startsWith('big-cache/'))).toBe(false);
+    expect(rel).not.toContain('generated/AGENTS.md');
+    expect(rel).not.toContain('sub/tmp/AGENTS.md');
+    expect(rel).toContain('sub/ok/AGENTS.md');
+    expect(rel).toContain('src/AGENTS.md');
+    expect(rel).toContain('CLAUDE.local.md');
+    expect(rel).toContain('.claude/rules/r.md');
+    clearWalkCache();
+    const all = walkFiles(root, { gitignore: false }).map((f) => toPosixRel(root, f));
+    expect(all.filter((r) => r.startsWith('big-cache/'))).toHaveLength(300);
+  });
+
+  test('always skips node_modules, dist, build and .git without a .gitignore', () => {
+    const root = tmpRepo({
+      '.git/HEAD': 'x',
+      'node_modules/p/AGENTS.md': 'x',
+      'dist/AGENTS.md': 'x',
+      'build/AGENTS.md': 'x',
+      'AGENTS.md': 'x',
+    });
+    clearWalkCache();
+    expect(walkFiles(root).map((f) => toPosixRel(root, f))).toEqual(['AGENTS.md']);
+  });
+});
