@@ -62,10 +62,8 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
 
   out.push(
     '',
-    c.dim(
-      `${tokenizerSentence(report)} Your files only: ` +
-        "agents' own system prompts and tools are not counted.",
-    ),
+    c.dim(tokenizerSentence(report)),
+    c.dim("Your files only: agents' own system prompts and tools are not counted."),
   );
   return `${out.join('\n')}\n`;
 }
