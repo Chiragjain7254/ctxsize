@@ -14,7 +14,7 @@ interface BaseProfile {
   [limit: string]: unknown;
 }
 
-const CHECKED = '2026-10-12';
+const CHECKED = '2026-10-13';
 
 /** Used for every tool whose docs do not state a context window. */
 export const DEFAULT_CONTEXT_TOKENS = 200_000;
@@ -39,7 +39,7 @@ export const profiles = {
       {
         url: 'https://code.claude.com/docs/en/skills.md',
         checked: CHECKED,
-        note: 'Skill descriptions are cut short: 1% budget, 1,536-char cap, least-invoked dropped first',
+        note: 'Skill descriptions are cut short: 1% budget (skillListingBudgetFraction or SLASH_COMMAND_TOOL_CHAR_BUDGET raise it), 1,536-char cap, least-invoked dropped first',
       },
     ],
   },
@@ -96,7 +96,7 @@ export const profiles = {
       {
         url: 'https://github.com/google-gemini/gemini-cli/blob/ff00dacd9f33d9842cfc3b5d6c53a1b2cbc44636/packages/core/src/utils/memoryImportProcessor.ts',
         checked: CHECKED,
-        note: 'maxDepth: 5',
+        note: 'maxDepth: 5 (from the source; the GEMINI.md docs page does not state an import depth)',
       },
     ],
   },
