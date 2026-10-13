@@ -1,6 +1,6 @@
 # Progress
 
-Now working on: 3 of 8 (npm publish, after the owner clears the force-push)
+Now working on: 1 of 8 (blocked: force-push needs owner approval; 3, 4, 8 wait on it)
 
 - [x] 1. Rewrite the last 7 commits on main to drop Co-Authored-By (local rewrite done, tree identical; force-push blocked, waiting on owner)
 - [x] 2. Add the "Progress tracking" rule to AGENTS.md and write this file
