@@ -77,7 +77,7 @@ function table(agents: AgentReport[], c: Colors): string[] {
     num(a.startup.byCategory.instructions + a.startup.byCategory.memory),
     num(a.startup.byCategory.rules),
     num(a.startup.byCategory.skills),
-    num(a.startup.total),
+    `${a.model.exactTokenizer ? '' : '~'}${num(a.startup.total)}`,
     pct(a.usage.startupPctOfContext),
     a.onDemand.count ? `${num(a.onDemand.total)} (${a.onDemand.count})` : '0',
   ]);

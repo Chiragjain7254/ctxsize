@@ -62,6 +62,8 @@ export function pageMain(calc, squarify, document, window) {
   });
   const result = (a) => calc.agentTotals(a, MODELS, astate(a), globals());
   const tokSpec = (a) => MODELS[astate(a).model] || MODELS[a.model] || { tok: 'o200k_base' };
+  // "~" before a count means an estimate: only OpenAI models are counted with their own tokenizer.
+  const est = (a) => (tokSpec(a).exact ? '' : '~');
   const modelLabel = (id) => (MODELS[id] ? MODELS[id].label : id);
 
   // ---- tools list (rank, show, model) ----
@@ -146,7 +148,7 @@ export function pageMain(calc, squarify, document, window) {
     const body = rows
       .map(({ a, r }) => {
         const changed = r.model !== a.model;
-        return `<tr class="${S.tab === a.id ? 'cur' : ''}" data-act="tab" data-id="${esc(a.id)}"><td>${esc(a.label)}${a.hasDrops ? ' <span class="tb" title="drops files">&#10007;</span>' : ''}</td><td>${esc(modelLabel(r.model))}${changed ? ' <span class="chg" title="changed in this page">(changed)</span>' : ''}</td><td class="r">${num(r.startup)}</td><td class="r">${pct(r.windowPct)}</td><td class="r">${num(r.overheadTokens)}</td><td class="r">${calc.usd(r.costUsd)}</td></tr>`;
+        return `<tr class="${S.tab === a.id ? 'cur' : ''}" data-act="tab" data-id="${esc(a.id)}"><td>${esc(a.label)}${a.hasDrops ? ' <span class="tb" title="drops files">&#10007;</span>' : ''}</td><td>${esc(modelLabel(r.model))}${changed ? ' <span class="chg" title="changed in this page">(changed)</span>' : ''}</td><td class="r">${est(a)}${num(r.startup)}</td><td class="r">${pct(r.windowPct)}</td><td class="r">${num(r.overheadTokens)}</td><td class="r">${calc.usd(r.costUsd)}</td></tr>`;
       })
       .join('');
     const msgs = globals().messages;
@@ -163,7 +165,7 @@ export function pageMain(calc, squarify, document, window) {
         const a = agentById(id);
         const r = result(a);
         const sel = S.tab === id;
-        return `<button type="button" role="tab" id="tab-${esc(id)}" aria-controls="panel" aria-selected="${sel}"${sel ? '' : ' tabindex="-1"'} data-act="tab" data-id="${esc(id)}" data-f="tab-${esc(id)}"><span class="tl">${esc(a.label)}</span><span class="tv">${num(r.startup)}</span>${a.hasDrops ? '<span class="tb" title="drops files">&#10007;</span>' : ''}</button>`;
+        return `<button type="button" role="tab" id="tab-${esc(id)}" aria-controls="panel" aria-selected="${sel}"${sel ? '' : ' tabindex="-1"'} data-act="tab" data-id="${esc(id)}" data-f="tab-${esc(id)}"><span class="tl">${esc(a.label)}</span><span class="tv">${est(a)}${num(r.startup)}</span>${a.hasDrops ? '<span class="tb" title="drops files">&#10007;</span>' : ''}</button>`;
       })
       .join('');
   }
@@ -316,7 +318,7 @@ export function pageMain(calc, squarify, document, window) {
           `<li class="${f.cls}">${f.cls === 'bad' ? `<b>${esc(f.head)}</b>${esc(f.text)}` : esc(f.text)}</li>`,
       )
       .join('');
-    panel.innerHTML = `<p class="stat"><b>${num(r.startup)}</b> tokens at startup · ${num(r.onDemand)} more on demand · ${pct(r.windowPct)} of a ${num(r.window)}-token window · ${num(r.overheadTokens)} tokens over ${num(msgs)} messages · ${calc.usd(r.costUsd)}</p>
+    panel.innerHTML = `<p class="stat"><b>${est(a)}${num(r.startup)}</b> tokens at startup · ${num(r.onDemand)} more on demand · ${pct(r.windowPct)} of a ${num(r.window)}-token window · ${num(r.overheadTokens)} tokens over ${num(msgs)} messages · ${calc.usd(r.costUsd)}</p>
 ${legendHtml(tiles)}
 <div class="map">${treemapSvg(a, tiles)}</div>
 ${finds ? `<ul class="findings">${finds}</ul>` : ''}

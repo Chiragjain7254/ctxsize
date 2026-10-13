@@ -7,8 +7,11 @@ import type { Report } from '../core/types.ts';
 export function toJson(report: Report, extra: Record<string, unknown> = {}): string {
   const slim = {
     ...report,
+    tokensAreEstimates: report.agents.some((a) => !a.model.exactTokenizer),
     agents: report.agents.map((agent) => ({
       ...agent,
+      // "exact" only for OpenAI models counted with their own tokenizer; all others are estimates.
+      tokenCounts: agent.model.exactTokenizer ? 'exact' : 'estimate',
       items: agent.items.map(({ text: _text, ...item }) => item),
     })),
   };

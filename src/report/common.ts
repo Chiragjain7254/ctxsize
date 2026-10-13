@@ -10,5 +10,5 @@ export function tokenizerSentence(report: Report): string {
   const exact = report.agents.every((a) => a.model.exactTokenizer);
   return exact
     ? `Tokens counted with ${tokenizerSummary(report)}.`
-    : `Tokens are estimates (${tokenizerSummary(report)}).`;
+    : `Tokens are estimates (${tokenizerSummary(report)}); a ~ marks an estimated count.`;
 }

@@ -195,7 +195,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
   const noscript = report.agents
     .map(
       (a) =>
-        `<li>${esc(a.label)}: ${a.startup.total.toLocaleString('en-US')} tokens at startup (${a.usage.startupPctOfContext}% of the window)</li>`,
+        `<li>${esc(a.label)}: ${a.model.exactTokenizer ? '' : '~'}${a.startup.total.toLocaleString('en-US')} tokens at startup (${a.usage.startupPctOfContext}% of the window)</li>`,
     )
     .join('');
   return `<!doctype html>
@@ -213,7 +213,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <span id="live" class="live" hidden></span>
 <button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false" title="Switch between light and dark">Light / dark</button>
 </header>
-<p class="sub">Tokens per file are estimates, counted with o200k_base or cl100k_base, or from characters per token for models without a public tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
+<p class="sub">Token counts are estimates. A ~ marks a count for a model whose tokenizer is not public (Claude, Gemini and others), made with o200k_base or a characters-per-token ratio; only OpenAI models are counted with their own tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
 <noscript><p class="empty">This report needs JavaScript. Startup tokens:</p><ul>${noscript}</ul></noscript>
 <section class="controls" aria-label="Controls">
 <div class="grp"><h2>Tools <small>drag to rank, or use the arrows</small></h2><ul id="tools" class="tools"></ul></div>

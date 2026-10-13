@@ -69,6 +69,7 @@ Options:
   --diff <git ref>     Also compare with the same repo at <ref> (a branch, tag or commit)
   --history <n>        Trend of startup tokens over the last n commits (1-200); no working tree
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
+  --check-profiles     Print every documented agent limit with its source URL and checked date
   --no-checks          Skip the duplicate, suggestion and skill-health checks
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
@@ -96,6 +97,11 @@ export async function run(argv: string[], io: Io): Promise<number> {
   }
   if (parsed.help) {
     io.stdout(HELP);
+    return EXIT.ok;
+  }
+  if (parsed.checkProfiles) {
+    const { renderProfiles } = await import('./check-profiles.ts');
+    io.stdout(renderProfiles());
     return EXIT.ok;
   }
   if (parsed.version) {
@@ -341,6 +347,7 @@ function parse(argv: string[], io: Io) {
       title: { type: 'string' },
       'max-tokens': { type: 'string' },
       'no-checks': { type: 'boolean', default: false },
+      'check-profiles': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
@@ -411,6 +418,7 @@ function parse(argv: string[], io: Io) {
     history,
     includeUser: values['include-user'],
     noChecks: values['no-checks'],
+    checkProfiles: values['check-profiles'],
     json: values.json,
     html: values.html,
     tree: values.tree,

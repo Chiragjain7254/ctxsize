@@ -74,6 +74,7 @@ The HTML page lets you switch model, window and price, untick files to see "what
 | Biggest files | in every report |
 | What each agent drops or may drop (with the docs link) | in every report |
 | Duplicate instructions and skill health checks | on by default, `--no-checks` to skip |
+| List every documented agent limit with its source and checked date | `--check-profiles` |
 | Interactive HTML report | `--html` |
 | Compare with another commit | `--diff main` |
 | Trend over the last commits | `--history 20` (add `--html` for a chart) |
