@@ -23,3 +23,6 @@ First release.
 - `--markdown`, `--card` and `--badge`: a pull-request summary, an SVG card and a README badge.
 - Terminal table, stable `--json` (`schemaVersion` 2), `--max-tokens` CI gate.
 - A skills folder linked into two places is counted once.
+- The walk skips folders that `.gitignore` ignores (and always `node_modules`, `dist`, `build`, `.git`).
+- Token counts are marked as estimates (`~`) in the terminal, JSON (`tokensAreEstimates`) and HTML output.
+- `--check-profiles`: every documented limit with its source URL and checked date.

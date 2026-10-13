@@ -8,8 +8,6 @@ You need Node 22.12 or newer and a repo that has some agent files, like `AGENTS.
 npx ctxsize
 ```
 
-If it is not on npm yet, clone this repo and run `npm ci && npm run dev -- path/to/your/repo`.
-
 You get a table. Each row is one coding agent.
 
 - **Startup** is the number of tokens the agent loads before your first prompt. A token is a small piece of text, about four letters.

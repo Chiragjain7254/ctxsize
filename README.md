@@ -7,12 +7,10 @@
 Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
 `ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
 
-> **Not published to npm yet.** For now, run it from a clone (see [Development](#development)).
-
 ## Install
 
 ```sh
-npx ctxsize            # once it is on npm: no install needed
+npx ctxsize            # no install needed
 npm install -g ctxsize # or keep it
 ```
 
