@@ -172,6 +172,22 @@ describe('claude skills', () => {
     expect(run('claude', items, { contextTokens: Math.floor(fits / 2) }).drops.length).toBe(10);
   });
 
+  test('120 skills with long descriptions: every description is at risk, in memory', () => {
+    const desc = (n: number) =>
+      `Skill number ${n} handles a very specific workflow in this repository, including setup, ` +
+      'validation, migration, rollback, reporting and every edge case the team has hit so far.';
+    const items = Array.from({ length: 120 }, (_, n) => skill('claude', `skill-${n}`, desc(n)));
+    items[0] = skill('claude', 'skill-0', 'long '.repeat(400));
+    const r = run('claude', items);
+    expect(r.notes[0]).toContain('of 120 skill descriptions will be dropped');
+    expect(r.notes[0]).toContain('1% of 200,000 context');
+    const atRisk = r.drops.filter((d) => d.kind === 'skill-description-dropped');
+    expect(atRisk).toHaveLength(120);
+    for (const d of atRisk) expect(d.certainty).toBe('at-risk');
+    const cut = r.drops.filter((d) => d.kind === 'skill-description-truncated');
+    expect(cut.map((d) => d.skill)).toEqual(['skill-0']);
+  });
+
   test('SLASH_COMMAND_TOOL_CHAR_BUDGET switches the budget to characters', () => {
     const items = [skill('claude', 'a', 'x'.repeat(300)), skill('claude', 'b', 'x'.repeat(300))];
     const r = run('claude', items, { env: { SLASH_COMMAND_TOOL_CHAR_BUDGET: '500' } });

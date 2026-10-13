@@ -397,32 +397,46 @@ describe('simulator through analyze', () => {
     expectTotalsAddUp({ agents: [codex] } as Report);
   });
 
-  test('120 Claude skills with long descriptions: listing over budget is reported as at-risk', async () => {
+  test('skills over the listing budget are reported as at-risk (few real folders)', async () => {
     const files: Record<string, string> = { '.git/': '' };
     const desc = (n: number) =>
       `Skill number ${n} handles a very specific workflow in this repository, including setup, ` +
       'validation, migration, rollback, reporting and every edge case the team has hit so far.';
-    for (let n = 0; n < 120; n++) {
-      const name = `skill-${String(n).padStart(3, '0')}`;
-      files[`.claude/skills/${name}/SKILL.md`] =
-        `---\nname: ${name}\ndescription: ${desc(n)}\n---\n# ${name}\n\nBody.\n`;
+    for (let n = 0; n < 5; n++) {
+      files[`.claude/skills/skill-${n}/SKILL.md`] = `---
+name: skill-${n}
+description: ${desc(n)}
+---
+# skill-${n}
+
+Body.
+`;
     }
     // One description past the per-skill cap as well.
-    files['.claude/skills/skill-000/SKILL.md'] =
-      `---\nname: skill-000\ndescription: ${'long '.repeat(400)}\n---\nBody.\n`;
-    const report = await analyze({ cwd: tmpRepo(files), agents: ['claude'] });
+    files['.claude/skills/skill-0/SKILL.md'] = `---
+name: skill-0
+description: ${'long '.repeat(400)}
+---
+Body.
+`;
+    // A small character budget stands in for "many skills"; the 120-skill case is in simulate.test.ts.
+    const report = await analyze({
+      cwd: tmpRepo(files),
+      agents: ['claude'],
+      env: { SLASH_COMMAND_TOOL_CHAR_BUDGET: '1000' },
+    });
     const claude = agent(report, 'claude');
 
-    expect(claude.items.filter((i) => i.category === 'skills')).toHaveLength(120);
+    expect(claude.items.filter((i) => i.category === 'skills')).toHaveLength(5);
     const note = claude.notes.find((n) => n.startsWith('Skill listing is'));
     expect(note).toBeDefined();
-    expect(note).toContain('of 120 skill descriptions will be dropped');
-    expect(note).toContain('1% of 200,000 context');
+    expect(note).toContain('of 5 skill descriptions will be dropped');
+    expect(note).toContain('SLASH_COMMAND_TOOL_CHAR_BUDGET=1,000');
     const atRisk = claude.drops.filter((d) => d.kind === 'skill-description-dropped');
-    expect(atRisk).toHaveLength(120);
+    expect(atRisk).toHaveLength(5);
     for (const d of atRisk) expect(d.certainty).toBe('at-risk');
     const truncated = claude.drops.filter((d) => d.kind === 'skill-description-truncated');
-    expect(truncated.map((d) => d.skill)).toEqual(['skill-000']);
+    expect(truncated.map((d) => d.skill)).toEqual(['skill-0']);
     expect(truncated[0]?.certainty).toBe('will');
     // at-risk drops only report; items stay in the startup total.
     expect(claude.items.every((i) => i.load === 'startup')).toBe(true);
