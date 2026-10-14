@@ -1,6 +1,6 @@
 import type { AgentReport, Report } from '../core/types.ts';
 import { formatUsd } from '../core/usage.ts';
-import { tokenizerSentence } from './common.ts';
+import { hiddenSentence, tokenizerSentence } from './common.ts';
 
 // Ways to share a result: a markdown summary for a pull request comment, an SVG summary card
 // and an SVG README badge. All plain strings, no network, no dependencies.
@@ -35,6 +35,8 @@ export function renderMarkdown(report: Report): string {
     );
   }
   lines.push('');
+  const hidden = hiddenSentence(report);
+  if (hidden) lines.push(`_${hidden}_`, '');
 
   const files = new Map<string, number>();
   for (const a of report.agents) {

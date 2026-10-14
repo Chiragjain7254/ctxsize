@@ -30,6 +30,18 @@ An unknown id is a usage error (exit `2`).
 npx @chiragjain7254/ctxsize --agents claude,codex
 ```
 
+### `--all`
+
+By default, tools that load nothing from this repo (0 startup tokens and 0 on-demand tokens) are left out
+of the table, and one line after it names them: `Hidden: Aider, Zed (no files found) — use --all to show`.
+`--all` shows every tool. `--agents` always shows the tools you list, even when they load nothing. The
+same rule applies to `--json` (which gains a `hidden` array of tool ids), `--markdown` and `--html`. In a
+repo with no agent files at all, everything is hidden and the output says so.
+
+```sh
+npx @chiragjain7254/ctxsize --all
+```
+
 ### `--include-user`
 
 Also read files from your home directory, such as `~/.claude/CLAUDE.md`. Default: off, so the output is
@@ -91,7 +103,7 @@ npx @chiragjain7254/ctxsize --messages 200
 
 ### `--json`
 
-Print the report as JSON instead of the table. Colors are off. The `schemaVersion` field is `2`.
+Print the report as JSON instead of the table. Colors are off. The `schemaVersion` field is `2`. `agents` lists the tools that are shown; `hidden` lists the ids of tools left out because they load nothing (see `--all`).
 
 ```sh
 npx @chiragjain7254/ctxsize --json > report.json

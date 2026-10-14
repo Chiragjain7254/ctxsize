@@ -267,4 +267,6 @@ export interface Report {
   /** Set by --tree: startup load per starting folder. */
   tree?: TreeRow[];
   checks: Check[];
+  /** Agents left out because they load nothing; set by the CLI unless --all or --agents. */
+  hidden?: { agent: ToolId; label: string }[];
 }

@@ -191,7 +191,7 @@ describe('--diff', () => {
       'docs/new.md': 'ignored\n',
       '.claude/rules/extra.md': words(30, 'delta'),
     });
-    const r = await cli(['--diff', 'HEAD~3', '--json', dir], dir);
+    const r = await cli(['--diff', 'HEAD~3', '--json', '--all', dir], dir);
     expect(r.code).toBe(EXIT.ok);
     const out = JSON.parse(r.stdout);
     expect(out.agents).toHaveLength(buildTools().length); // the usual output is intact

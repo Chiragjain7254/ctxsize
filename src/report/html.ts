@@ -2,6 +2,7 @@ import { countTokens, type Tokenizer, tokenizerLabel } from '../core/tokenize.ts
 import type { AgentReport, Category, LoadedItem, ModelInfo, Report } from '../core/types.ts';
 import { allModels, type Model } from '../models.ts';
 import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './calc.ts';
+import { hiddenSentence } from './common.ts';
 import { pageMain } from './page-client.ts';
 import { renderCardSvg, renderMarkdown } from './share.ts';
 import { squarify } from './treemap.ts';
@@ -215,7 +216,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 </header>
 <p class="sub">Token counts are estimates. A ~ marks a count for a model whose tokenizer is not public (Claude, Gemini and others), made with o200k_base or a characters-per-token ratio; only OpenAI models are counted with their own tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
 <noscript><p class="empty">This report needs JavaScript. Startup tokens:</p><ul>${noscript}</ul></noscript>
-<section class="controls" aria-label="Controls">
+${hiddenNote(report)}<section class="controls" aria-label="Controls">
 <div class="grp"><h2>Tools <small>drag to rank, or use the arrows</small></h2><ul id="tools" class="tools"></ul></div>
 <div class="grp fields">
 <label>Context window <input id="in-ctx" inputmode="numeric" placeholder="model's own" aria-invalid="false"></label>
@@ -242,6 +243,14 @@ ${pageScript()}
 </script>
 </body>
 </html>
+`;
+}
+
+function hiddenNote(report: Report): string {
+  const sentence = hiddenSentence(report);
+  if (!sentence) return '';
+  const hint = report.agents.length === 0 ? 'No agent loads any files from this repo. ' : '';
+  return `<p class="sub" id="hidden">${esc(hint + sentence.replace('use --all to show', 'run with --all to show'))}</p>
 `;
 }
 

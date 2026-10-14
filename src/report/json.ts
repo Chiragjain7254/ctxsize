@@ -7,6 +7,7 @@ import type { Report } from '../core/types.ts';
 export function toJson(report: Report, extra: Record<string, unknown> = {}): string {
   const slim = {
     ...report,
+    hidden: (report.hidden ?? []).map((h) => h.agent),
     tokensAreEstimates: report.agents.some((a) => !a.model.exactTokenizer),
     agents: report.agents.map((agent) => ({
       ...agent,

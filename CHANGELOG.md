@@ -5,7 +5,13 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+- Tools that load 0 startup and 0 on-demand tokens are hidden by default. One line after the table
+  names them (`Hidden: Aider, Zed (no files found) — use --all to show`), and `--json` has a `hidden`
+  array of their ids. `--agents` always shows the tools it lists.
+
 ### Added
+- `--all` shows every tool, including those that load nothing.
 - `--open` opens the `--html` report in the default browser. `--html` now also prints
   `Open it with: ctxsize --html --open`.
 

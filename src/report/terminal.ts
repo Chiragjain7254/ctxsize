@@ -1,6 +1,6 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
 import { formatUsd } from '../core/usage.ts';
-import { tokenizerSentence } from './common.ts';
+import { hiddenSentence, tokenizerSentence } from './common.ts';
 
 export interface TerminalOptions {
   color: boolean;
@@ -27,8 +27,14 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
     `${c.bold('ctxsize')} ${c.dim(`v${report.tool.version}`)}  what each agent loads before your first prompt`,
   );
   out.push('');
-  out.push(...table(report.agents, c));
-  out.push(...costLines(report, c));
+  if (report.agents.length > 0) {
+    out.push(...table(report.agents, c));
+  } else {
+    out.push('  No agent loads any files from this repo.');
+  }
+  const hidden = hiddenSentence(report);
+  if (hidden) out.push('', c.dim(hidden));
+  if (report.agents.length > 0) out.push(...costLines(report, c));
   out.push(...biggestFiles(report, c));
   out.push(...treeLines(report, c));
   out.push(...mcpLines(report, c));

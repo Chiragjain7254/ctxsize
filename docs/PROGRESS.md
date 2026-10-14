@@ -1,6 +1,6 @@
 # Progress
 
-Now working on: 3 of 8 (blocked: npm publish needs a real 2FA code)
+Now working on: 12 of 12 (blocked: 3, npm publish needs a real 2FA code)
 
 - [x] 1. Rewrote the last 7 commits to drop Co-Authored-By; force-pushed main, v0.2-dev and the v0.1.0 tag
 - [x] 2. Add the "Progress tracking" rule to AGENTS.md and write this file
@@ -13,5 +13,7 @@ Now working on: 3 of 8 (blocked: npm publish needs a real 2FA code)
 
 - [x] 10. Add `--open` to open the HTML report in the browser
 - [x] 9. Add CLI reference, architecture and release docs; expand CONTRIBUTING; add README troubleshooting
+- [x] 11. Hide agents with no files by default; add `--all`
+- [ ] 12. Add `--serve` live report server and `--open` for `--html`
 
 Standing rule: no Co-Authored-By, Claude-Session or "Generated with Claude Code" in any commit, PR or release.

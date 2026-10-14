@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
-import type { Report, ToolId } from './core/types.ts';
+import type { AgentReport, Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
 import {
   computeDiff,
@@ -51,7 +51,8 @@ Usage: ctxsize [dir] [options]
 
 Options:
   --agents <list>      Comma-separated tool ids (default: all). Built in: ${BUILT_IN.join(',')}
-                       plus any tool defined in ctxsize.json
+                       plus any tool defined in ctxsize.json. Listed tools are always shown
+  --all                Show every tool, including those that load nothing (hidden by default)
   --context <tokens>   Context window to model (default: the model's own)
   --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
   --price <usd>        USD per 1M input tokens, replacing every model's price
@@ -216,6 +217,13 @@ Run ctxsize --help for usage.
       }
     }
 
+    // Tools that load nothing are hidden unless asked for; --agents names tools on purpose.
+    if (!parsed.all && parsed.agentNames === undefined) {
+      const empty = (a: AgentReport) => a.startup.total === 0 && a.onDemand.total === 0;
+      report.hidden = report.agents.filter(empty).map((a) => ({ agent: a.agent, label: a.label }));
+      report.agents = report.agents.filter((a) => !empty(a));
+    }
+
     if (rerun && io.isTTY) io.stdout('[2J[3J[H');
     if (parsed.json) {
       io.stdout(toJson(report, diff ? { diff } : {}));
@@ -353,6 +361,7 @@ function parse(argv: string[], io: Io) {
       messages: { type: 'string' },
       diff: { type: 'string' },
       history: { type: 'string' },
+      all: { type: 'boolean', default: false },
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
@@ -436,6 +445,7 @@ function parse(argv: string[], io: Io) {
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     diff: values.diff,
     history,
+    all: values.all,
     includeUser: values['include-user'],
     noChecks: values['no-checks'],
     checkProfiles: values['check-profiles'],

@@ -66,6 +66,7 @@ The HTML page lets you switch model, window and price, untick files to see "what
 
 | Feature | How |
 | --- | --- |
+| Tools with no files are hidden by default | `--all` shows them |
 | 10 built-in tools: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Cline, Windsurf, Aider, Zed | `--agents claude,codex` |
 | Your own tools | `ctxsize.json` ([CONFIG](docs/CONFIG.md)) |
 | Model, context window, tokenizer and price per tool | `--model`, `--context`, `--price` |
