@@ -348,7 +348,7 @@ ${filesTable(a)}`;
       if (el?.focus) el.focus();
     }
     const live = $('live');
-    if (live && DATA.watch) {
+    if (live && (DATA.watch || DATA.stream)) {
       live.hidden = false;
       live.textContent = `live · updated ${new Date().toLocaleTimeString()}`;
     }
@@ -597,4 +597,22 @@ ${filesTable(a)}`;
   sync();
   renderAll();
   if (DATA.watch) window.setInterval(poll, DATA.watch.every);
+
+  // --serve: the server pushes new data over Server-Sent Events; the browser reconnects by itself.
+  if (DATA.stream && window.EventSource) {
+    const source = new window.EventSource(DATA.stream);
+    source.onmessage = (e) => {
+      let next = null;
+      try {
+        next = JSON.parse(e.data);
+      } catch (_err) {
+        return;
+      }
+      if (next && next.generated !== DATA.generated) {
+        DATA = next;
+        sync();
+        renderAll();
+      }
+    };
+  }
 }

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 
-/** The command that opens a file in the default app on this platform. */
+/** The command that opens a file or URL in the default app on this platform. */
 export function openCommand(
   file: string,
   platform: NodeJS.Platform = process.platform,
@@ -12,9 +12,9 @@ export function openCommand(
   return { command: platform === 'darwin' ? 'open' : 'xdg-open', args: [file] };
 }
 
-/** Open a file in the default browser. Resolves to an error message, or undefined on success. */
-export function openInBrowser(file: string): Promise<string | undefined> {
-  const { command, args } = openCommand(file);
+/** Open a file or a URL in the default browser. Resolves to an error message, or undefined on success. */
+export function openInBrowser(target: string): Promise<string | undefined> {
+  const { command, args } = openCommand(target);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: 'ignore',

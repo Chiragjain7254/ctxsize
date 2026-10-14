@@ -19,6 +19,8 @@ export interface HtmlOptions {
   models?: Map<string, Model>;
   /** Watch mode: the page polls this sibling script file for new data. */
   watch?: { file: string; everyMs?: number };
+  /** --serve: the page listens to this Server-Sent Events URL for new data. */
+  stream?: string;
   /** Changes on every rewrite in watch mode, so the page knows data is new. */
   generated?: string;
 }
@@ -48,6 +50,7 @@ export interface PageData {
   messages: number;
   generated: string | null;
   watch: { file: string; every: number } | null;
+  stream: string | null;
   models: PageModel[];
   agents: PageAgent[];
 }
@@ -169,6 +172,7 @@ export function buildPageData(report: Report, opts: HtmlOptions = {}): PageData 
     messages: report.messages,
     generated: opts.generated ?? null,
     watch: opts.watch ? { file: opts.watch.file, every: opts.watch.everyMs ?? 2000 } : null,
+    stream: opts.stream ?? null,
     models: [...byId.values()],
     agents: report.agents.map(pageAgent),
   };

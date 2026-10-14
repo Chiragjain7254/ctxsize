@@ -22,6 +22,7 @@ import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
+import type { ReportServer } from './serve.ts';
 import { buildTools, type Tool } from './tools.ts';
 import { VERSION } from './version.ts';
 import { watchLoop } from './watch.ts';
@@ -36,8 +37,8 @@ export interface Io {
   cwd: string;
   /** Stops --watch; by default Ctrl+C does. */
   signal?: AbortSignal | undefined;
-  /** Opens a file in the default browser for --open; returns an error message on failure. */
-  open?: ((file: string) => Promise<string | undefined>) | undefined;
+  /** Opens a file or URL in the default browser for --open and --serve; returns an error message on failure. */
+  open?: ((target: string) => Promise<string | undefined>) | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -65,6 +66,10 @@ Options:
   --tree               Also show the startup load when the agent starts in each nested folder
   --out <file>         Where to write --html
   --open               Open the --html report in the default browser
+  --serve              Serve the interactive report at http://localhost:4321 and keep it up to
+                       date as files change (Ctrl+C to stop); opens your browser
+  --port <n>           First port for --serve (default 4321; the next 9 are tried if it is taken)
+  --no-open            With --serve, do not open the browser
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
   --card <file.svg>    Write an SVG summary card (--title sets its heading)
   --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
@@ -91,7 +96,7 @@ class UsageError extends Error {}
 /** After an HTML report is written: open it with --open, otherwise hint at the flag. */
 async function announceHtml(file: string, open: boolean, io: Io): Promise<void> {
   if (!open) {
-    io.stderr('Open it with: ctxsize --html --open\n');
+    io.stderr('Open it with: ctxsize --html --open, or view it live with: ctxsize --serve\n');
     return;
   }
   const error = await (io.open ?? openInBrowser)(file);
@@ -181,6 +186,19 @@ Run ctxsize --help for usage.
   const share =
     parsed.markdown || parsed.card || parsed.badge ? await import('./report/share.ts') : undefined;
 
+  let server: ReportServer | undefined;
+  if (parsed.serve) {
+    const { startReportServer } = await import('./serve.ts');
+    try {
+      server = await startReportServer(parsed.port === undefined ? {} : { port: parsed.port });
+    } catch (err) {
+      io.stderr(
+        `ctxsize: could not start the server: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      return EXIT.usage;
+    }
+  }
+
   // One analysis plus its output; --watch calls it again after every change.
   const once = async (rerun: boolean): Promise<Report> => {
     const report = await analyze(analyzeOptions(parsed.dir));
@@ -222,6 +240,12 @@ Run ctxsize --help for usage.
       const empty = (a: AgentReport) => a.startup.total === 0 && a.onDemand.total === 0;
       report.hidden = report.agents.filter(empty).map((a) => ({ agent: a.agent, label: a.label }));
       report.agents = report.agents.filter((a) => !empty(a));
+    }
+
+    // --serve: hand the new report to the server instead of printing it.
+    if (server) {
+      server.update(await (await import('./serve.ts')).renderPage(report, models));
+      return report;
     }
 
     if (rerun && io.isTTY) io.stdout('[2J[3J[H');
@@ -270,6 +294,27 @@ Run ctxsize --help for usage.
     return report;
   };
 
+  if (server) {
+    // The same watch loop as --watch: each change re-runs the analysis and pushes it to the page.
+    const live = server;
+    let announced = false;
+    await watchLoop({
+      root,
+      signal: io.signal,
+      once: async (rerun) => {
+        await once(rerun);
+        if (announced) return;
+        announced = true;
+        io.stderr(`ctxsize report running at ${live.url} — press Ctrl+C to stop\n`);
+        if (parsed.noOpen) return;
+        const error = await (io.open ?? openInBrowser)(live.url);
+        if (error) io.stderr(`ctxsize: could not open the browser: ${error}\n`);
+      },
+      onError: (err) => io.stderr(`ctxsize: ${err instanceof Error ? err.message : String(err)}\n`),
+    });
+    await live.close();
+    return EXIT.ok;
+  }
   if (parsed.watch) {
     io.stderr(`ctxsize: watching ${root} (Ctrl+C to stop)\n`);
     await watchLoop({
@@ -362,6 +407,9 @@ function parse(argv: string[], io: Io) {
       diff: { type: 'string' },
       history: { type: 'string' },
       all: { type: 'boolean', default: false },
+      serve: { type: 'boolean', default: false },
+      port: { type: 'string' },
+      'no-open': { type: 'boolean', default: false },
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
@@ -404,7 +452,28 @@ function parse(argv: string[], io: Io) {
     );
   }
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
-  if (values.open && !values.html) throw new UsageError('--open needs --html');
+  if (values.open && !values.html && !values.serve) {
+    throw new UsageError('--open needs --html (or --serve)');
+  }
+  if (values.port !== undefined && !values.serve) throw new UsageError('--port needs --serve');
+  if (values['no-open'] && !values.serve) throw new UsageError('--no-open needs --serve');
+  if (values.open && values['no-open']) throw new UsageError('use --open or --no-open, not both');
+  if (values.serve) {
+    const clash = (
+      [
+        ['html', '--html'],
+        ['json', '--json'],
+        ['markdown', '--markdown'],
+        ['card', '--card'],
+        ['badge', '--badge'],
+        ['diff', '--diff'],
+        ['history', '--history'],
+        ['mcp', '--mcp'],
+        ['max-tokens', '--max-tokens'],
+      ] as const
+    ).find(([key]) => values[key] !== undefined && values[key] !== false);
+    if (clash) throw new UsageError(`--serve cannot be combined with ${clash[1]}`);
+  }
   if (values.watch && values['max-tokens'] !== undefined) {
     throw new UsageError(
       '--watch cannot be combined with --max-tokens (it never exits on its own)',
@@ -452,6 +521,9 @@ function parse(argv: string[], io: Io) {
     json: values.json,
     html: values.html,
     open: values.open,
+    serve: values.serve,
+    port: nonNegativeInt(values.port, '--port', 65535),
+    noOpen: values['no-open'],
     tree: values.tree,
     mcp: values.mcp,
     watch: values.watch,
@@ -478,6 +550,15 @@ function positiveInt(
     throw new UsageError(
       `${flag} must be a ${allowZero ? 'non-negative' : 'positive'} whole number, got "${value}"`,
     );
+  }
+  return n;
+}
+
+function nonNegativeInt(value: string | undefined, flag: string, max: number): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > max) {
+    throw new UsageError(`${flag} must be a whole number from 0 to ${max}, got "${value}"`);
   }
   return n;
 }

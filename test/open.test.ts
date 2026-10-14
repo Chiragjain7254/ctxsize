@@ -57,7 +57,9 @@ describe('--open', () => {
     });
     expect(opened).toEqual([]);
     expect(r.stderr).toContain('Wrote ');
-    expect(r.stderr).toContain('Open it with: ctxsize --html --open');
+    expect(r.stderr).toContain(
+      'Open it with: ctxsize --html --open, or view it live with: ctxsize --serve',
+    );
   });
 
   test('a failed open is a warning, not a failure', async () => {

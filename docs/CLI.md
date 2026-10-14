@@ -129,12 +129,51 @@ npx @chiragjain7254/ctxsize --html --out reports/ctx.html
 ### `--open`
 
 After `--html` writes the report, open it in your default browser (`start` on Windows, `open` on macOS,
-`xdg-open` on Linux). It only works together with `--html`. Without it, ctxsize prints the hint
-`Open it with: ctxsize --html --open`. If the browser cannot be launched, you get a warning and the
+`xdg-open` on Linux). It works with `--html`; with `--serve` the browser opens by default. Without it, ctxsize prints the hint
+`Open it with: ctxsize --html --open, or view it live with: ctxsize --serve`. If the browser cannot be launched, you get a warning and the
 report is still written. With `--watch`, the page opens once.
 
 ```sh
 npx @chiragjain7254/ctxsize --html --open
+```
+
+### `--serve`
+
+Start a local web server with the same interactive report that `--html` writes (`--html` itself is
+unchanged and still writes `ctxsize-report.html`). It uses only Node's built-in `node:http`, listens on
+`127.0.0.1` and prints `ctxsize report running at http://localhost:<port> — press Ctrl+C to stop`. Your
+default browser opens automatically; add `--no-open` to skip that.
+
+- `GET /` is the report page, `GET /api/report` is the same JSON as `--json`, and `GET /events` is the
+  Server-Sent Events stream the page listens to.
+- It watches the same files as `--watch`. After a change the analysis runs again and the open page
+  updates without a reload. The checks, folder and MCP lists and the share buttons at the bottom of the
+  page are fixed to the run that served the page, as with `--watch --html`; reload to refresh them.
+- The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--messages`,
+  `--include-user`, `--tree`, `--no-checks`.
+- It cannot be combined with `--html`, `--json`, `--markdown`, `--card`, `--badge`, `--diff`,
+  `--history`, `--mcp` or `--max-tokens`; that is a usage error.
+
+```sh
+npx @chiragjain7254/ctxsize --serve
+npx @chiragjain7254/ctxsize --serve --agents claude,codex --model claude=claude-haiku-5-5
+```
+
+### `--port <n>`
+
+The first port for `--serve` (0 to 65535). Default: `4321`. If it is taken, the next 9 ports are tried,
+and the message shows the one that was used. `0` asks the system for a free port. It needs `--serve`.
+
+```sh
+npx @chiragjain7254/ctxsize --serve --port 8080
+```
+
+### `--no-open`
+
+With `--serve`, do not open the browser. It needs `--serve`, and cannot be combined with `--open`.
+
+```sh
+npx @chiragjain7254/ctxsize --serve --no-open
 ```
 
 ### `--markdown <file>`

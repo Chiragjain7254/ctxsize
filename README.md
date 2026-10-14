@@ -60,6 +60,15 @@ npx @chiragjain7254/ctxsize --html --open               # ...and opens it in you
 npx @chiragjain7254/ctxsize --markdown summary.md       # a table for a PR comment
 ```
 
+**Live report.** Serve the same interactive page on your machine. It updates by itself when you edit an instruction file:
+
+```sh
+npx @chiragjain7254/ctxsize --serve                     # http://localhost:4321, opens your browser
+npx @chiragjain7254/ctxsize --serve --no-open --port 8080
+```
+
+The server listens on `127.0.0.1` only, and `http://localhost:<port>/api/report` returns the same JSON as `--json`. Press Ctrl+C to stop.
+
 The HTML page lets you switch model, window and price, untick files to see "what if I removed this", reorder and sort tools, search files, and switch to dark mode.
 
 ## Features
@@ -79,6 +88,7 @@ The HTML page lets you switch model, window and price, untick files to see "what
 | Compare with another commit | `--diff main` |
 | Trend over the last commits | `--history 20` (add `--html` for a chart) |
 | Re-run when files change | `--watch` |
+| Live report in your browser | `--serve` (`--port`, `--no-open`) |
 | Startup load per nested folder (monorepos) | `--tree` |
 | MCP servers (count their tool tokens) | `--mcp` (runs the configured commands) |
 | Pull request summary, SVG card, README badge | `--markdown`, `--card`, `--badge` |
