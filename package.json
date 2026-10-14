@@ -1,5 +1,5 @@
 {
-  "name": "ctxsize",
+  "name": "@chiragjain7254/ctxsize",
   "version": "0.1.0",
   "description": "See what every coding agent loads before your first prompt, in tokens, and what each one silently drops.",
   "keywords": [
@@ -25,6 +25,9 @@
   "type": "module",
   "bin": {
     "ctxsize": "dist/cli.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist"

@@ -10,8 +10,8 @@ Coding agents read your instruction files and skills before you type anything. T
 ## Install
 
 ```sh
-npx ctxsize            # no install needed
-npm install -g ctxsize # or keep it
+npx @chiragjain7254/ctxsize            # no install needed
+npm install -g @chiragjain7254/ctxsize # or keep it
 ```
 
 Needs Node 22.12 or newer.
@@ -21,7 +21,7 @@ Needs Node 22.12 or newer.
 **1. See the load.** Run it in any repo. Real output on [vercel/next.js](https://github.com/vercel/next.js):
 
 ```sh
-npx ctxsize
+npx @chiragjain7254/ctxsize
 ```
 
 ```text
@@ -43,7 +43,7 @@ The cost is startup tokens times 50 messages, at the model's uncached input pric
 **2. Fail CI when it grows too big.**
 
 ```sh
-npx ctxsize --agents claude,codex --max-tokens 8600
+npx @chiragjain7254/ctxsize --agents claude,codex --max-tokens 8600
 ```
 
 ```text
@@ -55,8 +55,8 @@ The exit code is `1`, so the CI job fails.
 **3. Open an interactive report, or comment on a pull request.**
 
 ```sh
-npx ctxsize --html                      # writes ctxsize-report.html
-npx ctxsize --markdown summary.md       # a table for a PR comment
+npx @chiragjain7254/ctxsize --html                      # writes ctxsize-report.html
+npx @chiragjain7254/ctxsize --markdown summary.md       # a table for a PR comment
 ```
 
 The HTML page lets you switch model, window and price, untick files to see "what if I removed this", reorder and sort tools, search files, and switch to dark mode.

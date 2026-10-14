@@ -5,7 +5,7 @@ You need Node 22.12 or newer and a repo that has some agent files, like `AGENTS.
 ## 1. Run it (1 minute)
 
 ```sh
-npx ctxsize
+npx @chiragjain7254/ctxsize
 ```
 
 You get a table. Each row is one coding agent.
@@ -21,7 +21,7 @@ All numbers are estimates.
 Look at the "Cost of carrying it" table. The startup text is sent with every message. So the cost is startup tokens times the number of messages. The default is 50. Change it:
 
 ```sh
-npx ctxsize --messages 200
+npx @chiragjain7254/ctxsize --messages 200
 ```
 
 Prices are for uncached input. Prompt caching makes real costs lower.
@@ -38,7 +38,7 @@ Each line links to the tool's own docs in [`src/profiles.ts`](../src/profiles.ts
 ## 4. Open the interactive report (1 minute)
 
 ```sh
-npx ctxsize --html
+npx @chiragjain7254/ctxsize --html
 ```
 
 Open `ctxsize-report.html`. You can:
@@ -53,7 +53,7 @@ Want it to update while you edit? Add `--watch`.
 ## 5. Add it to CI (1 minute)
 
 ```sh
-npx ctxsize --max-tokens 10000
+npx @chiragjain7254/ctxsize --max-tokens 10000
 ```
 
 It exits with `1` if any agent loads more than 10,000 tokens at startup. Put that line in your CI job.
