@@ -3,6 +3,12 @@
 All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- `--open` opens the `--html` report in the default browser. `--html` now also prints
+  `Open it with: ctxsize --html --open`.
+
 ## [0.1.0] - 2026-10-13
 
 First release.

@@ -114,6 +114,17 @@ Where `--html` writes. It only works together with `--html`; alone it is a usage
 npx @chiragjain7254/ctxsize --html --out reports/ctx.html
 ```
 
+### `--open`
+
+After `--html` writes the report, open it in your default browser (`start` on Windows, `open` on macOS,
+`xdg-open` on Linux). It only works together with `--html`. Without it, ctxsize prints the hint
+`Open it with: ctxsize --html --open`. If the browser cannot be launched, you get a warning and the
+report is still written. With `--watch`, the page opens once.
+
+```sh
+npx @chiragjain7254/ctxsize --html --open
+```
+
 ### `--markdown <file>`
 
 Write a summary table for a pull-request comment. Use `-` to print it to the terminal instead of the

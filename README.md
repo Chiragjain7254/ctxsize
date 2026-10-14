@@ -56,6 +56,7 @@ The exit code is `1`, so the CI job fails.
 
 ```sh
 npx @chiragjain7254/ctxsize --html                      # writes ctxsize-report.html
+npx @chiragjain7254/ctxsize --html --open               # ...and opens it in your browser
 npx @chiragjain7254/ctxsize --markdown summary.md       # a table for a PR comment
 ```
 

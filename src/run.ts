@@ -18,6 +18,7 @@ import {
   validateRef,
 } from './history.ts';
 import { allModels, type ModelChoice, modelForTool, presets } from './models.ts';
+import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
 import { toJson } from './report/json.ts';
 import { renderTerminal } from './report/terminal.ts';
@@ -35,6 +36,8 @@ export interface Io {
   cwd: string;
   /** Stops --watch; by default Ctrl+C does. */
   signal?: AbortSignal | undefined;
+  /** Opens a file in the default browser for --open; returns an error message on failure. */
+  open?: ((file: string) => Promise<string | undefined>) | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -60,6 +63,7 @@ Options:
                        tokens (runs the configured commands; remote servers are never contacted)
   --tree               Also show the startup load when the agent starts in each nested folder
   --out <file>         Where to write --html
+  --open               Open the --html report in the default browser
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
   --card <file.svg>    Write an SVG summary card (--title sets its heading)
   --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
@@ -82,6 +86,16 @@ Tokens are estimates (o200k_base). Nothing is sent anywhere.
 `;
 
 class UsageError extends Error {}
+
+/** After an HTML report is written: open it with --open, otherwise hint at the flag. */
+async function announceHtml(file: string, open: boolean, io: Io): Promise<void> {
+  if (!open) {
+    io.stderr('Open it with: ctxsize --html --open\n');
+    return;
+  }
+  const error = await (io.open ?? openInBrowser)(file);
+  if (error) io.stderr(`ctxsize: could not open the browser: ${error}\n`);
+}
 
 /** ctxsize-report.html -> ctxsize-report.data.js, the file the page polls in watch mode. */
 const dataFileFor = (html: string) => `${html.replace(/.html?$/i, '')}.data.js`;
@@ -223,6 +237,8 @@ Run ctxsize --help for usage.
       if (parsed.watch)
         writeFileSync(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
       io.stderr(`Wrote ${parsed.out}\n`);
+      // In watch mode, open the page once; later runs refresh it in place.
+      if (!rerun) await announceHtml(parsed.out, parsed.open, io);
     }
     if (share) {
       if (parsed.markdown && parsed.markdown !== '-') {
@@ -293,6 +309,7 @@ async function runHistory(
     color: boolean;
     html: boolean;
     out: string;
+    open: boolean;
   },
   opts: SnapshotOptions,
   tools: Tool[],
@@ -307,6 +324,7 @@ async function runHistory(
       writeFileSync(parsed.out, renderHistoryHtml(result, { labels, version: VERSION }));
       io.stderr(`Wrote ${parsed.out}
 `);
+      await announceHtml(parsed.out, parsed.open, io);
     }
     if (parsed.json) {
       const { entries, ...meta } = result;
@@ -338,6 +356,7 @@ function parse(argv: string[], io: Io) {
       'include-user': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
+      open: { type: 'boolean', default: false },
       out: { type: 'string' },
       tree: { type: 'boolean', default: false },
       mcp: { type: 'boolean', default: false },
@@ -376,6 +395,7 @@ function parse(argv: string[], io: Io) {
     );
   }
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
+  if (values.open && !values.html) throw new UsageError('--open needs --html');
   if (values.watch && values['max-tokens'] !== undefined) {
     throw new UsageError(
       '--watch cannot be combined with --max-tokens (it never exits on its own)',
@@ -421,6 +441,7 @@ function parse(argv: string[], io: Io) {
     checkProfiles: values['check-profiles'],
     json: values.json,
     html: values.html,
+    open: values.open,
     tree: values.tree,
     mcp: values.mcp,
     watch: values.watch,
