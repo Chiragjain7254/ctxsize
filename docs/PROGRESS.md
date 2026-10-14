@@ -11,4 +11,6 @@ Now working on: 3 of 8 (blocked: npm publish needs a real 2FA code)
 - [x] 7. Add `ctxsize --check-profiles` (every limit with source URL and checked date)
 - [ ] 8. Final pass: CI is green on main and no temp files are tracked; still to do: re-check docs after the npm publish
 
+- [x] 9. Add CLI reference, architecture and release docs; expand CONTRIBUTING; add README troubleshooting
+
 Standing rule: no Co-Authored-By, Claude-Session or "Generated with Claude Code" in any commit, PR or release.

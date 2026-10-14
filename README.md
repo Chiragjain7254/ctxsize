@@ -83,7 +83,7 @@ The HTML page lets you switch model, window and price, untick files to see "what
 | CI gate | `--max-tokens 10000` |
 | JSON output | `--json` |
 
-New here? Read the [5-minute walkthrough](docs/GETTING-STARTED.md). What each tool reads: [docs/tools.md](docs/tools.md).
+New here? Read the [5-minute walkthrough](docs/GETTING-STARTED.md). Every flag: [docs/CLI.md](docs/CLI.md). What each tool reads: [docs/tools.md](docs/tools.md).
 
 ## Config
 
@@ -123,6 +123,25 @@ Every option is in [docs/CONFIG.md](docs/CONFIG.md).
 
 **What does `*` after a model mean?** ctxsize picked that model for you. Choose one with `--model`.
 
+## Troubleshooting
+
+**"Unsupported engine" or a syntax error on start.** Your Node is too old. ctxsize needs Node 22.12 or newer. Check with `node --version`, then install a current version from [nodejs.org](https://nodejs.org/).
+
+**`npx` runs an old version.** `npx` caches packages. Ask for the newest one explicitly:
+
+```sh
+npx @chiragjain7254/ctxsize@latest --version
+```
+
+If that still shows an old number, clear the cache with `npm cache clean --force` and try again. A globally installed copy (`npm install -g`) is not updated by `npx`; update it with `npm install -g @chiragjain7254/ctxsize@latest`.
+
+**Windows.**
+- In PowerShell, if `npm` or `npx` is blocked by the script execution policy, run `npm.cmd` / `npx.cmd` instead.
+- Paths in the report always use `/`, even on Windows.
+- Quote paths that contain spaces: `npx @chiragjain7254/ctxsize "C:\My Projects\app"`.
+
+**"not a directory" or an unknown agent.** Pass one existing folder, and use ids from `ctxsize --help` for `--agents`.
+
 ## Development
 
 ```sh
@@ -131,4 +150,4 @@ npm run check   # lint, typecheck, test, build
 npm run dev -- path/to/repo
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/RELEASING.md](docs/RELEASING.md). MIT licensed.
