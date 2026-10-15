@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Tiktoken } from 'js-tiktoken/lite';
 import cl100kBase from 'js-tiktoken/ranks/cl100k_base';
 import o200kBase from 'js-tiktoken/ranks/o200k_base';
@@ -29,11 +30,50 @@ function encode(text: string, name: TokenizerName): number {
 const REPEAT_RUN = /(\S)\1{255,}/gu;
 const SLICE = 64;
 
+/**
+ * Counts by content hash. --watch and --serve analyze the same repo again after every change, and
+ * almost every file is unchanged, so a file whose text was counted before is not tokenized again.
+ * Only the hash and the count are kept, never the text. The oldest entries go first.
+ */
+export const tokenCache = {
+  /** Most counts kept. */
+  limit: 20_000,
+  hits: 0,
+  misses: 0,
+  counts: new Map<string, number>(),
+  get size(): number {
+    return this.counts.size;
+  },
+  clear(): void {
+    this.counts.clear();
+    this.hits = 0;
+    this.misses = 0;
+  },
+};
+
 export function countTokens(text: string, tokenizer: Tokenizer = 'o200k_base'): number {
   if (text === '') return 0;
   if (typeof tokenizer === 'object') {
     return Math.ceil([...text].length / tokenizer.charsPerToken);
   }
+  const key = `${tokenizer}:${createHash('sha1').update(text).digest('base64')}`;
+  const known = tokenCache.counts.get(key);
+  if (known !== undefined) {
+    tokenCache.hits++;
+    return known;
+  }
+  tokenCache.misses++;
+  const count = encodeText(text, tokenizer);
+  tokenCache.counts.set(key, count);
+  while (tokenCache.counts.size > tokenCache.limit) {
+    const oldest = tokenCache.counts.keys().next().value;
+    if (oldest === undefined) break;
+    tokenCache.counts.delete(oldest);
+  }
+  return count;
+}
+
+function encodeText(text: string, tokenizer: TokenizerName): number {
   let total = 0;
   let last = 0;
   for (const match of text.matchAll(REPEAT_RUN)) {

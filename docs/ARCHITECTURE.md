@@ -115,6 +115,9 @@ not the whole body).
 - For models whose tokenizer is not public (Llama, Qwen, DeepSeek and so on), a model can set
   `{ "charsPerToken": 3.8 }`; the count is the characters divided by that ratio, rounded up.
 - A long run of one repeated character is counted in fixed slices, because BPE is very slow on such text.
+- Counts are cached by content hash (`tokenCache`, up to 20,000 entries, only the hash and the count are kept).
+  `--watch` and `--serve` analyze the repo again after every change, and a file whose text was counted before is
+  not tokenized again, so a re-run costs about as much as the files that changed.
 - Each tool is counted with its own model's tokenizer. The count is exact only when the model's own
   tokenizer is used (OpenAI models, and even then the docs do not name it). Claude and Gemini counts use
   `o200k_base`. **Every count is an estimate** and is labelled that way in all outputs.
