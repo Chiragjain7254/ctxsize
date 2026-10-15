@@ -82,6 +82,29 @@ Run the commands from the repo root. Replace `X.Y.Z` with the new version.
    In PowerShell, make a new empty folder and `cd` into it first. The command should print `X.Y.Z`. If it
    prints an older version, see "npx cache issues" in the README's Troubleshooting section.
 
+## Publishing from GitHub Actions
+
+`.github/workflows/release.yml` can do steps 6 to 9 for you. It runs **only** when a tag starting with `v` is
+pushed, never on a branch push or a pull request. It:
+
+1. checks out the tag and runs `npm ci`,
+2. checks that the tag, `package.json` and `src/version.ts` name the same version (`v0.2.0` needs `0.2.0` in both),
+3. runs `npm run check`,
+4. runs `npm publish --provenance --access public`, which signs a provenance statement so npm can show where the
+   package was built.
+
+One-time setup, in your own browser:
+
+1. On npmjs.com, create an **automation** access token that can publish `@chiragjain7254/ctxsize`.
+2. In the GitHub repository, add it as the secret `NPM_TOKEN` (Settings, Secrets and variables, Actions).
+
+Then a release is steps 1 to 5 above, followed by `git tag vX.Y.Z` and `git push origin vX.Y.Z`. Watch the run with
+`gh run watch`. Do not push a tag until the commit it points at has a green CI run, and never move a tag that was
+already pushed: a version can be published only once. If the guard step fails, delete the tag locally and on
+GitHub (`git push origin :refs/tags/vX.Y.Z`), fix the version, and tag again before anything was published.
+
+Publishing by hand (step 6) still works. Use one way or the other for a given version, not both.
+
 ## If something goes wrong
 
 - A version number can be published only once. If the publish fails after the version was used, bump to
