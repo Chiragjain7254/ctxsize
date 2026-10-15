@@ -20,6 +20,13 @@ const KIND_LABEL: Record<DropKind, string> = {
 /** Most lines to print per agent per section before "+N more". */
 const MAX_LINES = 8;
 
+/** --quiet: one line with the startup tokens of every agent shown. */
+export function renderSummary(report: Report): string {
+  if (report.agents.length === 0) return 'ctxsize: no agent loads any files from this repo\n';
+  const parts = report.agents.map((a) => `${a.label} ~${a.startup.total.toLocaleString('en-US')}`);
+  return `ctxsize: startup tokens (estimates): ${parts.join(', ')}\n`;
+}
+
 export function renderTerminal(report: Report, opts: TerminalOptions): string {
   const c = colors(opts.color);
   const out: string[] = [];

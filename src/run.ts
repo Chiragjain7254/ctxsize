@@ -21,7 +21,7 @@ import { allModels, type ModelChoice, modelForTool, presets } from './models.ts'
 import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
 import { toJson } from './report/json.ts';
-import { renderTerminal } from './report/terminal.ts';
+import { renderSummary, renderTerminal } from './report/terminal.ts';
 import type { ReportServer } from './serve.ts';
 import { buildTools, type Tool } from './tools.ts';
 import { VERSION } from './version.ts';
@@ -81,6 +81,7 @@ Options:
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --check-profiles     Print every documented agent limit with its source URL and checked date
   --no-checks          Skip the duplicate, suggestion and skill-health checks
+  --quiet              Print only a one-line summary, gate failures and errors (for CI)
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
   -h, --help           Print this help
@@ -94,9 +95,10 @@ Tokens are estimates (o200k_base). Nothing is sent anywhere.
 class UsageError extends Error {}
 
 /** After an HTML report is written: open it with --open, otherwise hint at the flag. */
-async function announceHtml(file: string, open: boolean, io: Io): Promise<void> {
+async function announceHtml(file: string, open: boolean, quiet: boolean, io: Io): Promise<void> {
   if (!open) {
-    io.stderr('Open it with: ctxsize --html --open, or view it live with: ctxsize --serve\n');
+    if (!quiet)
+      io.stderr('Open it with: ctxsize --html --open, or view it live with: ctxsize --serve\n');
     return;
   }
   const error = await (io.open ?? openInBrowser)(file);
@@ -128,6 +130,11 @@ export async function run(argv: string[], io: Io): Promise<number> {
     io.stdout(`${VERSION}\n`);
     return EXIT.ok;
   }
+
+  /** Progress messages; --quiet keeps stderr for gate failures and errors only. */
+  const info = (text: string): void => {
+    if (!parsed.quiet) io.stderr(text);
+  };
 
   let tools: ReturnType<typeof buildTools>;
   let models: ReturnType<typeof allModels>;
@@ -208,7 +215,7 @@ Run ctxsize --help for usage.
         measure: parsed.mcp,
         tokenizerFor: (id) => modelForTool(id, models, choice).model.tokenizer,
         log: (line) =>
-          io.stderr(`${line}
+          info(`${line}
 `),
       });
     }
@@ -254,8 +261,12 @@ Run ctxsize --help for usage.
     } else if (parsed.markdown === '-' && share) {
       io.stdout(share.renderMarkdown(report));
     } else {
-      io.stdout(renderTerminal(report, { color: parsed.color }));
-      if (diff) io.stdout(renderDiff(diff, { color: parsed.color }));
+      if (parsed.quiet) {
+        io.stdout(renderSummary(report));
+      } else {
+        io.stdout(renderTerminal(report, { color: parsed.color }));
+        if (diff) io.stdout(renderDiff(diff, { color: parsed.color }));
+      }
     }
 
     if (parsed.html) {
@@ -268,24 +279,24 @@ Run ctxsize --help for usage.
       // Only in watch mode: the open page polls this file for new data.
       if (parsed.watch)
         writeFileSync(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
-      io.stderr(`Wrote ${parsed.out}\n`);
+      info(`Wrote ${parsed.out}\n`);
       // In watch mode, open the page once; later runs refresh it in place.
-      if (!rerun) await announceHtml(parsed.out, parsed.open, io);
+      if (!rerun) await announceHtml(parsed.out, parsed.open, parsed.quiet, io);
     }
     if (share) {
       if (parsed.markdown && parsed.markdown !== '-') {
         writeFileSync(parsed.markdown, share.renderMarkdown(report));
-        io.stderr(`Wrote ${parsed.markdown}
+        info(`Wrote ${parsed.markdown}
   `);
       }
       if (parsed.card) {
         writeFileSync(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
-        io.stderr(`Wrote ${parsed.card}
+        info(`Wrote ${parsed.card}
   `);
       }
       if (parsed.badge) {
         writeFileSync(parsed.badge, share.renderBadgeSvg(report));
-        io.stderr(`Wrote ${parsed.badge}
+        info(`Wrote ${parsed.badge}
   README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
   `);
       }
@@ -377,7 +388,7 @@ async function runHistory(
       writeFileSync(parsed.out, renderHistoryHtml(result, { labels, version: VERSION }));
       io.stderr(`Wrote ${parsed.out}
 `);
-      await announceHtml(parsed.out, parsed.open, io);
+      await announceHtml(parsed.out, parsed.open, false, io);
     }
     if (parsed.json) {
       const { entries, ...meta } = result;
@@ -425,6 +436,7 @@ function parse(argv: string[], io: Io) {
       'no-checks': { type: 'boolean', default: false },
       'check-profiles': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },
+      quiet: { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -450,6 +462,9 @@ function parse(argv: string[], io: Io) {
     throw new UsageError(
       '--watch cannot be combined with --mcp: it would restart the servers on every change',
     );
+  }
+  if (values.quiet && (values.serve || values.watch)) {
+    throw new UsageError('--quiet cannot be combined with --serve or --watch');
   }
   if (values.out !== undefined && !values.html) throw new UsageError('--out needs --html');
   if (values.open && !values.html && !values.serve) {
@@ -517,6 +532,7 @@ function parse(argv: string[], io: Io) {
     all: values.all,
     includeUser: values['include-user'],
     noChecks: values['no-checks'],
+    quiet: values.quiet,
     checkProfiles: values['check-profiles'],
     json: values.json,
     html: values.html,

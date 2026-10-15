@@ -154,3 +154,40 @@ describe('ctxsize.json through the CLI', () => {
     expect(r.stderr).toContain('invalid JSON');
   });
 });
+
+describe('--quiet', () => {
+  test('prints one summary line instead of the table', async () => {
+    const r = await cli(['--quiet'], repo());
+    expect(r.code).toBe(EXIT.ok);
+    expect(r.stdout.trim().split('\n')).toHaveLength(1);
+    expect(r.stdout).toMatch(/^ctxsize: startup tokens \(estimates\): Claude Code ~\d/);
+    expect(r.stdout).not.toContain('Cost of carrying it');
+  });
+
+  test('still prints gate failures on stderr and exits 1', async () => {
+    const r = await cli(['--quiet', '--max-tokens', '1'], repo());
+    expect(r.code).toBe(EXIT.overBudget);
+    expect(r.stderr).toContain('over --max-tokens 1');
+  });
+
+  test('does not print the "Wrote" or "Open it with" messages', async () => {
+    const dir = repo();
+    const r = await cli(['--quiet', '--html'], dir);
+    expect(r.code).toBe(EXIT.ok);
+    expect(r.stderr).toBe('');
+    expect(existsSync(path.join(dir, 'ctxsize-report.html'))).toBe(true);
+  });
+
+  test('--json is still printed in full', async () => {
+    const r = await cli(['--quiet', '--json'], repo());
+    expect(JSON.parse(r.stdout).schemaVersion).toBe(2);
+  });
+
+  test('cannot be combined with --watch or --serve', async () => {
+    for (const flag of ['--watch', '--serve']) {
+      const r = await cli(['--quiet', flag], repo());
+      expect(r.code).toBe(EXIT.usage);
+      expect(r.stderr).toContain('--quiet cannot be combined');
+    }
+  });
+});

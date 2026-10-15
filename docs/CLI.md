@@ -209,6 +209,16 @@ Write an SVG README badge and print a shields.io snippet you can paste into the 
 npx @chiragjain7254/ctxsize --badge badge.svg
 ```
 
+### `--quiet`
+
+Print one summary line instead of the table: `ctxsize: startup tokens (estimates): Claude Code ~1,634, Codex ~296`.
+Progress messages such as `Wrote ctxsize-report.html` are not printed; gate failures (`--max-tokens`) and
+errors still go to stderr. `--json` is unchanged. It cannot be combined with `--watch` or `--serve`.
+
+```sh
+npx @chiragjain7254/ctxsize --quiet --max-tokens 8600
+```
+
 ### `--no-color`
 
 Turn colors off. `NO_COLOR` is honoured too. Colors are on when the output is a terminal (or
