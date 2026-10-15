@@ -3,7 +3,7 @@
 All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-16
 
 ### Changed
 - Token counts are cached by content hash, so `--watch` and `--serve` do not re-tokenize files that did not change.
@@ -13,16 +13,18 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Fixed
+- Removed the internal progress log and other leftover files from the repository.
 - An output file that cannot be written (`--html --out`, `--card`, `--badge`, `--markdown` in a missing or non-file path) now exits 2 with `ctxsize: cannot write <file>: <reason>` instead of printing a stack trace.
 - `--history 1` (and a shallow clone with one commit) says "at the last commit" instead of "over the last 1 commits".
 
 ### Added
+- A feedback issue template and a feedback Discussion, and a "Try it and tell us" section in the README.
 - A "Good first issues" section in `CONTRIBUTING.md` with five small ideas taken from the code.
 - Tests for CRLF line endings and Windows-style paths in instruction files, frontmatter, imports, `.gitignore` and `ctxsize.json`.
 - The `--serve` page shows a short toast when files change and the report refreshes.
 - The `--serve` and `--watch --html` page shows a live or disconnected status dot and the time the report last changed.
-- A release workflow (`.github/workflows/release.yml`) that publishes to npm with provenance when a `v*` tag is pushed. It needs an `NPM_TOKEN` secret; see `docs/RELEASING.md`.
-- A composite GitHub Action (`uses: Chiragjain7254/ctxsize@main`) with inputs `agents`, `max-tokens`, `max-percent`, `fail-on-warnings`, `directory`, `version` and `node-version`. See `docs/CI.md`.
+- A release workflow (`.github/workflows/release.yml`) that publishes to npm with provenance when a `v*` tag is pushed. It needs an `NPM_TOKEN` secret; without one, or when the version is already on npm, it skips the publish with a notice instead of failing. See `docs/RELEASING.md`.
+- A composite GitHub Action (`uses: Chiragjain7254/ctxsize@v0.2.0`) with inputs `agents`, `max-tokens`, `max-percent`, `fail-on-warnings`, `directory`, `version` and `node-version`. By default it runs the ctxsize version that matches the action's own release, never a moving `latest`; set `version` to override. See `docs/CI.md`.
 - `docs/CI.md`: GitHub Actions workflows with `--max-tokens` and a `--markdown` pull request comment, checked by a test.
 - Exit codes are documented in full in `docs/CLI.md`, with a test for each code and reason.
 - A JSON Schema for `ctxsize.json` (`schema/ctxsize.schema.json`, shipped in the npm package). `"$schema"` is accepted in the config, so editors can autocomplete and validate it.
