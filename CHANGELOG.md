@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- A JSON Schema for `--json` output: `docs/report.schema.json`, checked against real output in the tests.
 - `--json` output has a `generatedAt` time next to `tool.version`. `SOURCE_DATE_EPOCH` pins it.
 - `--fail-on-warnings` exits 1 when a `!` check fires (duplicates, skills with no description).
 - Per-tool budgets: `tools.<id>.maxTokens` in `ctxsize.json` fails the run (exit 1) when that tool loads more at startup.

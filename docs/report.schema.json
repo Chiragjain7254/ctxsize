@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Chiragjain7254/ctxsize/blob/main/docs/report.schema.json",
+  "title": "ctxsize report",
+  "description": "The output of `ctxsize --json` (schemaVersion 2). `--history --json` has a different shape and is not described here.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "tool",
+    "generatedAt",
+    "root",
+    "messages",
+    "agents",
+    "checks",
+    "hidden",
+    "tokensAreEstimates"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "ctxsize" },
+        "version": { "type": "string", "description": "The ctxsize version that wrote the report." }
+      },
+      "additionalProperties": false
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC time of the run. SOURCE_DATE_EPOCH pins it."
+    },
+    "root": { "const": ".", "description": "Always \".\" so reports do not leak local paths." },
+    "messages": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Messages assumed for every tool's overhead figure."
+    },
+    "agents": { "type": "array", "items": { "$ref": "#/$defs/agent" } },
+    "hidden": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ids of tools left out of `agents` because they load nothing (see --all)."
+    },
+    "tokensAreEstimates": { "type": "boolean" },
+    "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
+    "tree": {
+      "type": "array",
+      "description": "Only with --tree: startup tokens per tool when the agent starts in each folder.",
+      "items": {
+        "type": "object",
+        "required": ["dir", "tools"],
+        "properties": {
+          "dir": { "type": "string" },
+          "tools": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "diff": {
+      "type": "object",
+      "description": "Only with --diff: the comparison with another git ref."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "category": { "enum": ["instructions", "rules", "skills", "memory"] },
+    "agent": {
+      "type": "object",
+      "required": [
+        "agent",
+        "label",
+        "model",
+        "contextTokens",
+        "notes",
+        "startup",
+        "usage",
+        "topFiles",
+        "onDemand",
+        "items",
+        "drops",
+        "warnings",
+        "tokenCounts"
+      ],
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Tool id, such as claude or a tool from ctxsize.json."
+        },
+        "label": { "type": "string" },
+        "model": {
+          "type": "object",
+          "required": [
+            "id",
+            "label",
+            "contextTokens",
+            "tokenizer",
+            "exactTokenizer",
+            "pricePer1MInput",
+            "isDefault"
+          ],
+          "properties": {
+            "id": { "type": "string" },
+            "label": { "type": "string" },
+            "contextTokens": { "type": "integer", "minimum": 1 },
+            "tokenizer": { "type": "string" },
+            "exactTokenizer": { "type": "boolean" },
+            "pricePer1MInput": { "type": ["number", "null"], "minimum": 0 },
+            "isDefault": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "contextTokens": { "type": "integer", "minimum": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "startup": {
+          "type": "object",
+          "required": ["total", "byCategory"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "byCategory": {
+              "type": "object",
+              "required": ["instructions", "rules", "skills", "memory"],
+              "properties": {
+                "instructions": { "type": "integer", "minimum": 0 },
+                "rules": { "type": "integer", "minimum": 0 },
+                "skills": { "type": "integer", "minimum": 0 },
+                "memory": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "usage": {
+          "type": "object",
+          "required": ["startupPctOfContext", "messages", "overheadTokens", "overheadCostUsd"],
+          "properties": {
+            "startupPctOfContext": { "type": "number", "minimum": 0 },
+            "messages": { "type": "integer", "minimum": 1 },
+            "overheadTokens": { "type": "integer", "minimum": 0 },
+            "overheadCostUsd": { "type": ["number", "null"], "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "topFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "tokens", "category"],
+            "properties": {
+              "path": { "type": "string" },
+              "tokens": { "type": "integer", "minimum": 0 },
+              "category": { "$ref": "#/$defs/category" },
+              "skill": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "onDemand": {
+          "type": "object",
+          "required": ["total", "count"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "count": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/item" } },
+        "drops": { "type": "array", "items": { "$ref": "#/$defs/drop" } },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["message"],
+            "properties": {
+              "agent": { "type": "string" },
+              "path": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "mcp": { "$ref": "#/$defs/mcp" },
+        "tokenCounts": { "enum": ["exact", "estimate"] }
+      },
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "required": [
+        "agent",
+        "path",
+        "scope",
+        "bytes",
+        "category",
+        "load",
+        "reason",
+        "order",
+        "tokens"
+      ],
+      "properties": {
+        "agent": { "type": "string" },
+        "path": {
+          "type": "string",
+          "description": "POSIX path relative to the repo; user files start with ~/."
+        },
+        "scope": { "enum": ["project", "user"] },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "category": { "$ref": "#/$defs/category" },
+        "load": { "enum": ["startup", "on-demand", "ignored"] },
+        "reason": { "type": "string" },
+        "order": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "importedFrom": { "type": "string" },
+        "skill": {
+          "type": "object",
+          "required": ["name", "description", "bodyPath"],
+          "properties": {
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "whenToUse": { "type": "string" },
+            "bodyPath": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "drop": {
+      "type": "object",
+      "required": ["agent", "kind", "certainty", "limit"],
+      "properties": {
+        "agent": { "type": "string" },
+        "kind": {
+          "enum": [
+            "file-truncated",
+            "file-dropped",
+            "import-too-deep",
+            "skill-description-truncated",
+            "skill-description-dropped",
+            "skill-omitted",
+            "over-recommended-size",
+            "legacy"
+          ]
+        },
+        "certainty": { "enum": ["will", "at-risk", "advice"] },
+        "path": { "type": "string" },
+        "skill": { "type": "string" },
+        "bytesLost": { "type": "integer", "minimum": 0 },
+        "tokensLost": { "type": "integer", "minimum": 0 },
+        "limit": {
+          "type": "string",
+          "description": "Profile key of the limit, such as codex.projectDocMaxBytes."
+        }
+      },
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": ["kind", "code", "severity", "message", "paths"],
+      "properties": {
+        "tool": { "type": "string" },
+        "kind": { "enum": ["duplicate", "suggestion", "skill-health"] },
+        "code": { "type": "string" },
+        "severity": { "enum": ["info", "warn"] },
+        "message": { "type": "string" },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "tokens": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "mcp": {
+      "type": "object",
+      "required": ["servers", "measuredTokens"],
+      "properties": {
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "transport", "configPath", "status"],
+            "properties": {
+              "name": { "type": "string" },
+              "transport": { "enum": ["stdio", "remote"] },
+              "configPath": { "type": "string" },
+              "status": { "enum": ["not-measured", "measured", "failed", "remote-skipped"] },
+              "tools": { "type": "integer", "minimum": 0 },
+              "tokens": { "type": "integer", "minimum": 0 },
+              "message": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "measuredTokens": { "type": ["integer", "null"], "minimum": 0 },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}
