@@ -368,6 +368,20 @@ ${filesTable(a)}`;
     updatedAt = new Date();
     sync();
     renderAll();
+    showToast('Files changed. The report was updated.');
+  }
+
+  // A short notice that fades after a few seconds; a newer one replaces an older one.
+  let toastId = 0;
+  function showToast(text) {
+    const toast = $('toast');
+    if (!toast) return;
+    const mine = ++toastId;
+    toast.textContent = text;
+    toast.hidden = false;
+    window.setTimeout(() => {
+      if (mine === toastId) toast.hidden = true;
+    }, 3000);
   }
 
   // ---- inputs ----

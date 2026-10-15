@@ -169,3 +169,53 @@ describe('markup', () => {
     expect(out).toContain('.live.off{');
   });
 });
+
+describe('toast', () => {
+  test('there is none when the page loads', async () => {
+    const page = await load();
+    expect(page.el('toast').hidden).toBeUndefined();
+    expect(page.timers).toHaveLength(0);
+  });
+
+  test('appears when a new report arrives and fades after three seconds', async () => {
+    const page = await load();
+    page.push('2');
+    expect(page.el('toast').textContent).toBe('Files changed. The report was updated.');
+    expect(page.el('toast').hidden).toBe(false);
+    expect(page.timers.map((t) => t.ms)).toEqual([3000]);
+    page.timers[0]?.fn();
+    expect(page.el('toast').hidden).toBe(true);
+  });
+
+  test('the same report again shows nothing', async () => {
+    const page = await load();
+    page.push('1');
+    expect(page.el('toast').hidden).toBeUndefined();
+  });
+
+  test('an older timer does not hide a newer toast', async () => {
+    const page = await load();
+    page.push('2');
+    page.push('3');
+    expect(page.timers).toHaveLength(2);
+    page.timers[0]?.fn();
+    expect(page.el('toast').hidden).toBe(false);
+    page.timers[1]?.fn();
+    expect(page.el('toast').hidden).toBe(true);
+  });
+
+  test('losing and regaining the connection is not a file change', async () => {
+    const page = await load();
+    page.source.onerror?.();
+    page.source.onopen?.();
+    expect(page.el('toast').hidden).toBeUndefined();
+  });
+
+  test('has an accessible live region in the markup', async () => {
+    const root = tmpRepo({ '.git/': '', 'AGENTS.md': '# A\n' });
+    const out = renderHtml(await analyze({ cwd: root, agents: ['codex'] }), { stream: '/events' });
+    expect(out).toContain(
+      '<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>',
+    );
+  });
+});

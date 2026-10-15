@@ -12,6 +12,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- The `--serve` page shows a short toast when files change and the report refreshes.
 - The `--serve` and `--watch --html` page shows a live or disconnected status dot and the time the report last changed.
 - A release workflow (`.github/workflows/release.yml`) that publishes to npm with provenance when a `v*` tag is pushed. It needs an `NPM_TOKEN` secret; see `docs/RELEASING.md`.
 - A composite GitHub Action (`uses: Chiragjain7254/ctxsize@main`) with inputs `agents`, `max-tokens`, `max-percent`, `fail-on-warnings`, `directory`, `version` and `node-version`. See `docs/CI.md`.

@@ -219,6 +219,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false" title="Switch between light and dark">Light / dark</button>
 </header>
 <p class="sub">Token counts are estimates. A ~ marks a count for a model whose tokenizer is not public (Claude, Gemini and others), made with o200k_base or a characters-per-token ratio; only OpenAI models are counted with their own tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <noscript><p class="empty">This report needs JavaScript. Startup tokens:</p><ul>${noscript}</ul></noscript>
 ${hiddenNote(report)}<section class="controls" aria-label="Controls">
 <div class="grp"><h2>Tools <small>drag to rank, or use the arrows</small></h2><ul id="tools" class="tools"></ul></div>
@@ -276,6 +277,7 @@ h1{font-size:22px;margin:0;flex:1}h2{font-size:14px;margin:0 0 6px}h2 small{colo
 .sub{color:var(--ink2);margin:4px 0 16px}
 .live{color:var(--c3);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
 .live .dot{width:8px;height:8px;border-radius:50%;background:currentColor}.live.off{color:var(--bad)}
+.toast{position:fixed;right:16px;bottom:16px;max-width:min(360px,calc(100vw - 32px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:14px;box-shadow:0 4px 16px rgba(0,0,0,.25)}.toast[hidden]{display:none}
 .btn,.sortb,.mv{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .btn:hover,.mv:hover:not(:disabled){border-color:var(--ink2)}.mv{padding:0 6px;font-size:11px}.mv:disabled{opacity:.35;cursor:default}
 .sortb{background:none;border:0;padding:0;font-weight:600;color:var(--ink2)}

@@ -171,6 +171,8 @@ default browser opens automatically; add `--no-open` to skip that.
   `live · updated 9:09:27 PM` while it is connected, red and `disconnected · last updated 9:09:27 PM,
   reconnecting` when the server stops or the connection drops. The browser reconnects by itself and the
   dot turns green again.
+- When files change and the report refreshes, a short notice ("Files changed. The report was updated.") appears in
+  the bottom right corner for three seconds.
 - The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--messages`,
   `--include-user`, `--tree`, `--no-checks`.
 - It cannot be combined with `--html`, `--json`, `--markdown`, `--card`, `--badge`, `--diff`,
