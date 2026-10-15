@@ -15,7 +15,7 @@ Run `ctxsize --help` to print the same list in your terminal. All token counts a
 | Code | Meaning |
 | --- | --- |
 | `0` | OK |
-| `1` | An agent loads more than `--max-tokens` at startup |
+| `1` | A gate failed: an agent loads more than `--max-tokens` or `--max-percent` at startup |
 | `2` | Usage error: bad flag, bad value, unknown agent or model, bad `ctxsize.json`, not a git repo for `--diff`/`--history` |
 
 ## Choose what to measure
@@ -316,6 +316,17 @@ Exit `1` if any agent loads more than `n` tokens at startup, and name each one o
 
 ```sh
 npx @chiragjain7254/ctxsize --agents claude --max-tokens 8600
+```
+
+### `--max-percent <n>`
+
+Exit `1` if any agent uses more than `n` percent of its context window at startup, and name each one on
+stderr. A number from 0 to 100. The window is the model's own, or what `--context` sets. Use it with or
+instead of `--max-tokens`; both can fail in one run. Like `--max-tokens`, it cannot be combined with
+`--watch`, `--serve` or `--history`.
+
+```sh
+npx @chiragjain7254/ctxsize --max-percent 2
 ```
 
 ### `--check-profiles`

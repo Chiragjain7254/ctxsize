@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- `--max-percent <n>` is a CI gate: exit 1 when an agent uses more than n% of its context window at startup.
 - `--exclude <glob>` (repeatable) and an `"exclude"` key in `ctxsize.json` leave files out of the scan.
 - `--top <n>` sets how many biggest startup files are listed (terminal and `topFiles` in `--json`).
 - `--sort <startup|name|cost>` orders the terminal agent and cost tables.

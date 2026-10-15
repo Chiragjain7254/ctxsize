@@ -7,6 +7,7 @@ import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
 import type { AgentReport, Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
+import { gateFailures } from './gates.ts';
 import {
   computeDiff,
   computeHistory,
@@ -79,6 +80,7 @@ Options:
   --diff <git ref>     Also compare with the same repo at <ref> (a branch, tag or commit)
   --history <n>        Trend of startup tokens over the last n commits (1-200); no working tree
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
+  --max-percent <n>    Exit 1 if any agent uses more than n% of its context window at startup
   --check-profiles     Print every documented agent limit with its source URL and checked date
   --exclude <glob>     Leave out files matching the glob, as if they did not exist (repeatable)
   --no-checks          Skip the duplicate, suggestion and skill-health checks
@@ -359,16 +361,15 @@ Run ctxsize --help for usage.
     return EXIT.usage;
   }
 
-  if (parsed.maxTokens !== undefined) {
-    const over = report.agents.filter((a) => a.startup.total > (parsed.maxTokens ?? 0));
-    if (over.length > 0) {
-      for (const agent of over) {
-        io.stderr(
-          `ctxsize: ${agent.label} loads ${agent.startup.total.toLocaleString('en-US')} tokens at startup, over --max-tokens ${parsed.maxTokens.toLocaleString('en-US')}\n`,
-        );
-      }
-      return EXIT.overBudget;
-    }
+  const failures = gateFailures(report, {
+    maxTokens: parsed.maxTokens,
+    maxPercent: parsed.maxPercent,
+  });
+  if (failures.length > 0) {
+    for (const failure of failures)
+      io.stderr(`ctxsize: ${failure}
+`);
+    return EXIT.overBudget;
   }
   return EXIT.ok;
 }
@@ -443,6 +444,7 @@ function parse(argv: string[], io: Io) {
       badge: { type: 'string' },
       title: { type: 'string' },
       'max-tokens': { type: 'string' },
+      'max-percent': { type: 'string' },
       'no-checks': { type: 'boolean', default: false },
       'check-profiles': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },
@@ -497,14 +499,15 @@ function parse(argv: string[], io: Io) {
         ['history', '--history'],
         ['mcp', '--mcp'],
         ['max-tokens', '--max-tokens'],
+        ['max-percent', '--max-percent'],
       ] as const
     ).find(([key]) => values[key] !== undefined && values[key] !== false);
     if (clash) throw new UsageError(`--serve cannot be combined with ${clash[1]}`);
   }
-  if (values.watch && values['max-tokens'] !== undefined) {
-    throw new UsageError(
-      '--watch cannot be combined with --max-tokens (it never exits on its own)',
-    );
+  for (const gate of ['max-tokens', 'max-percent'] as const) {
+    if (values.watch && values[gate] !== undefined) {
+      throw new UsageError(`--watch cannot be combined with --${gate} (it never exits on its own)`);
+    }
   }
 
   const history = positiveInt(values.history, '--history');
@@ -520,8 +523,10 @@ function parse(argv: string[], io: Io) {
   }
   if (history !== undefined) {
     if (values.diff !== undefined) throw new UsageError('use --diff or --history, not both');
-    if (values['max-tokens'] !== undefined) {
-      throw new UsageError('--max-tokens cannot be combined with --history');
+    for (const gate of ['max-tokens', 'max-percent'] as const) {
+      if (values[gate] !== undefined) {
+        throw new UsageError(`--${gate} cannot be combined with --history`);
+      }
     }
   }
 
@@ -544,6 +549,7 @@ function parse(argv: string[], io: Io) {
     price: nonNegativeNumber(values.price, '--price'),
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
+    maxPercent: percent(values['max-percent'], '--max-percent'),
     diff: values.diff,
     history,
     all: values.all,
@@ -604,6 +610,15 @@ function positiveInt(
     throw new UsageError(
       `${flag} must be a ${allowZero ? 'non-negative' : 'positive'} whole number, got "${value}"`,
     );
+  }
+  return n;
+}
+
+function percent(value: string | undefined, flag: string): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    throw new UsageError(`${flag} must be a number from 0 to 100, got "${value}"`);
   }
   return n;
 }
