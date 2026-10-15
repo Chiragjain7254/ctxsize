@@ -9,7 +9,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   let DATA = JSON.parse($('ctxsize-data').textContent);
   let MODELS = {};
   const W = 960;
-  const H = 520;
+  const H = 340;
   const GAP = 2;
   const CAT = {
     instructions: 'Instructions',
@@ -32,7 +32,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
     ctx: null,
     msgs: null,
     price: null,
-    csort: null,
+    sort: 'tokens',
     fsort: { k: 'tokens', d: -1 },
     tab: null,
     q: '',
@@ -66,7 +66,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   const est = (a) => (tokSpec(a).exact ? '' : '~');
   const modelLabel = (id) => (MODELS[id] ? MODELS[id].label : id);
 
-  // ---- tools list (rank, show, model) ----
+  // ---- agents list (show, model, order); lives under "Adjust model, messages and price" ----
   function renderTools() {
     const list = $('tools');
     list.innerHTML = S.order
@@ -80,7 +80,8 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
           )
           .join('');
         return `<li draggable="true" data-id="${esc(id)}"><span class="grip" aria-hidden="true">&#8942;&#8942;</span>
-<label class="tl"><input type="checkbox" data-act="on" data-id="${esc(id)}" data-f="on-${esc(id)}"${S.on[id] ? ' checked' : ''}> ${esc(a.label)}</label>
+<label class="tl"><input type="checkbox" data-act="on" data-id="${esc(id)}" data-f="on-${esc(id)}"${S.on[id] ? ' checked' : ''}> <b>${esc(a.label)}</b></label>
+<span class="arrow" aria-hidden="true">&rarr;</span>
 <select data-act="model" data-id="${esc(id)}" data-f="model-${esc(id)}" aria-label="Model for ${esc(a.label)}">${opts}</select>
 <button type="button" class="mv" data-act="up" data-id="${esc(id)}" data-f="up-${esc(id)}" aria-label="Move ${esc(a.label)} up"${i === 0 ? ' disabled' : ''}>&#9650;</button><button type="button" class="mv" data-act="down" data-id="${esc(id)}" data-f="down-${esc(id)}" aria-label="Move ${esc(a.label)} down"${i === S.order.length - 1 ? ' disabled' : ''}>&#9660;</button></li>`;
       })
@@ -113,6 +114,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   }
 
   // ---- summary and problems ----
+  const SUMHELP = { bad: 'dropped', warn: 'risk', ok: 'ok' };
   const MARK = { bad: '✗', warn: '!', ok: '✓', info: '•' };
   function activeProblems() {
     const on = S.order.filter((id) => S.on[id]);
@@ -137,33 +139,38 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
     $('summary').innerHTML = `<h2 id="h-summary">Summary</h2><ul class="sum">${lines
       .map(
         (l) =>
-          `<li class="${l.level}"><span class="mk" aria-hidden="true">${MARK[l.level]}</span><span>${esc(l.text)}</span></li>`,
+          `<li class="${l.level}"><span class="mk" aria-hidden="true">${MARK[l.level]}</span><span>${esc(l.text)}${SUMHELP[l.level] ? ` ${helpIcon(SUMHELP[l.level])}` : ''}</span></li>`,
       )
       .join('')}</ul>`;
   }
   const LEVEL = { bad: 'Cut off', warn: 'At risk', info: 'Tip' };
+  const LEVELHELP = { bad: 'dropped', warn: 'risk', info: 'tip' };
+  const CODEHELP = { legacy: 'legacy', 'over-recommended-size': 'oversize' };
   function renderProblems() {
     const ps = activeProblems();
     const body = ps.length
-      ? `<ul class="plist">${ps
-          .map(
-            (p) =>
-              `<li class="${p.level}"><span class="badge ${p.level}">${LEVEL[p.level]}</span><div><p class="ptitle">${esc(p.title)}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p></div></li>`,
-          )
-          .join('')}</ul>`
-      : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix.</p>';
-    $('problems').innerHTML = `<h2 id="h-problems">Problems &amp; how to fix</h2>${body}`;
+      ? tipsFolded(ps)
+      : '<p class="allgood"><span class="mk" aria-hidden="true">\u2713</span> Nothing to fix.</p>';
+    $('problems').innerHTML =
+      `<h2 id="h-problems">Problems &amp; how to fix ${helpIcon('checks')}</h2>${body}`;
   }
 
-  // ---- comparison table ----
-  const CCOLS = [
-    ['label', 'Agent', false, 'agent'],
-    ['model', 'Model', false, 'model'],
-    ['startup', 'Startup tokens', true, 'startup'],
-    ['pct', '% of window', true, 'pct'],
-    ['overhead', 'Overhead tokens', true, 'overhead'],
-    ['cost', 'Cost', true, 'cost'],
-  ];
+  // ---- how an agent is doing: red = something cut off, amber = something to fix, green = fine ----
+  const problemsOf = (a) => DATA.problems.filter((p) => p.tools.includes(a.id));
+  function statusOf(a) {
+    const ps = problemsOf(a);
+    const bad = ps.filter((p) => p.level === 'bad').length;
+    const warn = ps.filter((p) => p.level === 'warn').length;
+    if (bad > 0) return { cls: 'bad', text: `\u2717 ${bad} cut off` };
+    if (warn > 0) return { cls: 'warn', text: `! ${warn} to fix` };
+    return { cls: 'ok', text: '\u2713 Fine' };
+  }
+  const modelText = (a, r) => {
+    const changed = r.model !== a.model;
+    return `${esc(modelLabel(r.model))}${changed ? ' (changed)' : a.modelDefault ? '*' : ''}`;
+  };
+
+  // ---- comparison: one bar per agent ----
   function renderCompare() {
     let rows = S.order
       .filter((id) => S.on[id])
@@ -171,33 +178,36 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
         const a = agentById(id);
         return { a, r: result(a) };
       });
-    if (S.csort) {
-      const get = {
-        label: (x) => x.a.label,
-        model: (x) => modelLabel(x.r.model),
-        startup: (x) => x.r.startup,
-        pct: (x) => x.r.windowPct,
-        overhead: (x) => x.r.overheadTokens,
-        cost: (x) => x.r.costUsd,
-      }[S.csort.k];
-      rows = calc.sortRows(rows, get, S.csort.d);
+    if (S.sort === 'tokens') rows = calc.sortRows(rows, (x) => x.r.startup, -1);
+    else if (S.sort === 'cost') rows = calc.sortRows(rows, (x) => x.r.costUsd, -1);
+    else if (S.sort === 'name') rows = calc.sortRows(rows, (x) => x.a.label, 1);
+    const msgs = globals().messages;
+    const head = `<h2 id="h-compare">Which agent reads the most?</h2>`;
+    if (rows.length === 0) {
+      $('compare').innerHTML =
+        `${head}<p class="empty">No agent is shown. Open &ldquo;Adjust model, messages and price&rdquo; below and tick one.</p>`;
+      return;
     }
-    const head = CCOLS.map(([k, label, right, help]) => {
-      const on = S.csort && S.csort.k === k;
-      const sort = on ? (S.csort.d === 1 ? 'ascending' : 'descending') : 'none';
-      const arrow = on ? (S.csort.d === 1 ? ' &#9650;' : ' &#9660;') : '';
-      return `<th${right ? ' class="r"' : ''} aria-sort="${sort}"><button type="button" class="sortb" data-act="csort" data-k="${k}" data-f="csort-${k}">${label}${arrow}</button>${helpIcon(help)}</th>`;
-    }).join('');
+    const max = Math.max(...rows.map((x) => x.r.startup), 0);
     const body = rows
       .map(({ a, r }) => {
-        const changed = r.model !== a.model;
-        return `<tr class="${S.tab === a.id ? 'cur' : ''}" data-act="tab" data-id="${esc(a.id)}"><td>${esc(a.label)}${a.hasDrops ? ' <span class="tb" title="drops files">&#10007;</span>' : ''}</td><td>${esc(modelLabel(r.model))}${changed ? ' <span class="chg" title="changed in this page">(changed)</span>' : ''}</td><td class="r">${est(a)}${num(r.startup)}</td><td class="r">${pct(r.windowPct)}</td><td class="r">${num(r.overheadTokens)}</td><td class="r">${calc.usd(r.costUsd)}</td></tr>`;
+        const st = statusOf(a);
+        const width = max > 0 && r.startup > 0 ? Math.max(1.5, (r.startup / max) * 100) : 0;
+        return `<li><button type="button" class="row st-${st.cls}" data-act="open" data-id="${esc(a.id)}" data-f="open-${esc(a.id)}" aria-label="Open the details for ${esc(a.label)}">
+<span class="who"><b>${esc(a.label)}</b><span class="mdl">&rarr; ${modelText(a, r)}</span><span class="stat">${st.text}</span></span>
+<span class="bar"><span class="fill" style="width:${width.toFixed(1)}%"></span><b class="bv">${est(a)}${num(r.startup)}</b></span>
+<span class="pc"><b>${pct(r.windowPct)}</b></span>
+<span class="co"><b>${calc.usd(r.costUsd)}</b></span></button></li>`;
       })
       .join('');
-    const msgs = globals().messages;
-    $('compare').innerHTML = rows.length
-      ? `<div class="tw"><table><caption class="sub">Cost of carrying the startup load for ${num(msgs)} messages, at the model's uncached input price (prompt caching lowers it). Click a row to open that tool.</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
-      : '<p class="empty">No tool selected. Tick one above.</p>';
+    const anyEst = rows.some(({ a }) => est(a));
+    const anyDefault = rows.some(({ a, r }) => a.modelDefault && r.model === a.model);
+    $('compare').innerHTML = `${head}
+<p class="sub">Bar length is how much each agent reads from your files before your first message. Click an agent to see its details.</p>
+<div class="bars-head" aria-hidden="false"><span>Agent &rarr; model ${helpIcon('model')}</span><span>Startup tokens ${helpIcon('startup')}</span><span>% of window ${helpIcon('pct')}</span><span>Cost for ${num(msgs)} messages ${helpIcon('cost')}</span></div>
+<ol class="bars">${body}</ol>
+<p class="legend"><span class="key"><i class="dotk ok"></i>Fine ${helpIcon('ok')}</span><span class="key"><i class="dotk warn"></i>Something to fix ${helpIcon('risk')}</span><span class="key"><i class="dotk bad"></i>Cut off ${helpIcon('dropped')}</span>${anyEst ? `<span class="key"><b>~</b> estimate ${helpIcon('estimate')}</span>` : ''}${anyDefault ? `<span class="key"><b>*</b> guessed model ${helpIcon('default')}</span>` : ''}</p>
+<p class="sub fine">Cost assumes the model's normal input price with no caching, so the real price can be lower.</p>`;
   }
 
   // ---- tabs and panel ----
@@ -208,7 +218,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
         const a = agentById(id);
         const r = result(a);
         const sel = S.tab === id;
-        return `<button type="button" role="tab" id="tab-${esc(id)}" aria-controls="panel" aria-selected="${sel}"${sel ? '' : ' tabindex="-1"'} data-act="tab" data-id="${esc(id)}" data-f="tab-${esc(id)}"><span class="tl">${esc(a.label)}</span><span class="tv">${est(a)}${num(r.startup)}</span>${a.hasDrops ? '<span class="tb" title="drops files">&#10007;</span>' : ''}</button>`;
+        return `<button type="button" role="tab" id="tab-${esc(id)}" aria-controls="panel" aria-selected="${sel}"${sel ? '' : ' tabindex="-1"'} data-act="tab" data-id="${esc(id)}" data-f="tab-${esc(id)}"><span class="tl">${esc(a.label)}</span><span class="tv">${est(a)}${num(r.startup)}</span></button>`;
       })
       .join('');
   }
@@ -296,7 +306,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
     const lost = tiles.some((t) => t.status);
     if (lost)
       keys.push(
-        `<span class="key"><i class="sw lost-sw"></i>Dropped or cut off${helpIcon('dropped')}</span>`,
+        `<span class="key"><i class="sw lost-sw"></i>Cut off or dropped${helpIcon('dropped')}</span>`,
       );
     return keys.length > 1 || lost ? `<div class="legend">${keys.join('')}</div>` : '';
   }
@@ -345,6 +355,47 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
     return `<details open><summary>${a.items.length} files${q ? `, ${rows.length} match "${esc(S.q)}"` : ''}${n ? `, ${n} unticked` : ''}</summary><div class="tw"><table><thead><tr><th class="tk"><span class="vh">Count</span>${helpIcon('count')}</th>${head}</tr></thead><tbody>${body}</tbody></table></div></details>`;
   }
 
+  // What to do to make one agent read less: its biggest files first, then the tips that apply.
+  function reduceTips(a, r) {
+    const spec = tokSpec(a);
+    const off = S.off[a.id] || {};
+    const tips = [];
+    const files = a.items
+      .filter((it) => it.load === 'startup' && !it.dropped && !off[it.key])
+      .map((it) => ({ it, tokens: calc.tokensOf(it, spec) }))
+      .filter((x) => x.tokens > 0)
+      .sort((x, y) => y.tokens - x.tokens)
+      .slice(0, 3);
+    for (const { it, tokens } of files) {
+      const name = it.skill ? `skill ${it.skill}` : it.path;
+      const share = r.startup > 0 ? Math.round((tokens / r.startup) * 100) : 0;
+      tips.push(
+        `<b>${esc(name)}</b> is ${share}% of what ${esc(a.label)} reads (${est(a)}${num(tokens)} tokens). Shorten it, or move the parts you need only sometimes into a skill or a rule that loads on demand.`,
+      );
+    }
+    for (const p of problemsOf(a)) if (p.level === 'info') tips.push(esc(p.fix));
+    if (files.length > 0) {
+      tips.push('Untick a file in the table above to see how many tokens you would save.');
+    }
+    return tips;
+  }
+
+  // Things to fix are always shown; optional tips are folded so the list stays short.
+  function tipsFolded(ps) {
+    const fix = ps.filter((p) => p.level !== 'info');
+    const tips = ps.filter((p) => p.level === 'info');
+    return `${fix.length ? problemCards(fix) : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix.</p>'}${tips.length ? `<details class="tipsd"><summary>${tips.length} optional ${tips.length === 1 ? 'tip' : 'tips'} to save tokens</summary>${problemCards(tips)}</details>` : ''}`;
+  }
+
+  function problemCards(ps) {
+    return `<ul class="plist">${ps
+      .map(
+        (p) =>
+          `<li class="${p.level}"><span class="bw"><span class="badge ${p.level}">${LEVEL[p.level]}</span>${helpIcon(LEVELHELP[p.level])}</span><div><p class="ptitle">${esc(p.title)}${CODEHELP[p.code] ? ` ${helpIcon(CODEHELP[p.code])}` : ''}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p></div></li>`,
+      )
+      .join('')}</ul>`;
+  }
+
   function renderPanel() {
     const panel = $('panel');
     const a = S.tab && agentById(S.tab);
@@ -358,17 +409,54 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
     const r = result(a);
     const tiles = tilesFor(a);
     const msgs = globals().messages;
-    const finds = a.findings
-      .map(
-        (f) =>
-          `<li class="${f.cls}">${f.cls === 'bad' ? `<b>${esc(f.head)}</b>${esc(f.text)}` : esc(f.text)}</li>`,
-      )
-      .join('');
-    panel.innerHTML = `<p class="stat"><b>${est(a)}${num(r.startup)}</b> tokens at startup · ${num(r.onDemand)} more on demand · ${pct(r.windowPct)} of a ${num(r.window)}-token window · ${num(r.overheadTokens)} tokens over ${num(msgs)} messages · ${calc.usd(r.costUsd)}</p>
+    const ps = problemsOf(a);
+    const tips = reduceTips(a, r);
+    panel.innerHTML = `<h3 class="ptop">${esc(a.label)} <span class="mdl">&rarr; ${modelText(a, r)}</span></h3>
+<div class="big">
+<div><b>${est(a)}${num(r.startup)}</b><span>startup tokens ${helpIcon('startup')}</span></div>
+<div><b>${pct(r.windowPct)}</b><span>of its ${num(r.window)}-token window ${helpIcon('pct')}</span></div>
+<div><b>${calc.usd(r.costUsd)}</b><span>over ${num(msgs)} messages ${helpIcon('cost')}</span></div>
+<div><b>${num(r.onDemand)}</b><span>more, only when needed ${helpIcon('ondemand')}</span></div>
+</div>
+<h4>Problems for ${esc(a.label)}</h4>
+${ps.length ? problemCards(ps) : '<p class="allgood"><span class="mk" aria-hidden="true">\u2713</span> Nothing to fix for this agent.</p>'}
+<h4>What it reads</h4>
+<p class="sub">These are the files ${esc(a.label)} reads before your first message. The bigger the box, the more tokens it takes.</p>
 ${legendHtml(tiles)}
 <div class="map">${treemapSvg(a, tiles)}</div>
-${finds ? `<ul class="findings">${finds}</ul>` : ''}
-${filesTable(a)}`;
+${filesTable(a)}
+<h4>How to reduce it</h4>
+${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p class="sub">Nothing to reduce: this agent reads nothing from your repo at startup.</p>'}`;
+  }
+
+  // ---- fine print: the long notes and warnings, folded away ----
+  function renderFine() {
+    const out = [];
+    let count = 0;
+    for (const a of DATA.agents) {
+      if (!S.on[a.id]) continue;
+      const lines = a.notes.concat(a.warnings);
+      if (lines.length === 0) continue;
+      count += lines.length;
+      const shown = lines.slice(0, 20).map((t) => `<li>${esc(t)}</li>`);
+      if (lines.length > 20) shown.push(`<li>${lines.length - 20} more in --json</li>`);
+      out.push(`<h4>${esc(a.label)}</h4><ul>${shown.join('')}</ul>`);
+    }
+    out.push(`<p class="sub">${esc(DATA.tokenizerNote)}</p>`);
+    $('fine-body').innerHTML = out.join('');
+    $('fine-count').textContent = count ? ` (${count})` : '';
+  }
+
+  // "(changed)" next to the Adjust heading when something there is not the way the report opened.
+  function renderAdjustState() {
+    const changed =
+      Object.keys(S.model).length > 0 ||
+      S.ctx !== null ||
+      S.msgs !== null ||
+      S.price !== null ||
+      Object.values(S.off).some((o) => Object.keys(o).length > 0) ||
+      DATA.agents.some((a) => !S.on[a.id]);
+    $('adj-state').textContent = changed ? ' (changed)' : '';
   }
 
   // ---- everything that depends on the numbers (not the tools list or the inputs) ----
@@ -381,6 +469,8 @@ ${filesTable(a)}`;
     renderCompare();
     renderTabs();
     renderPanel();
+    renderFine();
+    renderAdjustState();
     if (f) {
       const el = document.querySelector(`[data-f="${f}"]`);
       if (el?.focus) el.focus();
@@ -469,6 +559,8 @@ ${filesTable(a)}`;
     if (act === 'on') {
       S.on[id] = t.checked;
       sync();
+    } else if (act === 'sort') {
+      S.sort = t.value;
     } else if (act === 'model') {
       const a = agentById(id);
       if (t.value === a.model) delete S.model[id];
@@ -496,28 +588,16 @@ ${filesTable(a)}`;
     if (act === 'up' || act === 'down') {
       const i = S.order.indexOf(id);
       reorder(i, i + (act === 'up' ? -1 : 1));
-    } else if (act === 'csort' || act === 'fsort') {
-      const key = act === 'csort' ? 'csort' : 'fsort';
-      const cur = S[key];
-      if (cur && cur.k === k) {
-        // Third click on the same header in the comparison table goes back to rank order.
-        if (key === 'csort' && cur.d === (k === 'label' || k === 'model' ? -1 : 1)) S[key] = null;
-        else S[key] = { k, d: -cur.d };
-      } else {
-        S[key] = {
-          k,
-          d:
-            k === 'label' ||
-            k === 'model' ||
-            k === 'path' ||
-            k === 'category' ||
-            k === 'load' ||
-            k === 'reason'
-              ? 1
-              : -1,
-        };
-      }
+    } else if (act === 'fsort') {
+      const cur = S.fsort;
+      if (cur.k === k) S.fsort = { k, d: -cur.d };
+      else S.fsort = { k, d: k === 'tokens' ? -1 : 1 };
       renderResults();
+    } else if (act === 'open') {
+      S.tab = id;
+      renderResults();
+      const target = $('details');
+      if (target?.scrollIntoView) target.scrollIntoView({ block: 'start' });
     } else if (act === 'tab') {
       S.tab = id;
       renderResults();
@@ -535,10 +615,11 @@ ${filesTable(a)}`;
     S.ctx = null;
     S.msgs = null;
     S.price = null;
-    S.csort = null;
+    S.sort = 'tokens';
     S.fsort = { k: 'tokens', d: -1 };
     S.q = '';
     S.order = DATA.agents.map((a) => a.id);
+    $('in-sort').value = 'tokens';
     for (const id of ['in-ctx', 'in-msgs', 'in-price', 'in-q']) {
       $(id).value = '';
       $(id).setAttribute('aria-invalid', 'false');

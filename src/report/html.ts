@@ -2,7 +2,7 @@ import { countTokens, type Tokenizer, tokenizerLabel } from '../core/tokenize.ts
 import type { AgentReport, Category, LoadedItem, ModelInfo, Report } from '../core/types.ts';
 import { allModels, type Model } from '../models.ts';
 import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './calc.ts';
-import { hiddenSentence } from './common.ts';
+import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { glossaryHtml, helpDefs, helpIcon } from './glossary.ts';
 import { pageMain } from './page-client.ts';
 import { renderCardSvg, renderMarkdown } from './share.ts';
@@ -42,9 +42,13 @@ interface PageAgent extends CalcAgent {
   id: string;
   label: string;
   hasDrops: boolean;
+  /** True when ctxsize picked the model because none was given. */
+  modelDefault: boolean;
   items: PageItem[];
   cuts: { of: string; name: string; category: Category; tokens: number; limit: string }[];
-  findings: { cls: 'bad' | 'warn' | ''; head: string; text: string }[];
+  /** Long notes and warnings: shown under "Fine print". */
+  notes: string[];
+  warnings: string[];
 }
 
 export interface PageData {
@@ -54,6 +58,8 @@ export interface PageData {
   watch: { file: string; every: number } | null;
   stream: string | null;
   models: PageModel[];
+  /** "Tokens are estimates (...)", shown under "Fine print". */
+  tokenizerNote: string;
   agents: PageAgent[];
   /** Everything worth fixing, worst first, each with a how-to-fix line. */
   problems: Problem[];
@@ -90,33 +96,6 @@ function fromInfo(info: ModelInfo): PageModel {
 
 function itemKey(item: LoadedItem): string {
   return item.skill ? `${item.path}#${item.skill.name}` : item.path;
-}
-
-function findings(agent: AgentReport): PageAgent['findings'] {
-  const out: PageAgent['findings'] = [];
-  const will = agent.drops.filter((d) => d.certainty === 'will');
-  if (will.length > 0) {
-    out.push({
-      cls: 'bad',
-      head: `✗ ${will.length} dropped or cut`,
-      text: `: ${will
-        .slice(0, 6)
-        .map((d) => d.skill ?? d.path ?? '')
-        .join(', ')}${will.length > 6 ? ` and ${will.length - 6} more` : ''}`,
-    });
-  }
-  for (const note of agent.notes) out.push({ cls: '', head: '', text: note });
-  for (const w of agent.warnings.slice(0, 5)) {
-    out.push({ cls: 'warn', head: '', text: `! ${w.path ? `${w.path}: ` : ''}${w.message}` });
-  }
-  if (agent.warnings.length > 5) {
-    out.push({
-      cls: 'warn',
-      head: '',
-      text: `! ${agent.warnings.length - 5} more warnings in --json`,
-    });
-  }
-  return out;
 }
 
 function pageAgent(agent: AgentReport): PageAgent {
@@ -160,9 +139,11 @@ function pageAgent(agent: AgentReport): PageAgent {
     window: agent.contextTokens,
     price: agent.model.pricePer1MInput,
     hasDrops: agent.drops.some((d) => d.certainty === 'will'),
+    modelDefault: agent.model.isDefault,
     items,
     cuts,
-    findings: findings(agent),
+    notes: agent.notes,
+    warnings: agent.warnings.map((w) => `${w.path ? `${w.path}: ` : ''}${w.message}`),
   };
 }
 
@@ -178,6 +159,7 @@ export function buildPageData(report: Report, opts: HtmlOptions = {}): PageData 
     watch: opts.watch ? { file: opts.watch.file, every: opts.watch.everyMs ?? 2000 } : null,
     stream: opts.stream ?? null,
     models: [...byId.values()],
+    tokenizerNote: `${tokenizerSentence(report)} Your files only: agents' own system prompts and tools are not counted.`,
     agents: report.agents.map(pageAgent),
     problems: buildProblems(report),
   };
@@ -221,30 +203,39 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <body>
 <main>
 <header class="top">
-<h1>What each agent loads before your first prompt</h1>
+<h1>What your coding agents read before you type</h1>
 <span id="live" class="live" hidden><span class="dot" aria-hidden="true"></span><span id="live-text"></span></span>
 <span class="hw"><button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false">Light / dark</button>${helpIcon('theme')}</span>
 </header>
-<p class="sub">Token counts are estimates. A ~ marks a count for a model whose tokenizer is not public (Claude, Gemini and others), made with o200k_base or a characters-per-token ratio; only OpenAI models are counted with their own tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
+<p class="lead">Coding agents read files from your repo, like AGENTS.md, before your first message. This page shows how much they read, what it costs and what to fix. Numbers marked ~ are estimates.</p>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <noscript><p class="empty">This report needs JavaScript. Startup tokens:</p><ul>${noscript}</ul></noscript>
-${hiddenNote(report)}<section class="controls" aria-label="Controls">
-<div class="grp"><h2>Tools <small>drag to rank, or use the arrows</small> ${helpIcon('include')} ${helpIcon('order')}</h2><ul id="tools" class="tools"></ul></div>
+<section id="summary" aria-labelledby="h-summary"></section>
+<section id="problems" aria-labelledby="h-problems"></section>
+<section id="compare" aria-labelledby="h-compare"></section>
+${hiddenNote(report)}<section id="details" aria-labelledby="h-details">
+<h2 id="h-details">Details for each agent</h2>
+<p class="sub">Pick an agent to see what it reads, why, and how to make it read less.</p>
+<div role="tablist" aria-label="Agents" id="tabs"></div>
+<section role="tabpanel" id="panel"></section>
+</section>
+<details id="adjust" class="adv"><summary>Adjust model, messages and price<span id="adj-state"></span></summary>
+<p class="sub">Ask &ldquo;what if&rdquo;. These controls only change this page, never your files.</p>
+<div id="notes" aria-live="polite"></div>
+<section class="controls" aria-label="Adjust">
+<div class="grp"><h3>Agents and models ${helpIcon('include')} ${helpIcon('model')} ${helpIcon('order')}</h3><p class="sub">Tick the agents to show, pick the model each one uses, and drag (or use the arrows) to change their order.</p><ul id="tools" class="tools"></ul></div>
 <div class="grp fields">
 <label><span>Context window ${helpIcon('window')}</span> <input id="in-ctx" inputmode="numeric" placeholder="model's own" aria-invalid="false"></label>
 <label><span>Messages ${helpIcon('messages')}</span> <input id="in-msgs" inputmode="numeric" aria-invalid="false"></label>
 <label><span>Price, USD per 1M tokens ${helpIcon('price')}</span> <input id="in-price" inputmode="decimal" placeholder="model's own" aria-invalid="false"></label>
+<label><span>Sort bars by ${helpIcon('sort')}</span> <select id="in-sort" data-act="sort"><option value="tokens">Most tokens first</option><option value="cost">Highest cost first</option><option value="name">Name, A to Z</option><option value="mine">My order</option></select></label>
 <label><span>Search files ${helpIcon('search')}</span> <input id="in-q" type="search" placeholder="path contains..."></label>
 <span class="hw"><button type="button" class="btn" data-act="reset">Reset</button>${helpIcon('reset')}</span>
 </div>
 </section>
-<section id="summary" aria-labelledby="h-summary"></section>
-<section id="problems" aria-labelledby="h-problems"></section>
-<div id="notes" aria-live="polite"></div>
+</details>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--bg)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--bad)" stroke-width="2"/></pattern></defs></svg>
-<div id="compare"></div>
-<div role="tablist" aria-label="Agents" id="tabs"></div>
-<section role="tabpanel" id="panel"></section>
+<details id="fine" class="adv"><summary>Fine print<span id="fine-count"></span></summary><p class="sub">Long notes and warnings about how each agent was modelled.</p><div id="fine-body"></div></details>
 ${extrasHtml(report)}
 <details class="extra" id="glossary"><summary>What do these words mean?</summary>${glossaryHtml()}</details>
 <footer>Generated by ctxsize v${esc(report.tool.version)}. Limits come from each agent's documentation; see the project README for sources. Everything on this page runs offline.</footer>
@@ -275,59 +266,66 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};
 const num = (n: number) => n.toLocaleString('en-US');
 
 const CSS = `
-:root{color-scheme:light;--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--ink3:#7a7974;--line:#e4e3df;--chip:#f0efec;
---c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--bad:#d03b3b;--warn:#a86b00;--ok:#1b7f4b;--tint:22%}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;
---c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--ok:#4cc38a;--tint:30%}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;
---c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--ok:#4cc38a;--tint:30%}
+:root{color-scheme:light;--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--ink3:#7a7974;--line:#e4e3df;--chip:#f0efec;--card:#fff;
+--c1:#2a78d6;--c2:#8a63d2;--c3:#1f93ad;--c4:#7a7974;--bad:#c62f2f;--warn:#9a6200;--ok:#1b7f4b;--tint:22%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;--card:#212120;
+--c1:#3987e5;--c2:#9d7be0;--c3:#35b1cc;--c4:#9a9992;--bad:#f07575;--warn:#f5b73a;--ok:#4cc38a;--tint:30%}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;--card:#212120;
+--c1:#3987e5;--c2:#9d7be0;--c3:#35b1cc;--c4:#9a9992;--bad:#f07575;--warn:#f5b73a;--ok:#4cc38a;--tint:30%}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1000px;margin:0 auto;padding:28px 16px 48px}
-h1{font-size:22px;margin:0;flex:1}h2{font-size:14px;margin:0 0 6px}h2 small{color:var(--ink3);font-weight:400}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 16px 56px}
+h1{font-size:26px;line-height:1.25;margin:0;flex:1 1 320px}
+h2{font-size:20px;margin:0 0 6px}h3{font-size:16px;margin:0 0 4px}h4{font-size:15px;margin:22px 0 6px}
+section{margin-top:32px}
 .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.sub{color:var(--ink2);margin:4px 0 16px}
-.live{color:var(--c3);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
+.lead{color:var(--ink2);margin:8px 0 0;max-width:70ch}
+.sub{color:var(--ink2);margin:2px 0 12px;font-size:15px}.sub.fine{font-size:13px;color:var(--ink3);margin-top:10px}
+.live{color:var(--ok);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
 .live .dot{width:8px;height:8px;border-radius:50%;background:currentColor}.live.off{color:var(--bad)}
-.toast{position:fixed;right:16px;bottom:16px;max-width:min(360px,calc(100vw - 32px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:14px;box-shadow:0 4px 16px rgba(0,0,0,.25)}.toast[hidden]{display:none}
+.toast{position:fixed;right:16px;bottom:16px;max-width:min(360px,calc(100vw - 32px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:14px;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:4}.toast[hidden]{display:none}
 .btn,.sortb,.mv{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .btn:hover,.mv:hover:not(:disabled){border-color:var(--ink2)}.mv{padding:0 6px;font-size:11px}.mv:disabled{opacity:.35;cursor:default}
 .sortb{background:none;border:0;padding:0;font-weight:600;color:var(--ink2)}
 button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visible,summary:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
-.controls{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px}
-@media (max-width:760px){.controls{grid-template-columns:1fr}}
-.tools{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-.tools li{display:flex;gap:6px;align-items:center;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--chip);cursor:grab}
-.tools li.dragging{opacity:.4}.tools li.over{border-color:var(--c1);box-shadow:0 0 0 1px var(--c1)}
-.grip{color:var(--ink3);letter-spacing:-2px;user-select:none}.tl{flex:1;min-width:0}
-.tools select{font:inherit;font-size:13px;max-width:180px;min-width:0;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px}
-.fields{display:grid;gap:6px;align-content:start}
-.fields label{display:grid;gap:2px;font-size:13px;color:var(--ink2)}
-.fields input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:3px 6px}
-.fields input[aria-invalid=true]{border-color:var(--bad)}
-.sum,.plist{list-style:none;margin:0;padding:0}
-.sum li{display:flex;gap:10px;padding:5px 0;font-size:16px}.mk{font-weight:700;width:1.2em;flex:none;text-align:center}
-.sum .bad .mk,.plist .bad .ptitle{color:var(--bad)}.sum .warn .mk{color:var(--warn)}.sum .ok .mk,.allgood .mk{color:var(--ok)}
-.plist li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}.ptitle{margin:0;font-weight:600}.pfix{margin:2px 0 0;color:var(--ink2)}
-.badge{flex:none;align-self:flex-start;font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;border:1px solid currentColor}
+.sum,.plist,.tips{list-style:none;margin:0;padding:0}
+.sum li{display:flex;gap:10px;padding:6px 0;font-size:18px;line-height:1.45}
+.mk{font-weight:700;width:1.3em;flex:none;text-align:center}
+.sum .bad .mk{color:var(--bad)}.sum .warn .mk{color:var(--warn)}.sum .ok .mk,.allgood .mk{color:var(--ok)}.sum .info .mk{color:var(--ink3)}
+.allgood{color:var(--ok);font-weight:600;margin:6px 0}
+.plist li{display:flex;gap:12px;padding:12px;margin:8px 0;border:1px solid var(--line);border-left:5px solid var(--ink3);border-radius:8px;background:var(--card)}
+.plist li.bad{border-left-color:var(--bad)}.plist li.warn{border-left-color:var(--warn)}
+.ptitle{margin:0;font-weight:600}.pfix{margin:3px 0 0;color:var(--ink2)}
+.bw{flex:none;align-self:flex-start;display:inline-flex;align-items:center}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:1px 10px;border:1.5px solid currentColor;white-space:nowrap}
 .badge.bad{color:var(--bad)}.badge.warn{color:var(--warn)}.badge.info{color:var(--ink2)}
-#summary,#problems{margin-bottom:18px}
-.ii{font:italic 700 10px/1 Georgia,serif;width:16px;height:16px;padding:0;margin:0 0 0 4px;border-radius:50%;border:1.5px solid var(--ink3);color:var(--ink3);background:none;cursor:help;vertical-align:middle;display:inline-flex;align-items:center;justify-content:center;flex:none}
-.ii:hover,.ii:focus-visible,.ii.on{color:var(--c1);border-color:var(--c1)}
-.hw{display:inline-flex;align-items:center}
-#help{position:fixed;z-index:3;max-width:min(320px,calc(100vw - 24px));background:var(--ink);color:var(--bg);font-size:13px;line-height:1.45;padding:9px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3)}
-#help[hidden]{display:none}#help b{display:block;margin-bottom:2px}#help i{display:block;margin-top:4px;opacity:.85}
-#glossary dt{font-weight:600;margin-top:10px}#glossary dd{margin:2px 0 0;color:var(--ink2)}#glossary h3{font-size:14px;margin:18px 0 0}
-.recheck{margin:0 0 12px;padding:8px 12px 8px 28px;border:1px solid var(--warn);border-radius:8px;color:var(--ink2);font-size:13px}
-[role=tablist]{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}
-[role=tab]{font:inherit;color:var(--ink2);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline}
-[role=tab][aria-selected=true]{color:var(--ink);border-color:var(--ink2);background:var(--bg)}
-.tv{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
-.tb{color:var(--bad);font-weight:700}.chg{color:var(--warn);font-size:12px}
-.stat{margin:0 0 10px;color:var(--ink2)}.stat b{color:var(--ink);font-size:20px}
-.legend{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 10px;color:var(--ink2);font-size:13px}
+.tips{list-style:disc;padding-left:20px}.tips li{margin:4px 0;color:var(--ink2)}.tips b{color:var(--ink)}
+.bars-head,.row{display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(160px,3fr) 72px 96px;gap:14px;align-items:center}
+.bars-head{font-size:13px;font-weight:600;color:var(--ink2);padding:0 12px 4px}.bars-head span:nth-child(n+3){text-align:right}
+.bars{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.row{width:100%;text-align:left;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.row:hover{border-color:var(--ink2)}
+.tipsd{margin-top:8px}.tipsd>summary{font-weight:400;color:var(--ink2)}
+.row .who{display:flex;flex-direction:column;gap:1px;min-width:0}.row .who b{font-size:16px}
+.mdl{color:var(--ink2);font-size:14px;font-weight:400}
+.stat{font-size:13px;font-weight:600;color:var(--ok)}.st-warn .stat{color:var(--warn)}.st-bad .stat{color:var(--bad)}
+.bar{position:relative;display:flex;align-items:center;height:30px;background:var(--chip);border-radius:6px;overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--ok);opacity:.35}.st-warn .fill{background:var(--warn)}.st-bad .fill{background:var(--bad)}
+.bv{position:relative;padding:0 10px;font-size:20px;font-variant-numeric:tabular-nums}
+.pc,.co{text-align:right;font-variant-numeric:tabular-nums}.pc b,.co b{font-size:17px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;color:var(--ink2);font-size:13px}
 .key{display:inline-flex;align-items:center;gap:6px}
+.dotk{width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--ok)}.dotk.warn{background:var(--warn)}.dotk.bad{background:var(--bad)}
 .sw{width:12px;height:12px;border-radius:3px;display:inline-block;background:var(--c)}
+[role=tablist]{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 14px}
+[role=tab]{font:inherit;color:var(--ink2);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline}
+[role=tab][aria-selected=true]{color:var(--ink);border-color:var(--c1);background:var(--bg);box-shadow:0 0 0 1px var(--c1)}
+.tv{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+#panel{border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--card)}
+.ptop{font-size:20px;margin:0 0 12px}.ptop .mdl{font-size:15px}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.big div{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.big b{font-size:28px;line-height:1.2;font-variant-numeric:tabular-nums}.big span{color:var(--ink2);font-size:13px}
 .map svg{width:100%;height:auto;display:block}
 .tile rect{fill:color-mix(in srgb,var(--c) var(--tint),var(--bg))}
 .tile .strip{fill:var(--c)}
@@ -339,21 +337,48 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .tile .n{font-weight:600}.tile .v{fill:var(--ink2);font-variant-numeric:tabular-nums}.tile .d{fill:var(--ink3);font-size:11px}
 .cat-instructions{--c:var(--c1)}.cat-rules{--c:var(--c2)}.cat-skills{--c:var(--c3)}.cat-memory{--c:var(--c4)}
 .lost-sw{background:repeating-linear-gradient(45deg,var(--bad) 0 2px,transparent 2px 5px);border:1px solid var(--bad)}
-.empty{padding:40px;text-align:center;color:var(--ink2);border:1px dashed var(--line);border-radius:8px}
-.findings{margin:14px 0;padding-left:18px;color:var(--ink2)}.findings li{margin:3px 0}
-.findings .bad b{color:var(--bad)}.findings .warn{color:var(--warn);list-style:none;margin-left:-14px}
-.extra{margin-top:16px}.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--ink2)}#share-status{color:var(--ink2);font-size:13px}
-details{margin-top:12px}summary{cursor:pointer;color:var(--ink2)}
+.empty{padding:32px;text-align:center;color:var(--ink2);border:1px dashed var(--line);border-radius:8px}
+details{margin-top:14px}summary{cursor:pointer;color:var(--ink);font-weight:600}
+details.adv,details.extra{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card)}
+details.adv>summary,details.extra>summary{font-size:16px}#adj-state,#fine-count{color:var(--warn);font-weight:400}#fine-count{color:var(--ink3)}
+.controls{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:20px;margin-top:8px}
+@media (max-width:760px){.controls{grid-template-columns:1fr}}
+.tools{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.tools li{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--chip);cursor:grab}
+.tools li.dragging{opacity:.4}.tools li.over{border-color:var(--c1);box-shadow:0 0 0 1px var(--c1)}
+.grip{color:var(--ink3);letter-spacing:-2px;user-select:none}.tl{flex:0 1 auto;min-width:0}.arrow{color:var(--ink3)}
+.tools select{font:inherit;font-size:13px;flex:1 1 140px;max-width:220px;min-width:0;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px}
+.fields{display:grid;gap:8px;align-content:start}
+.fields label{display:grid;gap:2px;font-size:14px;color:var(--ink2)}
+.fields input,.fields select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.fields input[aria-invalid=true]{border-color:var(--bad)}
+.recheck{margin:0 0 12px;padding:8px 12px 8px 28px;border:1px solid var(--warn);border-radius:8px;color:var(--ink2);font-size:13px}
+.extra{margin-top:14px}.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--ink2);margin-top:18px}#share-status{color:var(--ink2);font-size:13px}
+#fine-body h4{margin:14px 0 4px}#fine-body ul{margin:0;padding-left:20px;color:var(--ink2);font-size:14px}
 .tw{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
 caption{text-align:left}
 th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--ink2);font-weight:600}.r{text-align:right;font-variant-numeric:tabular-nums}th.r .sortb{text-align:right}.p{word-break:break-all}
+th{color:var(--ink2);font-weight:600;white-space:nowrap}.r{text-align:right;font-variant-numeric:tabular-nums}th.r .sortb{text-align:right}.p{word-break:break-all}
 .tk{width:28px;padding-right:0}.offrow td{color:var(--ink3);text-decoration:line-through}.offrow td.tk{text-decoration:none}
-tr[data-act=tab]{cursor:pointer}tr.cur td{background:var(--chip)}
 .vh{position:absolute;left:-9999px}
+.findings{margin:10px 0;padding-left:18px;color:var(--ink2)}.findings li{margin:3px 0}.findings .warn{color:var(--warn)}
 #tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.45;padding:7px 10px;border-radius:6px;white-space:pre-line;max-width:340px;display:none;z-index:2}
-footer{margin-top:28px;color:var(--ink3);font-size:13px}
+footer{margin-top:32px;color:var(--ink3);font-size:13px}
+.ii{font:italic 700 10px/1 Georgia,serif;width:16px;height:16px;padding:0;margin:0 0 0 4px;border-radius:50%;border:1.5px solid var(--ink3);color:var(--ink3);background:none;cursor:help;vertical-align:middle;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.ii:hover,.ii:focus-visible,.ii.on{color:var(--c1);border-color:var(--c1)}
+.hw{display:inline-flex;align-items:center}
+#help{position:fixed;z-index:3;max-width:min(320px,calc(100vw - 24px));background:var(--ink);color:var(--bg);font-size:13px;line-height:1.45;padding:9px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3);font-weight:400}
+#help[hidden]{display:none}#help b{display:block;margin-bottom:2px}#help i{display:block;margin-top:4px;opacity:.85}
+#glossary dt{font-weight:600;margin-top:10px}#glossary dd{margin:2px 0 0;color:var(--ink2)}#glossary h3{font-size:14px;margin:18px 0 0}
+@media (max-width:640px){
+h1{font-size:22px}.sum li{font-size:16px}
+.bars-head{display:none}
+.row{grid-template-columns:1fr auto;gap:6px 12px}.row .who{grid-column:1/-1}.row .bar{grid-column:1/-1;grid-row:2}
+.row .pc{grid-row:3;text-align:left}.row .pc b::after{content:" of window";font-weight:400;font-size:13px;color:var(--ink2)}.row .co{grid-row:3}.row .co b::after{content:" over the session";font-weight:400;font-size:13px;color:var(--ink2)}
+.row .co,.row .pc{align-self:center}
+#panel{padding:12px}.plist li{flex-direction:column;gap:6px}
+}
 @media (forced-colors:active){.tile rect{fill:Canvas;stroke:CanvasText}}
 `;
 
@@ -370,19 +395,6 @@ function shareData(report: Report): string {
 /** Checks, folders, MCP servers and share buttons: fixed to the run, not to the what-if state. */
 function extrasHtml(report: Report): string {
   const parts: string[] = [];
-
-  if (report.checks.length > 0) {
-    const label = new Map(report.agents.map((a) => [a.agent, a.label]));
-    const items = report.checks
-      .map(
-        (c) =>
-          `<li class="${c.severity === 'warn' ? 'warn' : ''}">${c.severity === 'warn' ? '! ' : ''}${c.tool ? `<b>${esc(label.get(c.tool) ?? c.tool)}:</b> ` : ''}${esc(c.message)}</li>`,
-      )
-      .join('');
-    parts.push(
-      `<details class="extra" open><summary>Checks (${report.checks.length})</summary><p class="sub hw">What these are ${helpIcon('checks')}</p><ul class="findings">${items}</ul></details>`,
-    );
-  }
 
   if (report.tree && report.tree.length > 1) {
     const head = report.agents.map((a) => `<th class="r">${esc(a.label)}</th>`).join('');
