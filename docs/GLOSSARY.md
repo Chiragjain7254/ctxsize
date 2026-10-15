@@ -1,0 +1,236 @@
+# Glossary
+
+What the words in the ctxsize report mean. The same text appears as hover help and in the
+"What do these words mean?" section of the HTML report.
+
+<!-- Generated from src/report/glossary.ts by `npm run docs:glossary`. Do not edit by hand. -->
+
+## Numbers
+
+### Agent
+
+A coding assistant that reads files from your repo, such as Claude Code, Codex or Cursor.
+
+Example: Claude Code and Windsurf are two agents.
+
+### Token
+
+A small piece of text an AI reads, about three quarters of a word. AI models count and charge by tokens.
+
+Example: 1,000 tokens is roughly 750 words.
+
+### Startup tokens
+
+How much text the agent reads from your files before you type anything. Fewer is better, because it is paid for again with every message.
+
+Example: ~3,820 tokens is about 2,900 words, before you say a word.
+
+### On demand
+
+Text the agent reads later, only when your work needs it. It costs nothing until then.
+
+Example: A rule that only applies to Python files.
+
+### Context window
+
+The agent's memory: the most text it can hold in one conversation. Everything it reads counts against it.
+
+Example: A 1M-token window holds about 750,000 words.
+
+### % of window
+
+How much of the agent's memory the startup text uses up. Lower leaves more room for your actual work.
+
+Example: 0.4% means almost all of the memory is still free.
+
+### Overhead tokens
+
+Startup tokens times the number of messages: the extra text sent along over a whole conversation.
+
+Example: 1,634 tokens × 80 messages = 130,720 tokens.
+
+### Cost
+
+A rough price for sending the startup text with every message, at the model's normal input price. Caching can make the real price lower.
+
+Example: $0.0131 is about one cent over 80 messages.
+
+### Model
+
+The AI model the agent uses. It decides the price, the size of the memory and how tokens are counted.
+
+Example: Claude Code → Claude Haiku 5.5.
+
+### Messages
+
+How many messages you expect to send in one conversation. More messages means a bigger bill.
+
+Example: 80 messages is a long working session.
+
+### Price per 1M tokens
+
+What the model charges for one million input tokens, in US dollars. Leave it empty to use the model's own price.
+
+Example: $3 per 1M tokens means 1,000 tokens cost $0.003.
+
+### ~ (estimate)
+
+A ~ means the number is an estimate. Only OpenAI models are counted with their own tokenizer; the others are approximated.
+
+Example: ~1,634 means about 1,634, not exactly.
+
+### * (default model)
+
+ctxsize guessed which model this agent uses, because you did not say. Pick the real one to get better numbers.
+
+Example: Cursor* → Claude Sonnet 5.5 is a guess.
+
+## What an agent reads
+
+### Instructions
+
+The main files that tell the agent how to work in your repo.
+
+Example: AGENTS.md or CLAUDE.md saying "use npm, not yarn".
+
+### Rules
+
+Extra instruction files kept in a rules folder. Some always load, some only for certain files.
+
+Example: .cursor/rules/style.mdc
+
+### Skills listing
+
+The short name and description of each skill, read at startup so the agent knows what it can do. The full skill loads only when it is used.
+
+Example: "deploy: Use when releasing to production."
+
+### Memory
+
+Notes an agent saves for itself between sessions.
+
+Example: Claude Code's MEMORY.md.
+
+### Category
+
+The kind of file: instructions, rules, skills or memory.
+
+Example: AGENTS.md is "Instructions".
+
+### File
+
+A file in your repo (or a skill) that this agent reads.
+
+Example: docs/api-conventions.md
+
+### Loads (startup / on demand / ignored)
+
+When the agent reads a file: at startup (before your first message), on demand (later, only when needed) or never (ignored).
+
+Example: AGENTS.md: startup. A rule for *.py files: on demand.
+
+### Why
+
+The reason the agent loads, skips or cuts this file.
+
+Example: "CLAUDE.md in ancestor" means it sits in a parent folder.
+
+### Count this file
+
+Untick a file to see the numbers without it. This only changes this page, never your files.
+
+Example: Untick the biggest file to see how much you would save.
+
+### Checks
+
+Extra tests that find waste or mistakes in your files: repeated text, skills with no description, big sections that could load on demand.
+
+Example: "AGENTS.md and CLAUDE.md repeat 2 paragraphs."
+
+### MCP servers
+
+Add-on programs that give an agent extra tools. Their tool lists can add many tokens.
+
+Example: A GitHub server adds tools like "create issue".
+
+## Marks and labels
+
+### ✓ Fine (green)
+
+Nothing is cut off for this agent and no problem was found.
+
+Example: Zed: 103 tokens, all loaded.
+
+### ! and ? At risk (amber)
+
+Something may be ignored or may not work as you expect, or a check found waste. Worth a look.
+
+Example: ! a skill has no description.
+
+### ✗ Dropped or cut (red)
+
+The agent has a size limit and throws away the part that does not fit, or the whole file. It never sees that text.
+
+Example: A 5,000-byte file with a 3,072-byte limit loses its end.
+
+### Legacy
+
+An old file type the tool may still read today but plans to stop supporting.
+
+Example: .cursorrules, replaced by .cursor/rules.
+
+### Over recommended size
+
+The file is longer than the tool's advice. It still loads, but the agent may follow a long file less well.
+
+Example: A 700-line file when the advice is under 200 lines.
+
+### i Tip
+
+An optional way to save tokens. Nothing is broken.
+
+Example: Move a big section into a skill so it loads only when needed.
+
+## Controls
+
+### Show this agent
+
+Tick or untick to include or hide an agent in the summary, the chart and the numbers.
+
+Example: Untick agents you do not use.
+
+### Order
+
+Move an agent up or down (drag it, or use the arrows). The order sets the tabs and "My order" in the chart.
+
+Example: Put your favourite agent first.
+
+### Sort bars by
+
+Choose how the chart is ordered: most tokens first, highest cost first, name, or your own order.
+
+Example: "Highest cost" puts the priciest agent on top.
+
+### Search files
+
+Type part of a file name to dim everything else in the picture and filter the table.
+
+Example: Type "rules" to see only rule files.
+
+### Reset
+
+Puts every control on this page back to how the report first opened.
+
+Example: Clears a model you picked and the messages you typed.
+
+### Light / dark
+
+Switches the page between a light and a dark look. Nothing else changes.
+
+Example: Dark is easier on the eyes at night.
+
+### Share this run
+
+Save a picture of the results, or copy a short summary to paste into a pull request. Nothing is uploaded.
+
+Example: Paste the summary into a pull request.

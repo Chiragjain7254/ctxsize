@@ -4,7 +4,7 @@
 // squarify, document and window are passed in. That also lets a test run it against a stub
 // DOM. All text that comes from the repo is escaped with esc() before it is put in markup.
 
-export function pageMain(calc, squarify, summarize, document, window) {
+export function pageMain(calc, squarify, summarize, helpIcon, document, window) {
   const $ = (id) => document.getElementById(id);
   let DATA = JSON.parse($('ctxsize-data').textContent);
   let MODELS = {};
@@ -157,12 +157,12 @@ export function pageMain(calc, squarify, summarize, document, window) {
 
   // ---- comparison table ----
   const CCOLS = [
-    ['label', 'Agent', false],
-    ['model', 'Model', false],
-    ['startup', 'Startup tokens', true],
-    ['pct', '% of window', true],
-    ['overhead', 'Overhead tokens', true],
-    ['cost', 'Cost', true],
+    ['label', 'Agent', false, 'agent'],
+    ['model', 'Model', false, 'model'],
+    ['startup', 'Startup tokens', true, 'startup'],
+    ['pct', '% of window', true, 'pct'],
+    ['overhead', 'Overhead tokens', true, 'overhead'],
+    ['cost', 'Cost', true, 'cost'],
   ];
   function renderCompare() {
     let rows = S.order
@@ -182,11 +182,11 @@ export function pageMain(calc, squarify, summarize, document, window) {
       }[S.csort.k];
       rows = calc.sortRows(rows, get, S.csort.d);
     }
-    const head = CCOLS.map(([k, label, right]) => {
+    const head = CCOLS.map(([k, label, right, help]) => {
       const on = S.csort && S.csort.k === k;
       const sort = on ? (S.csort.d === 1 ? 'ascending' : 'descending') : 'none';
       const arrow = on ? (S.csort.d === 1 ? ' &#9650;' : ' &#9660;') : '';
-      return `<th${right ? ' class="r"' : ''} aria-sort="${sort}"><button type="button" class="sortb" data-act="csort" data-k="${k}" data-f="csort-${k}">${label}${arrow}</button></th>`;
+      return `<th${right ? ' class="r"' : ''} aria-sort="${sort}"><button type="button" class="sortb" data-act="csort" data-k="${k}" data-f="csort-${k}">${label}${arrow}</button>${helpIcon(help)}</th>`;
     }).join('');
     const body = rows
       .map(({ a, r }) => {
@@ -291,19 +291,22 @@ export function pageMain(calc, squarify, summarize, document, window) {
 
   function legendHtml(tiles) {
     const keys = CATS.filter((c) => tiles.some((t) => t.cat === c)).map(
-      (c) => `<span class="key"><i class="sw cat-${c}"></i>${CAT[c]}</span>`,
+      (c) => `<span class="key"><i class="sw cat-${c}"></i>${CAT[c]}${helpIcon(c)}</span>`,
     );
     const lost = tiles.some((t) => t.status);
-    if (lost) keys.push('<span class="key"><i class="sw lost-sw"></i>Dropped or cut off</span>');
+    if (lost)
+      keys.push(
+        `<span class="key"><i class="sw lost-sw"></i>Dropped or cut off${helpIcon('dropped')}</span>`,
+      );
     return keys.length > 1 || lost ? `<div class="legend">${keys.join('')}</div>` : '';
   }
 
   const FCOLS = [
-    ['path', 'File', false],
-    ['category', 'Category', false],
-    ['load', 'Loads', false],
-    ['tokens', 'Tokens', true],
-    ['reason', 'Why', false],
+    ['path', 'File', false, 'file'],
+    ['category', 'Category', false, 'category'],
+    ['load', 'Loads', false, 'loads'],
+    ['tokens', 'Tokens', true, 'token'],
+    ['reason', 'Why', false, 'why'],
   ];
   function filesTable(a) {
     const spec = tokSpec(a);
@@ -325,11 +328,11 @@ export function pageMain(calc, squarify, summarize, document, window) {
       reason: (x) => x.it.reason,
     }[S.fsort.k];
     rows = calc.sortRows(rows, get, S.fsort.d);
-    const head = FCOLS.map(([k, label, right]) => {
+    const head = FCOLS.map(([k, label, right, help]) => {
       const on = S.fsort.k === k;
       const sort = on ? (S.fsort.d === 1 ? 'ascending' : 'descending') : 'none';
       const arrow = on ? (S.fsort.d === 1 ? ' &#9650;' : ' &#9660;') : '';
-      return `<th${right ? ' class="r"' : ''} aria-sort="${sort}"><button type="button" class="sortb" data-act="fsort" data-k="${k}" data-f="fsort-${k}">${label}${arrow}</button></th>`;
+      return `<th${right ? ' class="r"' : ''} aria-sort="${sort}"><button type="button" class="sortb" data-act="fsort" data-k="${k}" data-f="fsort-${k}">${label}${arrow}</button>${helpIcon(help)}</th>`;
     }).join('');
     const body = rows
       .map(({ it, tokens }) => {
@@ -339,7 +342,7 @@ export function pageMain(calc, squarify, summarize, document, window) {
       })
       .join('');
     const n = Object.keys(off).length;
-    return `<details open><summary>${a.items.length} files${q ? `, ${rows.length} match "${esc(S.q)}"` : ''}${n ? `, ${n} unticked` : ''}</summary><div class="tw"><table><thead><tr><th class="tk"><span class="vh">Count</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div></details>`;
+    return `<details open><summary>${a.items.length} files${q ? `, ${rows.length} match "${esc(S.q)}"` : ''}${n ? `, ${n} unticked` : ''}</summary><div class="tw"><table><thead><tr><th class="tk"><span class="vh">Count</span>${helpIcon('count')}</th>${head}</tr></thead><tbody>${body}</tbody></table></div></details>`;
   }
 
   function renderPanel() {
@@ -620,6 +623,61 @@ ${filesTable(a)}`;
   });
   document.addEventListener('focusout', () => {
     tip.style.display = 'none';
+  });
+
+  // Help popover for the "i" buttons: hover, keyboard focus and tap. The text is copied from the
+  // hidden definitions in the page (the same ones aria-describedby points at).
+  const help = $('help');
+  let pinned = null;
+  let shownFor = null;
+  const iconOf = (e) => (e.target?.closest ? e.target.closest('.ii') : null);
+  function showHelp(icon) {
+    const def = $(`h-${icon.getAttribute('data-help')}`);
+    if (!def || !help) return;
+    help.innerHTML = def.innerHTML.replace(/ id="[^"]*"/g, '');
+    help.hidden = false;
+    shownFor = icon;
+    const b = icon.getBoundingClientRect();
+    const r = help.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, b.left + b.width / 2 - r.width / 2),
+      window.innerWidth - r.width - 8,
+    );
+    const below = b.bottom + 8 + r.height <= window.innerHeight || b.top - 8 - r.height < 0;
+    help.style.left = `${left}px`;
+    help.style.top = `${below ? b.bottom + 8 : b.top - 8 - r.height}px`;
+  }
+  function hideHelp() {
+    if (help) help.hidden = true;
+    if (shownFor?.classList) shownFor.classList.remove('on');
+    shownFor = null;
+    pinned = null;
+  }
+  document.addEventListener('pointerover', (e) => {
+    const icon = iconOf(e);
+    if (icon && e.pointerType === 'mouse' && !pinned) showHelp(icon);
+  });
+  document.addEventListener('pointerout', (e) => {
+    if (iconOf(e) && e.pointerType === 'mouse' && !pinned) hideHelp();
+  });
+  document.addEventListener('focusin', (e) => {
+    const icon = iconOf(e);
+    if (icon && !pinned) showHelp(icon);
+  });
+  document.addEventListener('focusout', (e) => {
+    if (iconOf(e) && !pinned) hideHelp();
+  });
+  document.addEventListener('click', (e) => {
+    const icon = iconOf(e);
+    if (icon && pinned !== icon) {
+      hideHelp();
+      pinned = icon;
+      icon.classList.add('on');
+      showHelp(icon);
+    } else hideHelp();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideHelp();
   });
 
   // Theme: follows the system until the toggle is used; the choice is remembered if storage works.
