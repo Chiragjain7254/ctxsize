@@ -15,7 +15,7 @@ Run `ctxsize --help` to print the same list in your terminal. All token counts a
 | Code | Meaning |
 | --- | --- |
 | `0` | OK |
-| `1` | A gate failed: an agent loads more than `--max-tokens` or `--max-percent` at startup |
+| `1` | A gate failed: an agent is over `--max-tokens`, `--max-percent` or its `maxTokens` budget, or `--fail-on-warnings` found a `!` check |
 | `2` | Usage error: bad flag, bad value, unknown agent or model, bad `ctxsize.json`, not a git repo for `--diff`/`--history` |
 
 ## Choose what to measure
@@ -327,6 +327,17 @@ instead of `--max-tokens` (and the per-tool `tools.<id>.maxTokens` budgets from 
 
 ```sh
 npx @chiragjain7254/ctxsize --max-percent 2
+```
+
+### `--fail-on-warnings`
+
+Exit `1` if any check marked `!` fires: duplicated instructions, or a skill with no description. Each one is
+printed on stderr. Checks marked `i` (suggestions) never fail it. It needs the checks, so it cannot be
+combined with `--no-checks`, and like the other gates it cannot be combined with `--watch`, `--serve` or
+`--history`.
+
+```sh
+npx @chiragjain7254/ctxsize --fail-on-warnings
 ```
 
 ### `--check-profiles`

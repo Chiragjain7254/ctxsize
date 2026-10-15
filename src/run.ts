@@ -81,6 +81,7 @@ Options:
   --history <n>        Trend of startup tokens over the last n commits (1-200); no working tree
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --max-percent <n>    Exit 1 if any agent uses more than n% of its context window at startup
+  --fail-on-warnings   Exit 1 if any check marked "!" (duplicates, skills with no description) fires
   --check-profiles     Print every documented agent limit with its source URL and checked date
   --exclude <glob>     Leave out files matching the glob, as if they did not exist (repeatable)
   --no-checks          Skip the duplicate, suggestion and skill-health checks
@@ -369,6 +370,7 @@ Run ctxsize --help for usage.
     maxTokens: parsed.maxTokens,
     maxPercent: parsed.maxPercent,
     budgets,
+    failOnWarnings: parsed.failOnWarnings,
   });
   if (failures.length > 0) {
     for (const failure of failures)
@@ -450,6 +452,7 @@ function parse(argv: string[], io: Io) {
       title: { type: 'string' },
       'max-tokens': { type: 'string' },
       'max-percent': { type: 'string' },
+      'fail-on-warnings': { type: 'boolean', default: false },
       'no-checks': { type: 'boolean', default: false },
       'check-profiles': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },
@@ -505,12 +508,16 @@ function parse(argv: string[], io: Io) {
         ['mcp', '--mcp'],
         ['max-tokens', '--max-tokens'],
         ['max-percent', '--max-percent'],
+        ['fail-on-warnings', '--fail-on-warnings'],
       ] as const
     ).find(([key]) => values[key] !== undefined && values[key] !== false);
     if (clash) throw new UsageError(`--serve cannot be combined with ${clash[1]}`);
   }
-  for (const gate of ['max-tokens', 'max-percent'] as const) {
-    if (values.watch && values[gate] !== undefined) {
+  if (values['fail-on-warnings'] && values['no-checks']) {
+    throw new UsageError('--fail-on-warnings needs the checks; remove --no-checks');
+  }
+  for (const gate of ['max-tokens', 'max-percent', 'fail-on-warnings'] as const) {
+    if (values.watch && values[gate] !== undefined && values[gate] !== false) {
       throw new UsageError(`--watch cannot be combined with --${gate} (it never exits on its own)`);
     }
   }
@@ -528,8 +535,8 @@ function parse(argv: string[], io: Io) {
   }
   if (history !== undefined) {
     if (values.diff !== undefined) throw new UsageError('use --diff or --history, not both');
-    for (const gate of ['max-tokens', 'max-percent'] as const) {
-      if (values[gate] !== undefined) {
+    for (const gate of ['max-tokens', 'max-percent', 'fail-on-warnings'] as const) {
+      if (values[gate] !== undefined && values[gate] !== false) {
         throw new UsageError(`--${gate} cannot be combined with --history`);
       }
     }
@@ -555,6 +562,7 @@ function parse(argv: string[], io: Io) {
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     maxPercent: percent(values['max-percent'], '--max-percent'),
+    failOnWarnings: values['fail-on-warnings'],
     diff: values.diff,
     history,
     all: values.all,

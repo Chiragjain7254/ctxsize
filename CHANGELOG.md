@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- `--fail-on-warnings` exits 1 when a `!` check fires (duplicates, skills with no description).
 - Per-tool budgets: `tools.<id>.maxTokens` in `ctxsize.json` fails the run (exit 1) when that tool loads more at startup.
 - `--max-percent <n>` is a CI gate: exit 1 when an agent uses more than n% of its context window at startup.
 - `--exclude <glob>` (repeatable) and an `"exclude"` key in `ctxsize.json` leave files out of the scan.

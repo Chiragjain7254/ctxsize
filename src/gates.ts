@@ -9,6 +9,8 @@ export interface Gates {
   maxPercent?: number | undefined;
   /** tools.<id>.maxTokens from ctxsize.json: a startup budget per tool. */
   budgets?: Record<string, number> | undefined;
+  /** --fail-on-warnings: any check marked "!" (severity warn) fails the run. */
+  failOnWarnings?: boolean | undefined;
 }
 
 const n = (value: number): string => value.toLocaleString('en-US');
@@ -33,6 +35,11 @@ export function gateFailures(report: Report, gates: Gates): string[] {
       failures.push(
         `${agent.label} uses ${pct}% of its ${n(agent.contextTokens)}-token context window at startup, over --max-percent ${gates.maxPercent}`,
       );
+    }
+  }
+  if (gates.failOnWarnings) {
+    for (const check of report.checks) {
+      if (check.severity === 'warn') failures.push(`${check.message} (--fail-on-warnings)`);
     }
   }
   return failures;

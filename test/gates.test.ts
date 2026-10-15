@@ -133,3 +133,52 @@ describe('tools.<id>.maxTokens in ctxsize.json', () => {
     }
   });
 });
+
+describe('--fail-on-warnings', () => {
+  const noDescription = () =>
+    tmpRepo({
+      '.git/': '',
+      'AGENTS.md': '# Agents\n',
+      '.claude/skills/x/SKILL.md': '---\nname: x\n---\nBody\n',
+    });
+  const clean = () => tmpRepo({ '.git/': '', 'AGENTS.md': '# Agents\n\nRun the tests.\n' });
+
+  test('exits 1 and prints each "!" check', async () => {
+    const r = await cli(['--fail-on-warnings'], noDescription());
+    expect(r.code).toBe(EXIT.overBudget);
+    expect(r.stderr).toContain('skill x');
+    expect(r.stderr).toContain('(--fail-on-warnings)');
+  });
+
+  test('without the flag the same repo exits 0', async () => {
+    expect((await cli([], noDescription())).code).toBe(EXIT.ok);
+  });
+
+  test('a repo with no warnings passes', async () => {
+    expect((await cli(['--fail-on-warnings'], clean())).code).toBe(EXIT.ok);
+  });
+
+  test('info-level checks do not fail it', async () => {
+    const root = tmpRepo({
+      '.git/': '',
+      '.claude/skills/x/SKILL.md': '---\nname: x\ndescription: Formats the changelog\n---\nBody\n',
+    });
+    const r = await cli(['--fail-on-warnings', '--json'], root);
+    const checks: { severity: string }[] = JSON.parse(r.stdout).checks;
+    expect(checks.every((c) => c.severity !== 'warn')).toBe(true);
+    expect(r.code).toBe(EXIT.ok);
+  });
+
+  test('--no-checks makes it a usage error', async () => {
+    const r = await cli(['--fail-on-warnings', '--no-checks'], clean());
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('--fail-on-warnings needs the checks');
+  });
+
+  test('cannot be combined with --watch, --serve or --history', async () => {
+    for (const flag of [['--watch'], ['--serve'], ['--history', '2']]) {
+      const r = await cli(['--fail-on-warnings', ...flag], clean());
+      expect(r.code, flag.join(' ')).toBe(EXIT.usage);
+    }
+  });
+});
