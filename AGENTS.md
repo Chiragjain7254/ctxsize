@@ -19,6 +19,7 @@ startup and how many tokens it costs. It never runs agents and never touches the
 - Token counts are estimates; always label them so.
 - A claim about how an agent behaves needs a link to its official docs in `src/profiles.ts`.
 - Small commits, one logical change each.
+- After every push, check GitHub CI passes (`gh run watch`). Never leave main red.
 - Commit and push only project files. Temporary or local-only files go in `.local/` (git-ignored) and are never committed.
 
 ## Progress tracking
