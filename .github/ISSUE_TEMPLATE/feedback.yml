@@ -1,0 +1,36 @@
+name: Feedback
+description: Tell us how ctxsize worked for you
+labels: [feedback]
+body:
+  - type: dropdown
+    id: rating
+    attributes:
+      label: How would you rate ctxsize?
+      description: 1 = not useful, 5 = I use it every week.
+      options: ['1', '2', '3', '4', '5']
+    validations: { required: true }
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked?
+  - type: textarea
+    id: confused
+    attributes:
+      label: What confused you?
+      description: A number, a word, a check, a step. Paste the output if it helps.
+  - type: checkboxes
+    id: agents
+    attributes:
+      label: Which agents do you use?
+      options:
+        - label: Claude Code
+        - label: Codex
+        - label: Cursor
+        - label: GitHub Copilot
+        - label: Gemini CLI
+        - label: Other
+  - type: textarea
+    id: idea
+    attributes:
+      label: An idea
+      description: Anything you wish it did, even if it changes what ctxsize is.

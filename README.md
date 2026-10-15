@@ -9,6 +9,17 @@
 
 ![ctxsize HTML report in light mode: ranked tools, cost table and a treemap of every startup file](docs/img/report-light.png)
 
+## Try it and tell us
+
+```sh
+npx @chiragjain7254/ctxsize
+```
+
+- Tell us what you think, and rate it 1 to 5: [the feedback Discussion](https://github.com/Chiragjain7254/ctxsize/discussions/5).
+- ⭐ Star the repo if it helped.
+- Want to contribute? Pick a [good first issue](https://github.com/Chiragjain7254/ctxsize/labels/good%20first%20issue).
+- Ideas for new directions are welcome, even if they change what ctxsize is.
+
 Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
 `ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
 
