@@ -347,11 +347,27 @@ ${filesTable(a)}`;
       const el = document.querySelector(`[data-f="${f}"]`);
       if (el?.focus) el.focus();
     }
+    renderLive();
+  }
+
+  // Live status (--serve and --watch): a dot, whether the server is reachable, and when the data last changed.
+  let updatedAt = new Date();
+  let connected = true;
+  function renderLive() {
     const live = $('live');
-    if (live && (DATA.watch || DATA.stream)) {
-      live.hidden = false;
-      live.textContent = `live · updated ${new Date().toLocaleTimeString()}`;
-    }
+    if (!live || !(DATA.watch || DATA.stream)) return;
+    const at = updatedAt.toLocaleTimeString();
+    live.hidden = false;
+    live.className = connected ? 'live' : 'live off';
+    $('live-text').textContent = connected
+      ? `live · updated ${at}`
+      : `disconnected · last updated ${at}, reconnecting`;
+  }
+  function applyData(next) {
+    DATA = next;
+    updatedAt = new Date();
+    sync();
+    renderAll();
   }
 
   // ---- inputs ----
@@ -583,11 +599,7 @@ ${filesTable(a)}`;
     s.onload = () => {
       const next = window.__ctxsizeData;
       done();
-      if (next && next.generated !== DATA.generated) {
-        DATA = next;
-        sync();
-        renderAll();
-      }
+      if (next && next.generated !== DATA.generated) applyData(next);
     };
     s.onerror = done;
     document.head.appendChild(s);
@@ -601,6 +613,15 @@ ${filesTable(a)}`;
   // --serve: the server pushes new data over Server-Sent Events; the browser reconnects by itself.
   if (DATA.stream && window.EventSource) {
     const source = new window.EventSource(DATA.stream);
+    source.onopen = () => {
+      connected = true;
+      renderLive();
+    };
+    // The browser reconnects by itself; until it does, say so instead of showing stale data as live.
+    source.onerror = () => {
+      connected = false;
+      renderLive();
+    };
     source.onmessage = (e) => {
       let next = null;
       try {
@@ -608,11 +629,7 @@ ${filesTable(a)}`;
       } catch (_err) {
         return;
       }
-      if (next && next.generated !== DATA.generated) {
-        DATA = next;
-        sync();
-        renderAll();
-      }
+      if (next && next.generated !== DATA.generated) applyData(next);
     };
   }
 }

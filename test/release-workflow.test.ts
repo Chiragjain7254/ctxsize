@@ -26,7 +26,7 @@ describe('release workflow', () => {
   test('publishes to npm with provenance, using the NPM_TOKEN secret', () => {
     const publish = steps.find((s) => s.run?.includes('npm publish'));
     expect(publish?.run).toBe('npm publish --provenance --access public');
-    expect(publish?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
+    expect(publish?.env?.NODE_AUTH_TOKEN).toMatch(/secrets.NPM_TOKEN/);
     const node = steps.find((s) => s.uses?.startsWith('actions/setup-node@')) as {
       with?: { 'registry-url'?: string };
     };

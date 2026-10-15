@@ -167,10 +167,15 @@ default browser opens automatically; add `--no-open` to skip that.
 - It watches the same files as `--watch`. After a change the analysis runs again and the open page
   updates without a reload. The checks, folder and MCP lists and the share buttons at the bottom of the
   page are fixed to the run that served the page, as with `--watch --html`; reload to refresh them.
+- The top right of the page shows a status dot with the time the report last changed: green and
+  `live · updated 9:09:27 PM` while it is connected, red and `disconnected · last updated 9:09:27 PM,
+  reconnecting` when the server stops or the connection drops. The browser reconnects by itself and the
+  dot turns green again.
 - The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--messages`,
   `--include-user`, `--tree`, `--no-checks`.
 - It cannot be combined with `--html`, `--json`, `--markdown`, `--card`, `--badge`, `--diff`,
-  `--history`, `--mcp` or `--max-tokens`; that is a usage error.
+  `--history`, `--mcp`, `--quiet` or a gate (`--max-tokens`, `--max-percent`, `--fail-on-warnings`); that is a
+  usage error.
 
 ```sh
 npx @chiragjain7254/ctxsize --serve

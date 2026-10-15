@@ -215,7 +215,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <main>
 <header class="top">
 <h1>What each agent loads before your first prompt</h1>
-<span id="live" class="live" hidden></span>
+<span id="live" class="live" hidden><span class="dot" aria-hidden="true"></span><span id="live-text"></span></span>
 <button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false" title="Switch between light and dark">Light / dark</button>
 </header>
 <p class="sub">Token counts are estimates. A ~ marks a count for a model whose tokenizer is not public (Claude, Gemini and others), made with o200k_base or a characters-per-token ratio; only OpenAI models are counted with their own tokenizer. Only your files; agents' own system prompts and tools are not included.</p>
@@ -274,7 +274,8 @@ main{max-width:1000px;margin:0 auto;padding:28px 16px 48px}
 h1{font-size:22px;margin:0;flex:1}h2{font-size:14px;margin:0 0 6px}h2 small{color:var(--ink3);font-weight:400}
 .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .sub{color:var(--ink2);margin:4px 0 16px}
-.live{color:var(--c3);font-size:13px}
+.live{color:var(--c3);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
+.live .dot{width:8px;height:8px;border-radius:50%;background:currentColor}.live.off{color:var(--bad)}
 .btn,.sortb,.mv{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .btn:hover,.mv:hover:not(:disabled){border-color:var(--ink2)}.mv{padding:0 6px;font-size:11px}.mv:disabled{opacity:.35;cursor:default}
 .sortb{background:none;border:0;padding:0;font-weight:600;color:var(--ink2)}
