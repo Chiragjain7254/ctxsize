@@ -33,6 +33,14 @@ describe('release workflow', () => {
     expect(node.with?.['registry-url']).toBe('https://registry.npmjs.org');
   });
 
+  test('skips the publish with a notice when NPM_TOKEN is missing or the version is on npm', () => {
+    const gate = steps.find((s) => s.run?.includes('NPM_TOKEN is not set'));
+    expect(gate?.run).toContain('is already on npm');
+    expect(gate?.run).not.toContain('exit 1');
+    const publish = steps.find((s) => s.run?.includes('npm publish')) as { if?: string };
+    expect(publish.if).toBe("steps.gate.outputs.publish == 'true'");
+  });
+
   test('checks everything before it publishes', () => {
     const order = steps.map((s) => s.run ?? s.uses ?? '');
     const at = (needle: string) => order.findIndex((r) => r.includes(needle));
