@@ -79,17 +79,18 @@ function parseJson(text: string, origin: string): unknown {
   } catch (err) {
     // package.json that does not parse is not ours to complain about unless it is ctxsize.json.
     if (origin === 'package.json') return undefined;
-    throw new ConfigError(`${origin}: invalid JSON: ${(err as Error).message}`);
+    throw new ConfigError(`${origin}: invalid JSON: ${jsonErrorWhere(err as Error, text)}`);
   }
 }
 
 export function parseConfig(raw: unknown, origin: string): Config {
   const at = (p: string) => `${origin}: ${p}`;
-  if (!isObject(raw)) throw new ConfigError(at('expected an object'));
+  if (!isObject(raw)) throw new ConfigError(at(`expected an object, got ${got(raw)}`));
   rejectUnknown(raw, TOP_KEYS, origin);
   const tools: Record<string, UserTool> = {};
   if (raw.tools !== undefined) {
-    if (!isObject(raw.tools)) throw new ConfigError(at('"tools" must be an object'));
+    if (!isObject(raw.tools))
+      throw new ConfigError(at(`"tools" must be an object, got ${got(raw.tools)}`));
     for (const [id, value] of Object.entries(raw.tools)) {
       if (!TOOL_ID.test(id)) {
         throw new ConfigError(at(`tool id "${id}" must be lowercase letters, digits and dashes`));
@@ -99,7 +100,8 @@ export function parseConfig(raw: unknown, origin: string): Config {
   }
   const models: Record<string, UserModel> = {};
   if (raw.models !== undefined) {
-    if (!isObject(raw.models)) throw new ConfigError(at('"models" must be an object'));
+    if (!isObject(raw.models))
+      throw new ConfigError(at(`"models" must be an object, got ${got(raw.models)}`));
     for (const [id, value] of Object.entries(raw.models)) {
       if (!MODEL_ID.test(id)) {
         throw new ConfigError(
@@ -117,7 +119,7 @@ export function parseConfig(raw: unknown, origin: string): Config {
 }
 
 function parseModel(value: unknown, where: string): UserModel {
-  if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
+  if (!isObject(value)) throw new ConfigError(`${where}: expected an object, got ${got(value)}`);
   rejectUnknown(value, MODEL_KEYS, where);
   const model: UserModel = {};
   if (value.label !== undefined) model.label = str(value.label, `${where}.label`);
@@ -128,7 +130,9 @@ function parseModel(value: unknown, where: string): UserModel {
   if (value.pricePer1MInput !== undefined) {
     const p = value.pricePer1MInput;
     if (typeof p !== 'number' || !Number.isFinite(p) || p < 0) {
-      throw new ConfigError(`${where}.pricePer1MInput: expected a number of USD, 0 or more`);
+      throw new ConfigError(
+        `${where}.pricePer1MInput: expected a number of USD, 0 or more, got ${got(p)}`,
+      );
     }
     model.pricePer1MInput = p;
   }
@@ -142,17 +146,19 @@ function parseTokenizer(value: unknown, where: string): Tokenizer {
     rejectUnknown(value, ['charsPerToken'], `${where}.tokenizer`);
     const r = value.charsPerToken;
     if (typeof r !== 'number' || !Number.isFinite(r) || r <= 0 || r > 20) {
-      throw new ConfigError(`${where}.tokenizer.charsPerToken: expected a number between 0 and 20`);
+      throw new ConfigError(
+        `${where}.tokenizer.charsPerToken: expected a number between 0 and 20, got ${got(r)}`,
+      );
     }
     return { charsPerToken: r };
   }
   throw new ConfigError(
-    `${where}.tokenizer: expected "o200k_base", "cl100k_base" or { "charsPerToken": 3.5 }`,
+    `${where}.tokenizer: expected "o200k_base", "cl100k_base" or { "charsPerToken": 3.5 }, got ${got(value)}`,
   );
 }
 
 function parseTool(value: unknown, where: string): UserTool {
-  if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
+  if (!isObject(value)) throw new ConfigError(`${where}: expected an object, got ${got(value)}`);
   rejectUnknown(value, TOOL_KEYS, where);
   const tool: UserTool = {};
   if (value.model !== undefined) tool.model = str(value.model, `${where}.model`);
@@ -173,7 +179,9 @@ function parseTool(value: unknown, where: string): UserTool {
   }
   if (value.firstMatchOnly !== undefined) {
     if (typeof value.firstMatchOnly !== 'boolean') {
-      throw new ConfigError(`${where}.firstMatchOnly: expected true or false`);
+      throw new ConfigError(
+        `${where}.firstMatchOnly: expected true or false, got ${got(value.firstMatchOnly)}`,
+      );
     }
     tool.firstMatchOnly = value.firstMatchOnly;
   }
@@ -188,25 +196,28 @@ function parseTool(value: unknown, where: string): UserTool {
     );
   }
   if (value.rules !== undefined) {
-    if (!Array.isArray(value.rules)) throw new ConfigError(`${where}.rules: expected a list`);
+    if (!Array.isArray(value.rules))
+      throw new ConfigError(`${where}.rules: expected a list, got ${got(value.rules)}`);
     tool.rules = value.rules.map((r, i) => parseRule(r, `${where}.rules[${i}]`));
   }
   if (value.skills !== undefined) {
-    if (!isObject(value.skills)) throw new ConfigError(`${where}.skills: expected an object`);
+    if (!isObject(value.skills))
+      throw new ConfigError(`${where}.skills: expected an object, got ${got(value.skills)}`);
     rejectUnknown(value.skills, ['dirs'], `${where}.skills`);
     tool.skills = { dirs: relPatterns(value.skills.dirs, `${where}.skills.dirs`) };
   }
   if (value.limits !== undefined) tool.limits = parseLimits(value.limits, `${where}.limits`);
   if (value.sources !== undefined) tool.sources = parseSources(value.sources, `${where}.sources`);
   if (value.notes !== undefined) {
-    if (!Array.isArray(value.notes)) throw new ConfigError(`${where}.notes: expected a list`);
+    if (!Array.isArray(value.notes))
+      throw new ConfigError(`${where}.notes: expected a list, got ${got(value.notes)}`);
     tool.notes = value.notes.map((n, i) => str(n, `${where}.notes[${i}]`));
   }
   return tool;
 }
 
 function parseRule(value: unknown, where: string): RuleSpec {
-  if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
+  if (!isObject(value)) throw new ConfigError(`${where}: expected an object, got ${got(value)}`);
   rejectUnknown(value, RULE_KEYS, where);
   const [dir] = relPatterns([value.dir], `${where}.dir`);
   const rule: RuleSpec = { dir: (dir ?? '').replace(/\/+$/, '') };
@@ -220,7 +231,9 @@ function parseRule(value: unknown, where: string): RuleSpec {
   }
   if (value.startupModes !== undefined) {
     if (!Array.isArray(value.startupModes)) {
-      throw new ConfigError(`${where}.startupModes: expected a list`);
+      throw new ConfigError(
+        `${where}.startupModes: expected a list, got ${got(value.startupModes)}`,
+      );
     }
     rule.startupModes = value.startupModes.map((m, i) => str(m, `${where}.startupModes[${i}]`));
   }
@@ -228,7 +241,7 @@ function parseRule(value: unknown, where: string): RuleSpec {
 }
 
 function parseLimits(value: unknown, where: string): SpecLimits {
-  if (!isObject(value)) throw new ConfigError(`${where}: expected an object`);
+  if (!isObject(value)) throw new ConfigError(`${where}: expected an object, got ${got(value)}`);
   rejectUnknown(value, LIMIT_KEYS, where);
   const limits: SpecLimits = {};
   for (const key of LIMIT_KEYS) {
@@ -240,10 +253,10 @@ function parseLimits(value: unknown, where: string): SpecLimits {
 }
 
 function parseSources(value: unknown, where: string): Source[] {
-  if (!Array.isArray(value)) throw new ConfigError(`${where}: expected a list`);
+  if (!Array.isArray(value)) throw new ConfigError(`${where}: expected a list, got ${got(value)}`);
   return value.map((s, i) => {
     const w = `${where}[${i}]`;
-    if (!isObject(s)) throw new ConfigError(`${w}: expected an object`);
+    if (!isObject(s)) throw new ConfigError(`${w}: expected an object, got ${got(s)}`);
     rejectUnknown(s, ['url', 'checked', 'note'], w);
     const url = str(s.url, `${w}.url`);
     if (!url.startsWith('https://')) throw new ConfigError(`${w}.url: must start with https://`);
@@ -257,6 +270,59 @@ function parseSources(value: unknown, where: string): Source[] {
 
 // ---------------------------------------------------------------- helpers
 
+/** What a value is, for "expected X, got Y": `"100" (a string)`, `1.5 (a number)`, `null`. */
+function got(v: unknown): string {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'a list';
+  if (typeof v === 'object') return 'an object';
+  if (typeof v === 'string')
+    return `${JSON.stringify(v.length > 40 ? `${v.slice(0, 37)}...` : v)} (a string)`;
+  if (typeof v === 'number') return `${v} (a number)`;
+  if (typeof v === 'boolean') return `${v} (a boolean)`;
+  return 'nothing';
+}
+
+/** " — did you mean "x"?" when a typo is close to one of the allowed names, else "". */
+function suggest(value: unknown, allowed: readonly string[]): string {
+  if (typeof value !== 'string') return '';
+  let best: string | undefined;
+  let bestDistance = Math.max(2, Math.floor(value.length / 3)) + 1;
+  for (const name of allowed) {
+    const d = editDistance(value.toLowerCase(), name.toLowerCase());
+    if (d < bestDistance) {
+      best = name;
+      bestDistance = d;
+    }
+  }
+  return best === undefined ? '' : ` (did you mean "${best}"?)`;
+}
+
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(
+        (row[j] ?? 0) + 1,
+        (next[j - 1] ?? 0) + 1,
+        (row[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    row = next;
+  }
+  return row[b.length] ?? 0;
+}
+
+/** The JSON.parse message plus "line X, column Y" when the runtime gave only a position. */
+function jsonErrorWhere(err: Error, text: string): string {
+  const m = /position (\d+)/.exec(err.message);
+  if (!m || /line \d+/.test(err.message)) return err.message;
+  const before = text.slice(0, Number(m[1]));
+  const line = before.split('\n').length;
+  const column = before.length - before.lastIndexOf('\n');
+  return `${err.message} (line ${line}, column ${column})`;
+}
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -264,27 +330,31 @@ function isObject(v: unknown): v is Record<string, unknown> {
 function rejectUnknown(obj: Record<string, unknown>, allowed: string[], where: string): void {
   for (const key of Object.keys(obj)) {
     if (!allowed.includes(key)) {
-      throw new ConfigError(`${where}: unknown key "${key}" (allowed: ${allowed.join(', ')})`);
+      throw new ConfigError(
+        `${where}: unknown key "${key}"${suggest(key, allowed)} (allowed: ${allowed.join(', ')})`,
+      );
     }
   }
 }
 
 function str(v: unknown, where: string): string {
   if (typeof v !== 'string' || v === '')
-    throw new ConfigError(`${where}: expected a non-empty string`);
+    throw new ConfigError(`${where}: expected a non-empty string, got ${got(v)}`);
   return v;
 }
 
 function posInt(v: unknown, where: string): number {
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) {
-    throw new ConfigError(`${where}: expected a positive whole number`);
+    throw new ConfigError(`${where}: expected a positive whole number, got ${got(v)}`);
   }
   return v;
 }
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], where: string): T {
   if (typeof v !== 'string' || !(allowed as readonly string[]).includes(v)) {
-    throw new ConfigError(`${where}: expected one of ${allowed.join(', ')}`);
+    throw new ConfigError(
+      `${where}: expected one of ${allowed.join(', ')}${suggest(v, allowed)}, got ${got(v)}`,
+    );
   }
   return v as T;
 }
@@ -292,7 +362,7 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], where: strin
 /** Relative POSIX patterns only: nothing absolute and no "..", so a config cannot reach outside the repo. */
 function relPatterns(v: unknown, where: string): string[] {
   if (!Array.isArray(v) || v.length === 0)
-    throw new ConfigError(`${where}: expected a non-empty list`);
+    throw new ConfigError(`${where}: expected a non-empty list, got ${got(v)}`);
   return v.map((p, i) => {
     const s = str(p, `${where}[${i}]`);
     if (s.includes('\\')) throw new ConfigError(`${where}[${i}]: use "/" as the separator`);

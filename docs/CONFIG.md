@@ -4,7 +4,10 @@ ctxsize works without any config. Add a `ctxsize.json` at the repo root (or a `"
 `package.json`) to add your own tools, change what the built-in ones read, pick models, and set the
 number of messages used for the cost estimate. If both files exist, `ctxsize.json` wins.
 
-A typo in a key is an error (exit code 2), not a silent default.
+A mistake in the file is an error (exit code 2), not a silent default. The message names the key, says what it found
+and suggests the fix, for example `ctxsize.json: unknown key "mesages" (did you mean "messages"?)` or
+`ctxsize.json: messages: expected a positive whole number, got "80" (a string)`. Invalid JSON is reported with its line and
+column.
 
 ```json
 {

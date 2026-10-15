@@ -6,6 +6,7 @@ All notable changes are documented here. This project follows
 ## [Unreleased]
 
 ### Changed
+- Errors in `ctxsize.json` are more specific: they say what was found (`got "80" (a string)`), suggest the closest key for a typo, and give the line and column of invalid JSON.
 - Tools that load 0 startup and 0 on-demand tokens are hidden by default. One line after the table
   names them (`Hidden: Aider, Zed (no files found) — use --all to show`), and `--json` has a `hidden`
   array of their ids. `--agents` always shows the tools it lists.
