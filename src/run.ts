@@ -271,7 +271,7 @@ Run ctxsize --help for usage.
 
     if (rerun && io.isTTY) io.stdout('[2J[3J[H');
     if (parsed.json) {
-      io.stdout(toJson(report, diff ? { diff } : {}));
+      io.stdout(toJson(report, diff ? { diff } : {}, generatedAt(io.env)));
     } else if (parsed.markdown === '-' && share) {
       io.stdout(share.renderMarkdown(report));
     } else {
@@ -381,6 +381,14 @@ Run ctxsize --help for usage.
   return EXIT.ok;
 }
 
+/** The time stamped into JSON output; SOURCE_DATE_EPOCH (seconds) makes it reproducible. */
+function generatedAt(env: Io['env']): Date {
+  const epoch = Number(env.SOURCE_DATE_EPOCH);
+  return env.SOURCE_DATE_EPOCH && Number.isInteger(epoch) && epoch >= 0
+    ? new Date(epoch * 1000)
+    : new Date();
+}
+
 /** --history: startup tokens per commit; the working tree is not analyzed. */
 async function runHistory(
   parsed: {
@@ -410,7 +418,10 @@ async function runHistory(
     if (parsed.json) {
       const { entries, ...meta } = result;
       const tool = { name: 'ctxsize', version: VERSION };
-      io.stdout(`${JSON.stringify({ tool, root: '.', ...meta, history: entries }, null, 2)}\n`);
+      const at = generatedAt(io.env).toISOString();
+      io.stdout(
+        `${JSON.stringify({ tool, generatedAt: at, root: '.', ...meta, history: entries }, null, 2)}\n`,
+      );
     } else {
       io.stdout(renderHistory(result, { color: parsed.color, labels }));
     }

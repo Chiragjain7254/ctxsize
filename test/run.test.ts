@@ -280,3 +280,34 @@ describe('--top', () => {
     }
   });
 });
+
+describe('--json metadata', () => {
+  const withEnv = (env: Record<string, string>) => cli(['--json'], repo(), env);
+
+  test('has the ctxsize version and a generatedAt time right after it', async () => {
+    const before = Date.now();
+    const report = JSON.parse((await cli(['--json'], repo())).stdout);
+    expect(report.tool).toEqual({
+      name: 'ctxsize',
+      version: expect.stringMatching(/^\d+\.\d+\.\d+/),
+    });
+    expect(Object.keys(report).slice(0, 3)).toEqual(['schemaVersion', 'tool', 'generatedAt']);
+    const at = Date.parse(report.generatedAt);
+    expect(report.generatedAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    expect(at).toBeGreaterThanOrEqual(before - 1000);
+    expect(at).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
+  test('SOURCE_DATE_EPOCH makes the output reproducible', async () => {
+    const dir = repo();
+    const a = (await cli(['--json'], dir, { SOURCE_DATE_EPOCH: '1760000000' })).stdout;
+    const b = (await cli(['--json'], dir, { SOURCE_DATE_EPOCH: '1760000000' })).stdout;
+    expect(a).toBe(b);
+    expect(JSON.parse(a).generatedAt).toBe('2025-10-09T08:53:20.000Z');
+  });
+
+  test('a bad SOURCE_DATE_EPOCH is ignored', async () => {
+    const report = JSON.parse((await withEnv({ SOURCE_DATE_EPOCH: 'soon' })).stdout);
+    expect(Date.parse(report.generatedAt)).toBeGreaterThan(Date.parse('2026-01-01'));
+  });
+});

@@ -2,11 +2,20 @@ import type { Report } from '../core/types.ts';
 
 /**
  * Stable JSON for diffing and CI. File contents are left out: they can be large, and a
- * report pasted into a CI log or PR comment should not leak them.
+ * report pasted into a CI log or PR comment should not leak them. `tool.version` and `generatedAt`
+ * say which ctxsize wrote it and when.
  */
-export function toJson(report: Report, extra: Record<string, unknown> = {}): string {
+export function toJson(
+  report: Report,
+  extra: Record<string, unknown> = {},
+  now: Date = new Date(),
+): string {
+  const { schemaVersion, tool, ...rest } = report;
   const slim = {
-    ...report,
+    schemaVersion,
+    tool,
+    generatedAt: now.toISOString(),
+    ...rest,
     hidden: (report.hidden ?? []).map((h) => h.agent),
     tokensAreEstimates: report.agents.some((a) => !a.model.exactTokenizer),
     agents: report.agents.map((agent) => ({

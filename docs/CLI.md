@@ -115,7 +115,7 @@ npx @chiragjain7254/ctxsize --messages 200
 
 ### `--json`
 
-Print the report as JSON instead of the table. Colors are off. The `schemaVersion` field is `2`. `agents` lists the tools that are shown; `hidden` lists the ids of tools left out because they load nothing (see `--all`).
+Print the report as JSON instead of the table. Colors are off. The `schemaVersion` field is `2`. `tool.version` is the ctxsize version and `generatedAt` is the UTC time the report was made; set `SOURCE_DATE_EPOCH` (seconds) to pin it for reproducible output. `agents` lists the tools that are shown; `hidden` lists the ids of tools left out because they load nothing (see `--all`).
 
 ```sh
 npx @chiragjain7254/ctxsize --json > report.json
