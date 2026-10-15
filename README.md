@@ -13,6 +13,8 @@ Coding agents read your instruction files and skills before you type anything. T
 Open an agent there, ask which fruits it knows, and compare with what ctxsize predicted.
 Steps and the full table: [docs/VERIFY.md](docs/VERIFY.md).
 
+Why this exists, with sources: [docs/WHY.md](docs/WHY.md).
+
 ## Install
 
 ```sh
