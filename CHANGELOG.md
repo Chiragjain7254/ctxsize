@@ -12,6 +12,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- `docs/CI.md`: GitHub Actions workflows with `--max-tokens` and a `--markdown` pull request comment, checked by a test.
 - Exit codes are documented in full in `docs/CLI.md`, with a test for each code and reason.
 - A JSON Schema for `ctxsize.json` (`schema/ctxsize.schema.json`, shipped in the npm package). `"$schema"` is accepted in the config, so editors can autocomplete and validate it.
 - A JSON Schema for `--json` output: `docs/report.schema.json`, checked against real output in the tests.

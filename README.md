@@ -65,7 +65,7 @@ npx @chiragjain7254/ctxsize --agents claude,codex --max-tokens 8600
 ctxsize: Claude Code loads 8,819 tokens at startup, over --max-tokens 8,600
 ```
 
-The exit code is `1`, so the CI job fails.
+The exit code is `1`, so the CI job fails. A full GitHub Actions workflow with a pull request comment is in [docs/CI.md](docs/CI.md).
 
 **3. Open an interactive report, or comment on a pull request.**
 
