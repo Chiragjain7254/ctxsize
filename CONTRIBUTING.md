@@ -93,11 +93,12 @@ Small, self-contained changes that exist because of how the code is today. Each 
 Pick one, say so in an issue so two people do not do the same thing, and follow "Pull requests" below.
 
 1. **Count Cursor's agent-requested rule descriptions at startup.** A `.mdc` rule with a `description` but no
-   `alwaysApply` or `globs` is "Apply Intelligently": Cursor puts only its description in the prompt at startup.
+   `alwaysApply` or `globs` is "Apply Intelligently": the agent decides from its description whether to load it.
    `src/agents/cursor.ts` (`ruleMode`) counts the whole rule as on-demand and nothing at startup, and a comment
-   there says the listing is not counted yet. Add a startup item with the description, like a skill's listing
-   entry, and a test in `test/agents/cursor.test.ts`. Check the wording against
-   [Cursor's rules docs](https://cursor.com/docs/context/rules) and update `profiles.cursor` if needed.
+   there says the description listing is not counted yet. First confirm in
+   [Cursor's rules docs](https://cursor.com/docs/context/rules) that the description is in context at startup; if
+   it is, add a startup item for it, like a skill's listing entry, with a test in `test/agents/cursor.test.ts`, and
+   update `profiles.cursor`. If the docs do not say, record that as a note instead.
 2. **Recognize a lowercase `agents.md` for Windsurf.** The [Windsurf AGENTS.md docs](https://docs.devin.ai/desktop/cascade/agents-md)
    say both `AGENTS.md` and `agents.md` are recognized, but `specProfiles.windsurf` in `src/profiles.ts` lists only
    `AGENTS.md`, and instruction names match with exact case. List both names and add a test in `test/tools.test.ts`
@@ -114,7 +115,7 @@ Pick one, say so in an issue so two people do not do the same thing, and follow 
    files and the first-match rule, and either move the sources to the stable page (new `checked` date) or note what
    differs. Run `ctxsize --check-profiles` to see the current values.
 
-More ideas are in the issues labelled `good first issue`.
+Issues labelled `good first issue` list more as they come up.
 
 ## Pull requests
 
