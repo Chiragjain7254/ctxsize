@@ -10,14 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Build this branch and make npx run it (0.2.0 is not on npm yet)
+        run: |
+          npm ci
+          npm run build
+          mkdir -p "$RUNNER_TEMP/bin"
+          printf '#!/usr/bin/env bash\nshift 2\nexec node "%s/dist/cli.mjs" "$@"\n' "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/bin/npx"
+          chmod +x "$RUNNER_TEMP/bin/npx"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Action (this branch)
         uses: ./
         with:
           agents: claude,codex
           max-tokens: 8000
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
       - name: Measure and check the budget
         run: npx @chiragjain7254/ctxsize --quiet --max-tokens 8000 --markdown "$RUNNER_TEMP/ctxsize.md"
       - name: Comment on the pull request
