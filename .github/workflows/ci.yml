@@ -44,6 +44,6 @@ jobs:
           mkdir "$RUNNER_TEMP/fresh"
           cd "$RUNNER_TEMP/fresh"
           npm init -y > /dev/null
-          npm install "$RUNNER_TEMP"/ctxsize-*.tgz
+          npm install "$RUNNER_TEMP"/*ctxsize-*.tgz
           npx ctxsize --version
           npx ctxsize "$GITHUB_WORKSPACE" --max-tokens 100000
