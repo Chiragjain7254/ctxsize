@@ -28,3 +28,6 @@ startup and how many tokens it costs. It never runs agents and never touches the
 - Tick each box the moment it's done and commit it with the work.
 - Also use the built-in todo list so it shows live.
 - Never add Co-Authored-By, Claude-Session or "Generated with Claude Code" to any commit, PR or release.
+
+## Audit note
+Temporary line added to test the ctxsize GitHub Action on a pull request.

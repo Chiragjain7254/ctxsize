@@ -1,0 +1,27 @@
+name: audit-action-test
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Action (this branch)
+        uses: ./
+        with:
+          agents: claude,codex
+          max-tokens: 8000
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Measure and check the budget
+        run: npx @chiragjain7254/ctxsize --quiet --max-tokens 8000 --markdown "$RUNNER_TEMP/ctxsize.md"
+      - name: Comment on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none --body-file "$RUNNER_TEMP/ctxsize.md"
