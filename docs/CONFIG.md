@@ -44,6 +44,22 @@ to the repo, `/` separators, no `..`.
 { "exclude": ["packages/legacy/**", "CLAUDE.local.md"] }
 ```
 
+## Editor autocomplete and validation
+
+A JSON Schema for `ctxsize.json` ships with the package. Point your editor at it with `$schema` (ctxsize
+ignores that key) and VS Code, JetBrains and others will complete keys and flag typos as you type:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/Chiragjain7254/ctxsize/main/schema/ctxsize.schema.json",
+  "messages": 80
+}
+```
+
+If ctxsize is installed in the project, use `"./node_modules/@chiragjain7254/ctxsize/schema/ctxsize.schema.json"`
+instead, so the schema always matches the installed version. The schema is `schema/ctxsize.schema.json`; a
+test keeps it in step with what ctxsize accepts.
+
 ## `tools`
 
 Each key is a tool id (lowercase letters, digits and dashes). Run `ctxsize --agents acme` to measure

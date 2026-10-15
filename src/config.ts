@@ -29,9 +29,9 @@ export interface Config {
   exclude?: string[];
 }
 
-const TOP_KEYS = ['tools', 'models', 'messages', 'exclude'];
-const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
-const TOOL_KEYS = [
+export const TOP_KEYS = ['$schema', 'tools', 'models', 'messages', 'exclude'];
+export const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
+export const TOOL_KEYS = [
   'model',
   'maxTokens',
   'label',
@@ -47,8 +47,8 @@ const TOOL_KEYS = [
   'sources',
   'notes',
 ];
-const RULE_KEYS = ['dir', 'glob', 'load', 'modeKey', 'startupModes', 'conditionalKey'];
-const LIMIT_KEYS = [
+export const RULE_KEYS = ['dir', 'glob', 'load', 'modeKey', 'startupModes', 'conditionalKey'];
+export const LIMIT_KEYS = [
   'maxFileBytes',
   'maxTotalBytes',
   'maxFileChars',
@@ -110,6 +110,7 @@ export function parseConfig(raw: unknown, origin: string): Config {
     }
   }
   const config: Config = { origin, tools, models };
+  if (raw.$schema !== undefined) str(raw.$schema, at('$schema'));
   if (raw.messages !== undefined) config.messages = posInt(raw.messages, at('messages'));
   if (raw.exclude !== undefined) config.exclude = relPatterns(raw.exclude, at('exclude'));
   return config;
