@@ -1,0 +1,302 @@
+[
+  {
+    "repo": "vercel/next.js",
+    "language": "JavaScript",
+    "stars": 143020,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "microsoft/vscode",
+    "language": "TypeScript",
+    "stars": 193638,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "facebook/react",
+    "language": "JavaScript",
+    "stars": 251050,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "denoland/deno",
+    "language": "Rust",
+    "stars": 108690,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "oven-sh/bun",
+    "language": "Rust",
+    "stars": 96242,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "astral-sh/ruff",
+    "language": "Rust",
+    "stars": 50099,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "astral-sh/uv",
+    "language": "Rust",
+    "stars": 90794,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "microsoft/TypeScript",
+    "language": "Go",
+    "stars": 111483,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "rust-lang/rust",
+    "language": "Rust",
+    "stars": 120276,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "kubernetes/kubernetes",
+    "language": "Go",
+    "stars": 128233,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "grafana/grafana",
+    "language": "TypeScript",
+    "stars": 77297,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "prometheus/prometheus",
+    "language": "Go",
+    "stars": 66566,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "pytorch/pytorch",
+    "language": "Python",
+    "stars": 104696,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "huggingface/transformers",
+    "language": "Python",
+    "stars": 167714,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "langchain-ai/langchain",
+    "language": "Python",
+    "stars": 147868,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "google-gemini/gemini-cli",
+    "language": "TypeScript",
+    "stars": 107379,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "anthropics/claude-code",
+    "language": "TypeScript",
+    "stars": 151012,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "anthropics/anthropic-sdk-python",
+    "language": "Python",
+    "stars": 3971,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "openai/openai-python",
+    "language": "Python",
+    "stars": 31849,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "sveltejs/svelte",
+    "language": "JavaScript",
+    "stars": 88370,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "angular/angular",
+    "language": "TypeScript",
+    "stars": 101059,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "facebook/react-native",
+    "language": "C++",
+    "stars": 126683,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "flutter/flutter",
+    "language": "Dart",
+    "stars": 180216,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "microsoft/playwright",
+    "language": "TypeScript",
+    "stars": 97772,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "puppeteer/puppeteer",
+    "language": "TypeScript",
+    "stars": 95696,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "supabase/supabase",
+    "language": "TypeScript",
+    "stars": 111594,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "prisma/prisma",
+    "language": "TypeScript",
+    "stars": 47693,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "trpc/trpc",
+    "language": "TypeScript",
+    "stars": 40704,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "TanStack/query",
+    "language": "TypeScript",
+    "stars": 50436,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "nodejs/node",
+    "language": "JavaScript",
+    "stars": 122284,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "electron/electron",
+    "language": "C++",
+    "stars": 123332,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "home-assistant/core",
+    "language": "Python",
+    "stars": 91520,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "django/django",
+    "language": "Python",
+    "stars": 91330,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "pandas-dev/pandas",
+    "language": "Python",
+    "stars": 50045,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "scikit-learn/scikit-learn",
+    "language": "Python",
+    "stars": 67613,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "apache/airflow",
+    "language": "Python",
+    "stars": 47184,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "apache/spark",
+    "language": "Scala",
+    "stars": 44209,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "apache/kafka",
+    "language": "Java",
+    "stars": 33960,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "elastic/elasticsearch",
+    "language": "Java",
+    "stars": 78273,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "neovim/neovim",
+    "language": "Vim Script",
+    "stars": 102990,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "zed-industries/zed",
+    "language": "Rust",
+    "stars": 91763,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "cline/cline",
+    "language": "TypeScript",
+    "stars": 70358,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "block/goose",
+    "language": "Rust",
+    "stars": 55305,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "sst/opencode",
+    "language": "TypeScript",
+    "stars": 213788,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "getsentry/sentry",
+    "language": "Python",
+    "stars": 45566,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "n8n-io/n8n",
+    "language": "TypeScript",
+    "stars": 207475,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "ollama/ollama",
+    "language": "Go",
+    "stars": 183251,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "ggml-org/llama.cpp",
+    "language": "C++",
+    "stars": 131265,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "vitejs/vite",
+    "language": "TypeScript",
+    "stars": 83315,
+    "starsCheckedOn": "2026-10-15"
+  },
+  {
+    "repo": "bazelbuild/bazel",
+    "language": "Java",
+    "stars": 25953,
+    "starsCheckedOn": "2026-10-15"
+  }
+]
