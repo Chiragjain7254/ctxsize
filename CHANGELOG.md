@@ -13,6 +13,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- A "Good first issues" section in `CONTRIBUTING.md` with five small ideas taken from the code.
 - Tests for CRLF line endings and Windows-style paths in instruction files, frontmatter, imports, `.gitignore` and `ctxsize.json`.
 - The `--serve` page shows a short toast when files change and the report refreshes.
 - The `--serve` and `--watch --html` page shows a live or disconnected status dot and the time the report last changed.

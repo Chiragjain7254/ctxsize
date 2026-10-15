@@ -87,6 +87,35 @@ checked. Update the number, the URL and the date together, and add a CHANGELOG l
 an agent behaves needs a link to its official docs. `npx @chiragjain7254/ctxsize --check-profiles` lists
 them all. To add a whole agent, see "How to add a new agent" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Good first issues
+
+Small, self-contained changes that exist because of how the code is today. Each one names the file to start in.
+Pick one, say so in an issue so two people do not do the same thing, and follow "Pull requests" below.
+
+1. **Count Cursor's agent-requested rule descriptions at startup.** A `.mdc` rule with a `description` but no
+   `alwaysApply` or `globs` is "Apply Intelligently": Cursor puts only its description in the prompt at startup.
+   `src/agents/cursor.ts` (`ruleMode`) counts the whole rule as on-demand and nothing at startup, and a comment
+   there says the listing is not counted yet. Add a startup item with the description, like a skill's listing
+   entry, and a test in `test/agents/cursor.test.ts`. Check the wording against
+   [Cursor's rules docs](https://cursor.com/docs/context/rules) and update `profiles.cursor` if needed.
+2. **Recognize a lowercase `agents.md` for Windsurf.** The [Windsurf AGENTS.md docs](https://docs.devin.ai/desktop/cascade/agents-md)
+   say both `AGENTS.md` and `agents.md` are recognized, but `specProfiles.windsurf` in `src/profiles.ts` lists only
+   `AGENTS.md`, and instruction names match with exact case. List both names and add a test in `test/tools.test.ts`
+   (use two files with different names; case-insensitive file systems cannot hold both).
+3. **A JSON Schema for `--history --json`.** `docs/report.schema.json` covers `--json` only, and the history output
+   (written in `runHistory` in `src/run.ts`) has its own shape. Write `docs/history.schema.json` and a test next to
+   `test/report-schema.test.ts` that validates real output, then link it from `docs/CLI.md`.
+4. **Give a crash its own exit code.** `docs/CLI.md` says an unexpected error exits `1`, the same code as a failed
+   gate, so CI cannot tell them apart. In `src/cli.ts`, catch what `run()` throws, print
+   `ctxsize: unexpected error: <message>` with a link to the bug template, and exit with a new code (for example
+   `3`). Put the code in `EXIT` in `src/run.ts`, document it, and test it in `test/exit-codes.test.ts`.
+5. **Check Zed's stable docs.** `specProfiles.zed` is based on the *preview* docs because the stable rules page could
+   not be fetched (see its note). Open [zed.dev/docs/ai/rules](https://zed.dev/docs/ai/rules), compare the list of
+   files and the first-match rule, and either move the sources to the stable page (new `checked` date) or note what
+   differs. Run `ctxsize --check-profiles` to see the current values.
+
+More ideas are in the issues labelled `good first issue`.
+
 ## Pull requests
 
 1. Fork the repo (or create a branch if you have access) and branch from `main`.
