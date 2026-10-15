@@ -127,6 +127,13 @@ describe('--history', () => {
     expect(limited.history.map((h: Entry) => h.subject)).toEqual(['four', 'five']);
   });
 
+  test('a single commit is not called "1 commits"', async () => {
+    const dir = story();
+    const r = await cli(['--history', '1', '--no-color', dir], dir);
+    expect(r.stdout).toContain('Startup tokens at the last commit');
+    expect(r.stdout).not.toContain('1 commits');
+  });
+
   test('a shallow clone yields the commits it has', async () => {
     const src = story();
     const holder = tmpRepo({});

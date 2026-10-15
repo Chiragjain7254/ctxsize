@@ -101,7 +101,11 @@ export function renderHistory(
   const first = history.entries[0];
   const last = history.entries[history.entries.length - 1];
   const out: string[] = [
-    `${c.bold(`Startup tokens over the last ${history.analyzed} commits`)} ${c.dim(`(${first?.commit.slice(0, 7)} to ${last?.commit.slice(0, 7)}, oldest to newest)`)}`,
+    `${c.bold(
+      history.analyzed === 1
+        ? 'Startup tokens at the last commit'
+        : `Startup tokens over the last ${history.analyzed} commits`,
+    )} ${c.dim(`(${first?.commit.slice(0, 7)} to ${last?.commit.slice(0, 7)}, oldest to newest)`)}`,
   ];
   const rows = Object.keys(first?.tools ?? {}).map((id) => {
     const series = history.entries.map((e) => e.tools[id] ?? 0);

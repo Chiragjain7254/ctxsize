@@ -14,6 +14,7 @@ All notable changes are documented here. This project follows
 
 ### Fixed
 - An output file that cannot be written (`--html --out`, `--card`, `--badge`, `--markdown` in a missing or non-file path) now exits 2 with `ctxsize: cannot write <file>: <reason>` instead of printing a stack trace.
+- `--history 1` (and a shallow clone with one commit) says "at the last commit" instead of "over the last 1 commits".
 
 ### Added
 - A "Good first issues" section in `CONTRIBUTING.md` with five small ideas taken from the code.
