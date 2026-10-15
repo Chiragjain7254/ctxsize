@@ -1,8 +1,8 @@
 # ctxsize
 
-![ctxsize terminal output](docs/img/terminal.png)
+![ctxsize terminal output: tokens each coding agent loads at startup, what it costs, what is dropped, and checks](docs/img/terminal.png)
 
-![ctxsize HTML report](docs/img/report.png)
+![ctxsize HTML report in light mode: ranked tools, cost table and a treemap of every startup file](docs/img/report-light.png)
 
 Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
 `ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
@@ -80,6 +80,28 @@ npx @chiragjain7254/ctxsize --serve --no-open --port 8080
 The server listens on `127.0.0.1` only, and `http://localhost:<port>/api/report` returns the same JSON as `--json`. Press Ctrl+C to stop.
 
 The HTML page lets you switch model, window and price, untick files to see "what if I removed this", reorder and sort tools, search files, and switch to dark mode.
+
+## Screenshots
+
+**The HTML report in dark mode** (`--html`). Light and dark follow your system, with a switch on the page.
+
+![ctxsize HTML report in dark mode](docs/img/report-dark.png)
+
+**The live page** (`--serve`) updates as you edit your instruction files.
+
+![ctxsize live report served on localhost, showing a live indicator and the same tables](docs/img/serve.png)
+
+**What gets dropped, and what to fix.** The "Dropped or at risk" and "Checks" sections up close.
+
+![The Dropped or at risk and Checks sections of the terminal report](docs/img/checks.png)
+
+**The secret-word test.** Every file in `examples/secret-word` holds one fruit, and this is what ctxsize predicts Claude Code knows. [Check it on the real agent](docs/VERIFY.md).
+
+![examples/secret-word file list next to ctxsize's prediction for Claude Code](docs/img/secret-word.png)
+
+**The 50-repo study.** The ten heaviest startup loads. [Full study](docs/STUDY.md).
+
+![Bar chart of the ten heaviest agent startup loads among 50 popular repositories](docs/img/study.png)
 
 ## Features
 
