@@ -80,6 +80,7 @@ Options:
   --history <n>        Trend of startup tokens over the last n commits (1-200); no working tree
   --max-tokens <n>     Exit 1 if any agent loads more than n tokens at startup
   --check-profiles     Print every documented agent limit with its source URL and checked date
+  --exclude <glob>     Leave out files matching the glob, as if they did not exist (repeatable)
   --no-checks          Skip the duplicate, suggestion and skill-health checks
   --quiet              Print only a one-line summary, gate failures and errors (for CI)
   --sort <key>         Order the agent tables: startup (biggest first), name or cost
@@ -142,9 +143,11 @@ export async function run(argv: string[], io: Io): Promise<number> {
   let models: ReturnType<typeof allModels>;
   let choice: ModelChoice;
   let messagesFromConfig: number | undefined;
+  let excludeFromConfig: string[] = [];
   try {
     const config = loadConfig(findRoot(parsed.dir));
     messagesFromConfig = config?.messages;
+    excludeFromConfig = config?.exclude ?? [];
     tools = buildTools(config);
     models = allModels(config?.models);
     choice = modelChoice(
@@ -182,6 +185,7 @@ Run ctxsize --help for usage.
     models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
     env: io.env,
     checks: !parsed.noChecks,
+    exclude: [...excludeFromConfig, ...parsed.exclude],
     ...(parsed.top !== undefined ? { top: parsed.top } : {}),
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
@@ -416,6 +420,7 @@ function parse(argv: string[], io: Io) {
     allowPositionals: true,
     options: {
       agents: { type: 'string' },
+      exclude: { type: 'string', multiple: true },
       context: { type: 'string' },
       model: { type: 'string' },
       price: { type: 'string' },
@@ -545,6 +550,7 @@ function parse(argv: string[], io: Io) {
     includeUser: values['include-user'],
     noChecks: values['no-checks'],
     quiet: values.quiet,
+    exclude: excludePatterns(values.exclude ?? []),
     sort,
     top: positiveInt(values.top, '--top'),
     checkProfiles: values['check-profiles'],
@@ -567,6 +573,24 @@ function parse(argv: string[], io: Io) {
     help: values.help,
     version: values.version,
   };
+}
+
+/** --exclude values: relative globs with "/" separators, nothing that reaches outside the repo. */
+function excludePatterns(values: string[]): string[] {
+  return values.map((p) => {
+    if (
+      p === '' ||
+      p.includes('\\') ||
+      p.startsWith('/') ||
+      /^[A-Za-z]:/.test(p) ||
+      p.split('/').includes('..')
+    ) {
+      throw new UsageError(
+        `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}"`,
+      );
+    }
+    return p;
+  });
 }
 
 function positiveInt(

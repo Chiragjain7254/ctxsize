@@ -5,7 +5,7 @@ import { genericModel, type Model, type ModelChoice, modelForTool, modelInfo } f
 import { simulate } from '../simulate.ts';
 import { buildTools, type Tool } from '../tools.ts';
 import { VERSION } from '../version.ts';
-import { clearWalkCache, findRoot } from './fs.ts';
+import { clearWalkCache, findRoot, setExcludes } from './fs.ts';
 import { countTokens } from './tokenize.ts';
 import {
   type AgentReport,
@@ -34,6 +34,8 @@ export interface AnalyzeOptions {
   messages?: number;
   /** Which model each tool is measured with; omit to use a generic 200k-window model. */
   models?: ModelSelection;
+  /** Globs (relative to the repo root) of files to leave out, as if they did not exist. */
+  exclude?: readonly string[];
   /** How many of the biggest startup files each agent lists in topFiles (default 5). */
   top?: number;
   /** Run the smart checks (default true). */
@@ -51,6 +53,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
   const cwd = path.resolve(opts.cwd);
   clearWalkCache();
   const root = opts.root ? path.resolve(opts.root) : findRoot(cwd);
+  setExcludes(root, opts.exclude ?? []);
   const env = opts.env ?? {};
   const tools = opts.tools ?? buildTools(loadConfig(root));
   const agents: AgentReport[] = [];

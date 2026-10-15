@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- `--exclude <glob>` (repeatable) and an `"exclude"` key in `ctxsize.json` leave files out of the scan.
 - `--top <n>` sets how many biggest startup files are listed (terminal and `topFiles` in `--json`).
 - `--sort <startup|name|cost>` orders the terminal agent and cost tables.
 - `--quiet` prints one summary line plus gate failures and errors, for CI logs.

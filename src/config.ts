@@ -21,9 +21,11 @@ export interface Config {
   models: Record<string, UserModel>;
   /** Messages for the overhead calculation (default 50). */
   messages?: number;
+  /** Globs of files to leave out of every scan (see --exclude). */
+  exclude?: string[];
 }
 
-const TOP_KEYS = ['tools', 'models', 'messages'];
+const TOP_KEYS = ['tools', 'models', 'messages', 'exclude'];
 const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
 const TOOL_KEYS = [
   'model',
@@ -104,6 +106,7 @@ export function parseConfig(raw: unknown, origin: string): Config {
   }
   const config: Config = { origin, tools, models };
   if (raw.messages !== undefined) config.messages = posInt(raw.messages, at('messages'));
+  if (raw.exclude !== undefined) config.exclude = relPatterns(raw.exclude, at('exclude'));
   return config;
 }
 

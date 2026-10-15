@@ -51,6 +51,18 @@ the same on every machine.
 npx @chiragjain7254/ctxsize --include-user
 ```
 
+### `--exclude <glob>`
+
+Leave files out of the scan, as if they did not exist. Repeatable. Globs are relative to the repo root and
+use `/`; `*`, `**`, `?` and `{a,b}` work. A name without a `/` matches at any depth
+(`CLAUDE.local.md`), and a folder excludes everything inside it (`docs/old`). Because the file is treated as
+absent, rules that depend on it follow: excluding the only `CLAUDE.md` lets Claude Code read `AGENTS.md`.
+Patterns from `"exclude"` in `ctxsize.json` are added to the ones on the command line.
+
+```sh
+npx @chiragjain7254/ctxsize --exclude "packages/legacy/**" --exclude CLAUDE.local.md
+```
+
 ### `--no-checks`
 
 Skip the duplicate-instruction, suggestion and skill-health checks. Default: the checks run.

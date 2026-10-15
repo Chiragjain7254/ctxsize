@@ -1,6 +1,7 @@
 import { type Dirent, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { type Ignore, parseGitignore } from './gitignore.ts';
+import { matchGlob } from './glob.ts';
 
 type PathApi = typeof path.posix;
 
@@ -55,6 +56,7 @@ export function findRoot(start: string): string {
  * case-sensitively, but Windows and macOS file systems do not, so plain existsSync lies.
  */
 export function fileExists(dir: string, name: string): boolean {
+  if (isExcluded(path.join(dir, name))) return false;
   let entries: string[];
   try {
     entries = readdirSync(dir);
@@ -79,6 +81,7 @@ export function dirExists(dir: string): boolean {
 
 /** File text without a UTF-8 BOM, or undefined if it cannot be read. */
 export function readText(file: string): string | undefined {
+  if (isExcluded(file)) return undefined;
   try {
     const text = readFileSync(file, 'utf8');
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
@@ -152,6 +155,31 @@ export interface WalkOptions {
 
 const walkCache = new Map<string, string[]>();
 
+let exclusion: { root: string; patterns: string[] } = { root: '', patterns: [] };
+
+/**
+ * Files matching these globs (relative to root, "/" separators) do not exist as far as the agents'
+ * loaders can tell. A pattern without a "/" matches that name at any depth; a pattern that names a
+ * folder excludes everything inside it. Set once per analysis.
+ */
+export function setExcludes(root: string, patterns: readonly string[]): void {
+  exclusion = { root: path.resolve(root), patterns: [...patterns] };
+  walkCache.clear();
+}
+
+/** True when the file is left out by the exclude globs. */
+export function isExcluded(abs: string): boolean {
+  if (exclusion.patterns.length === 0 || !isInside(exclusion.root, abs)) return false;
+  const rel = toPosixRel(exclusion.root, abs);
+  const name = path.basename(abs);
+  return exclusion.patterns.some(
+    (p) =>
+      matchGlob(p, rel) ||
+      matchGlob(`${p.replace(/\/+$/, '')}/**`, rel) ||
+      (!p.includes('/') && matchGlob(p, name)),
+  );
+}
+
 /** Forget cached walks; analyze() calls this once per run so loaders share one walk. */
 export function clearWalkCache(): void {
   walkCache.clear();
@@ -210,8 +238,9 @@ export function walkFiles(dir: string, opts: WalkOptions = {}): string[] {
     }
   };
   visit(dir, []);
-  walkCache.set(key, out);
-  return out;
+  const kept = out.filter((f) => !isExcluded(f));
+  walkCache.set(key, kept);
+  return kept;
 }
 
 /** Identity of a directory, so a symlink back to an ancestor is visited once. */

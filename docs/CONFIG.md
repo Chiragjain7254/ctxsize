@@ -35,6 +35,15 @@ A typo in a key is an error (exit code 2), not a silent default.
 }
 ```
 
+## `exclude`
+
+A list of globs for files to leave out of every scan, the same as `--exclude` (see docs/CLI.md). Relative
+to the repo, `/` separators, no `..`.
+
+```json
+{ "exclude": ["packages/legacy/**", "CLAUDE.local.md"] }
+```
+
 ## `tools`
 
 Each key is a tool id (lowercase letters, digits and dashes). Run `ctxsize --agents acme` to measure
