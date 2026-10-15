@@ -27,9 +27,9 @@ inputs:
     required: false
     default: '.'
   version:
-    description: The ctxsize version to run, such as 0.1.0. "latest" runs the newest release.
+    description: The ctxsize version to run, such as 0.2.0. Empty runs the version that matches this action's own release. "latest" runs the newest release.
     required: false
-    default: latest
+    default: ''
   node-version:
     description: Node.js version to set up. ctxsize needs 22.12 or newer.
     required: false
@@ -50,8 +50,13 @@ runs:
         CTXSIZE_FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
         CTXSIZE_DIRECTORY: ${{ inputs.directory }}
         CTXSIZE_VERSION: ${{ inputs.version }}
+        CTXSIZE_ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
+        # No version given: run the release this copy of the action ships with, never a moving @latest.
+        if [ -z "$CTXSIZE_VERSION" ]; then
+          CTXSIZE_VERSION="$(node -p "require(process.argv[1]).version" "$CTXSIZE_ACTION_PATH/package.json")"
+        fi
         args=(--quiet)
         if [ -n "$CTXSIZE_AGENTS" ]; then args+=(--agents "$CTXSIZE_AGENTS"); fi
         if [ -n "$CTXSIZE_MAX_TOKENS" ]; then args+=(--max-tokens "$CTXSIZE_MAX_TOKENS"); fi

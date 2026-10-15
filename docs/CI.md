@@ -36,7 +36,7 @@ on stderr and exits `1`, and the job fails. The other gates work the same way:
 | `tools.<id>.maxTokens` in `ctxsize.json` | that one tool is over its own budget |
 
 Limit it to the agents your team uses with `--agents claude,codex`. A tool you do not use then cannot fail the
-build. Pin the version (`npx @chiragjain7254/ctxsize@0.1.0`) if you want identical results until you upgrade.
+build. Pin the version (`npx @chiragjain7254/ctxsize@0.2.0`) if you want identical results until you upgrade.
 
 ## The GitHub Action
 
@@ -44,7 +44,7 @@ This repository is also a composite action, so the job above becomes one step:
 
 ```yaml
       - uses: actions/checkout@v5
-      - uses: Chiragjain7254/ctxsize@main
+      - uses: Chiragjain7254/ctxsize@v0.2.0
         with:
           agents: claude,codex
           max-tokens: 8000
@@ -57,12 +57,12 @@ This repository is also a composite action, so the job above becomes one step:
 | `max-percent` | no limit | Passed to `--max-percent` |
 | `fail-on-warnings` | `false` | `true` adds `--fail-on-warnings` |
 | `directory` | `.` | The repository folder to measure, relative to the workspace |
-| `version` | `latest` | The ctxsize version to run, such as `0.1.0` |
+| `version` | the action's own release | The ctxsize version to run, such as `0.2.0`. By default the action runs the ctxsize version in its own `package.json`, so `@v0.2.0` runs ctxsize 0.2.0 and never a surprise `latest`. Set `latest` to opt in to the newest release |
 | `node-version` | `24` | The Node.js version to set up (ctxsize needs 22.12 or newer) |
 
 The action runs `ctxsize --quiet`, so the job log gets one summary line, and the step fails with exit code `1` when a
-gate fails. Inputs are passed to the shell as environment variables, never pasted into the script. Use
-`@main` until a release tag exists, then pin a tag. For a pull request comment, use the `gh pr comment` step
+gate fails. Inputs are passed to the shell as environment variables, never pasted into the script. Pin a release tag such as
+`@v0.2.0`; `@main` runs whatever version main currently holds. For a pull request comment, use the `gh pr comment` step
 shown below, since an action cannot know your token permissions.
 
 ## Comment the numbers on the pull request

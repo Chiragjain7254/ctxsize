@@ -9,6 +9,7 @@ import { tmpRepo } from './helpers.ts';
 const root = path.join(import.meta.dirname, '..');
 const action = parse(readFileSync(path.join(root, 'action.yml'), 'utf8'));
 const script: string = action.runs.steps.find((s: { run?: string }) => s.run)?.run ?? '';
+const pkgVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const hasBash = spawnSync('bash', ['--version']).status === 0;
 
 /** Runs the action's script with a fake npx that prints its arguments, one per line. */
@@ -24,7 +25,8 @@ function runScript(env: Record<string, string>, fakeExit = 0) {
       ...process.env,
       PATH: `${toPosix(dir)}:${process.env.PATH}`,
       CTXSIZE_DIRECTORY: '.',
-      CTXSIZE_VERSION: 'latest',
+      CTXSIZE_VERSION: '',
+      CTXSIZE_ACTION_PATH: toPosix(root),
       CTXSIZE_FAIL_ON_WARNINGS: 'false',
       CTXSIZE_AGENTS: '',
       CTXSIZE_MAX_TOKENS: '',
@@ -73,7 +75,15 @@ describe('action.yml', () => {
   test.skipIf(!hasBash)('with no inputs it runs a quiet check of the current folder', () => {
     const r = runScript({});
     expect(r.status).toBe(0);
-    expect(r.args).toEqual(['--yes', '@chiragjain7254/ctxsize@latest', '--quiet', '.']);
+    expect(r.args).toEqual(['--yes', `@chiragjain7254/ctxsize@${pkgVersion}`, '--quiet', '.']);
+  });
+
+  test.skipIf(!hasBash)('the version input overrides the default, including "latest"', () => {
+    expect(runScript({ CTXSIZE_VERSION: 'latest' }).args[1]).toBe('@chiragjain7254/ctxsize@latest');
+  });
+
+  test('the version input defaults to empty, never to latest', () => {
+    expect(action.inputs.version.default).toBe('');
   });
 
   test.skipIf(!hasBash)('passes agents, limits, warnings, directory and version', () => {
