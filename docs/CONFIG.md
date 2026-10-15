@@ -54,11 +54,12 @@ just that tool.
 - **The id of a built-in data-driven tool** (`opencode`, `cline`, `windsurf`, `aider`, `zed`)
   overrides just the fields you give; the rest stay as built in.
 - **The id of a tool with its own loader** (`claude`, `codex`, `cursor`, `copilot`, `gemini`) accepts
-  only `model`: those loaders have rules too specific to describe as data.
+  only `model` and `maxTokens`: those loaders have rules too specific to describe as data.
 
 | Field | Meaning |
 | --- | --- |
 | `label` | Name shown in reports. |
+| `maxTokens` | A startup budget for this tool, checked like `--max-tokens`: ctxsize exits `1` and names the tool when its startup load is higher. Works for built-in tools too. |
 | `model` | Model id for this tool (see `models`). |
 | `defaultContextTokens` | Window when the model does not set one. |
 | `instructions` | File names or globs, relative to each searched folder. Plain names are matched with exact case. |
@@ -153,7 +154,7 @@ How many messages a session is assumed to have when the overhead is estimated
 ```
 
 - `aider` with `instructionLoad: "startup"`: count `CONVENTIONS.md` because you always pass it with `--read`.
-- `codex` with only `model`: built-in tools with their own loader accept nothing else.
+- `codex` with only `model` and `maxTokens`: built-in tools with their own loader accept nothing else.
 - `claude-sonnet-5-5` with only a price: keeps the built-in window and tokenizer.
 
 ## Command-line options that override the file

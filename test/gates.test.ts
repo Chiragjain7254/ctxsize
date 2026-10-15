@@ -76,3 +76,60 @@ describe('--max-percent', () => {
     }
   });
 });
+
+describe('tools.<id>.maxTokens in ctxsize.json', () => {
+  const withBudget = (budgets: Record<string, number>, extra: Record<string, unknown> = {}) =>
+    tmpRepo({
+      '.git/': '',
+      'AGENTS.md': `# Agents\n\n${'Run the tests before every commit. '.repeat(20)}\n`,
+      'ctxsize.json': JSON.stringify({
+        tools: Object.fromEntries(
+          Object.entries(budgets).map(([id, maxTokens]) => [id, { maxTokens, ...extra }]),
+        ),
+      }),
+    });
+
+  test('fails only the tool that is over its own budget', async () => {
+    const r = await cli(['--agents', 'codex,claude'], withBudget({ codex: 10, claude: 100000 }));
+    expect(r.code).toBe(EXIT.overBudget);
+    expect(r.stderr).toMatch(
+      /Codex loads \d+ tokens at startup, over its budget of 10 \(tools\.codex\.maxTokens/,
+    );
+    expect(r.stderr).not.toContain('Claude Code loads');
+  });
+
+  test('passes when every tool is within its budget', async () => {
+    expect((await cli([], withBudget({ codex: 100000, cursor: 100000 }))).code).toBe(EXIT.ok);
+  });
+
+  test('works for a tool defined in the config too', async () => {
+    const root = tmpRepo({
+      '.git/': '',
+      'ACME.md': 'Acme rules. '.repeat(50),
+      'ctxsize.json': JSON.stringify({
+        tools: { acme: { label: 'Acme', instructions: ['ACME.md'], maxTokens: 5 } },
+      }),
+    });
+    const r = await cli(['--agents', 'acme'], root);
+    expect(r.code).toBe(EXIT.overBudget);
+    expect(r.stderr).toContain('Acme loads');
+  });
+
+  test('is checked together with --max-tokens', async () => {
+    const r = await cli(['--max-tokens', '1', '--agents', 'codex'], withBudget({ codex: 1 }));
+    expect(r.stderr).toContain('over --max-tokens 1');
+    expect(r.stderr).toContain('over its budget of 1');
+  });
+
+  test('must be a positive whole number', async () => {
+    for (const bad of [0, -5, 1.5, '100']) {
+      const root = tmpRepo({
+        '.git/': '',
+        'ctxsize.json': JSON.stringify({ tools: { codex: { maxTokens: bad } } }),
+      });
+      const r = await cli([], root);
+      expect(r.code, String(bad)).toBe(EXIT.usage);
+      expect(r.stderr).toContain('tools.codex.maxTokens: expected a positive whole number');
+    }
+  });
+});

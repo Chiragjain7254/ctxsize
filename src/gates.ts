@@ -7,6 +7,8 @@ export interface Gates {
   maxTokens?: number | undefined;
   /** --max-percent: no agent may use more than this share of its context window at startup. */
   maxPercent?: number | undefined;
+  /** tools.<id>.maxTokens from ctxsize.json: a startup budget per tool. */
+  budgets?: Record<string, number> | undefined;
 }
 
 const n = (value: number): string => value.toLocaleString('en-US');
@@ -18,6 +20,12 @@ export function gateFailures(report: Report, gates: Gates): string[] {
     if (gates.maxTokens !== undefined && agent.startup.total > gates.maxTokens) {
       failures.push(
         `${agent.label} loads ${n(agent.startup.total)} tokens at startup, over --max-tokens ${n(gates.maxTokens)}`,
+      );
+    }
+    const budget = gates.budgets?.[agent.agent];
+    if (budget !== undefined && agent.startup.total > budget) {
+      failures.push(
+        `${agent.label} loads ${n(agent.startup.total)} tokens at startup, over its budget of ${n(budget)} (tools.${agent.agent}.maxTokens in ctxsize.json)`,
       );
     }
     const pct = agent.usage.startupPctOfContext;

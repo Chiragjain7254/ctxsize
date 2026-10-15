@@ -146,10 +146,14 @@ export async function run(argv: string[], io: Io): Promise<number> {
   let choice: ModelChoice;
   let messagesFromConfig: number | undefined;
   let excludeFromConfig: string[] = [];
+  const budgets: Record<string, number> = {};
   try {
     const config = loadConfig(findRoot(parsed.dir));
     messagesFromConfig = config?.messages;
     excludeFromConfig = config?.exclude ?? [];
+    for (const [id, tool] of Object.entries(config?.tools ?? {})) {
+      if (tool.maxTokens !== undefined) budgets[id] = tool.maxTokens;
+    }
     tools = buildTools(config);
     models = allModels(config?.models);
     choice = modelChoice(
@@ -364,6 +368,7 @@ Run ctxsize --help for usage.
   const failures = gateFailures(report, {
     maxTokens: parsed.maxTokens,
     maxPercent: parsed.maxPercent,
+    budgets,
   });
   if (failures.length > 0) {
     for (const failure of failures)

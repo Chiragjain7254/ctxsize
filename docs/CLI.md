@@ -322,7 +322,7 @@ npx @chiragjain7254/ctxsize --agents claude --max-tokens 8600
 
 Exit `1` if any agent uses more than `n` percent of its context window at startup, and name each one on
 stderr. A number from 0 to 100. The window is the model's own, or what `--context` sets. Use it with or
-instead of `--max-tokens`; both can fail in one run. Like `--max-tokens`, it cannot be combined with
+instead of `--max-tokens` (and the per-tool `tools.<id>.maxTokens` budgets from `ctxsize.json`); both can fail in one run. Like `--max-tokens`, it cannot be combined with
 `--watch`, `--serve` or `--history`.
 
 ```sh

@@ -11,7 +11,11 @@ import type { UserModel } from './models.ts';
 export class ConfigError extends Error {}
 
 /** A tool from the config file. Fields left out inherit from a built-in tool of the same id. */
-export type UserTool = Partial<ToolSpec> & { model?: string };
+export type UserTool = Partial<ToolSpec> & {
+  model?: string;
+  /** Startup tokens this tool may load before ctxsize exits 1, like --max-tokens for one tool. */
+  maxTokens?: number;
+};
 
 export interface Config {
   /** Where the config came from, for error messages. */
@@ -29,6 +33,7 @@ const TOP_KEYS = ['tools', 'models', 'messages', 'exclude'];
 const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
 const TOOL_KEYS = [
   'model',
+  'maxTokens',
   'label',
   'defaultContextTokens',
   'instructions',
@@ -150,6 +155,7 @@ function parseTool(value: unknown, where: string): UserTool {
   rejectUnknown(value, TOOL_KEYS, where);
   const tool: UserTool = {};
   if (value.model !== undefined) tool.model = str(value.model, `${where}.model`);
+  if (value.maxTokens !== undefined) tool.maxTokens = posInt(value.maxTokens, `${where}.maxTokens`);
   if (value.label !== undefined) tool.label = str(value.label, `${where}.label`);
   if (value.defaultContextTokens !== undefined) {
     tool.defaultContextTokens = posInt(value.defaultContextTokens, `${where}.defaultContextTokens`);

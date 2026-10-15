@@ -37,11 +37,11 @@ export function buildTools(config?: Config): Tool[] {
 
   for (const [id, user] of Object.entries(config?.tools ?? {})) {
     const where = `${config?.origin ?? 'config'}: tools.${id}`;
-    const { model: _model, ...fields } = user;
+    const { model: _model, maxTokens: _maxTokens, ...fields } = user;
     if (id in loaders) {
       if (Object.keys(fields).length > 0) {
         throw new ConfigError(
-          `${where}: "${id}" is a built-in tool with its own loader; only "model" can be set. Use another id to define a new tool`,
+          `${where}: "${id}" is a built-in tool with its own loader; only "model" and "maxTokens" can be set. Use another id to define a new tool`,
         );
       }
       continue;
