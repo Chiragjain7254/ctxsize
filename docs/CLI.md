@@ -12,11 +12,17 @@ Run `ctxsize --help` to print the same list in your terminal. All token counts a
 
 ## Exit codes
 
-| Code | Meaning |
-| --- | --- |
-| `0` | OK |
-| `1` | A gate failed: an agent is over `--max-tokens`, `--max-percent` or its `maxTokens` budget, or `--fail-on-warnings` found a `!` check |
-| `2` | Usage error: bad flag, bad value, unknown agent or model, bad `ctxsize.json`, not a git repo for `--diff`/`--history` |
+| Code | Meaning | Examples |
+| --- | --- | --- |
+| `0` | OK. The report was printed and no gate failed. | A normal run, `--help`, `--version`, `--check-profiles`. Warning checks (`!`) alone do not fail a run. |
+| `1` | A gate failed. The report is still printed; each failure is a line on stderr. | An agent is over `--max-tokens` or `--max-percent`, a tool is over its `maxTokens` budget in `ctxsize.json`, or `--fail-on-warnings` found a `!` check. |
+| `2` | Usage error. Nothing is analyzed, stdout is empty and stderr says what to fix. | An unknown flag, a missing or bad value, an unknown agent or model, two flags that cannot be combined, a directory that does not exist, a bad `ctxsize.json`, `--diff`/`--history` outside a git repository or with a bad ref. |
+
+An unexpected crash is a bug, not one of these codes: Node prints the error and exits `1`. If you see a stack
+trace, please [open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=bug_report.yml).
+
+In CI, `--quiet` keeps the log to the summary line plus these stderr messages. `test/exit-codes.test.ts` has a test for
+every code and every reason above.
 
 ## Choose what to measure
 
