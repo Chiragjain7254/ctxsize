@@ -1,5 +1,10 @@
 # ctxsize
 
+[![npm version](https://img.shields.io/npm/v/@chiragjain7254/ctxsize)](https://www.npmjs.com/package/@chiragjain7254/ctxsize)
+[![npm downloads](https://img.shields.io/npm/dm/@chiragjain7254/ctxsize)](https://www.npmjs.com/package/@chiragjain7254/ctxsize)
+[![license](https://img.shields.io/github/license/Chiragjain7254/ctxsize)](LICENSE)
+[![CI](https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml/badge.svg)](https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml)
+
 ![ctxsize terminal output: tokens each coding agent loads at startup, what it costs, what is dropped, and checks](docs/img/terminal.png)
 
 ![ctxsize HTML report in light mode: ranked tools, cost table and a treemap of every startup file](docs/img/report-light.png)

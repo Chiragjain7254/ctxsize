@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- README badges: npm version, downloads, license and CI.
 - `--serve` starts a local web server (`127.0.0.1`, port 4321, then the next 9) with the interactive
   report. It re-runs the analysis when files change and updates the open page over Server-Sent Events.
   `/api/report` returns the same JSON as `--json`. Add `--port <n>` to choose the port and `--no-open`
