@@ -1,0 +1,61 @@
+name: ctxsize
+description: Measure what coding agents load before the first prompt and fail the job when it grows past a budget.
+author: Chirag Jain
+branding:
+  icon: bar-chart-2
+  color: blue
+
+inputs:
+  agents:
+    description: Comma-separated tool ids to measure, such as claude,codex. Empty means every tool that loads something.
+    required: false
+    default: ''
+  max-tokens:
+    description: Fail when an agent loads more than this many tokens at startup. Empty means no limit.
+    required: false
+    default: ''
+  max-percent:
+    description: Fail when an agent uses more than this percent of its context window at startup. Empty means no limit.
+    required: false
+    default: ''
+  fail-on-warnings:
+    description: Set to "true" to fail when a check marked "!" fires.
+    required: false
+    default: 'false'
+  directory:
+    description: The repository folder to measure, relative to the workspace.
+    required: false
+    default: '.'
+  version:
+    description: The ctxsize version to run, such as 0.1.0. "latest" runs the newest release.
+    required: false
+    default: latest
+  node-version:
+    description: Node.js version to set up. ctxsize needs 22.12 or newer.
+    required: false
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Run ctxsize
+      shell: bash
+      env:
+        CTXSIZE_AGENTS: ${{ inputs.agents }}
+        CTXSIZE_MAX_TOKENS: ${{ inputs.max-tokens }}
+        CTXSIZE_MAX_PERCENT: ${{ inputs.max-percent }}
+        CTXSIZE_FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
+        CTXSIZE_DIRECTORY: ${{ inputs.directory }}
+        CTXSIZE_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        args=(--quiet)
+        if [ -n "$CTXSIZE_AGENTS" ]; then args+=(--agents "$CTXSIZE_AGENTS"); fi
+        if [ -n "$CTXSIZE_MAX_TOKENS" ]; then args+=(--max-tokens "$CTXSIZE_MAX_TOKENS"); fi
+        if [ -n "$CTXSIZE_MAX_PERCENT" ]; then args+=(--max-percent "$CTXSIZE_MAX_PERCENT"); fi
+        if [ "$CTXSIZE_FAIL_ON_WARNINGS" = "true" ]; then args+=(--fail-on-warnings); fi
+        args+=("$CTXSIZE_DIRECTORY")
+        npx --yes "@chiragjain7254/ctxsize@${CTXSIZE_VERSION}" "${args[@]}"

@@ -12,6 +12,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- A composite GitHub Action (`uses: Chiragjain7254/ctxsize@main`) with inputs `agents`, `max-tokens`, `max-percent`, `fail-on-warnings`, `directory`, `version` and `node-version`. See `docs/CI.md`.
 - `docs/CI.md`: GitHub Actions workflows with `--max-tokens` and a `--markdown` pull request comment, checked by a test.
 - Exit codes are documented in full in `docs/CLI.md`, with a test for each code and reason.
 - A JSON Schema for `ctxsize.json` (`schema/ctxsize.schema.json`, shipped in the npm package). `"$schema"` is accepted in the config, so editors can autocomplete and validate it.

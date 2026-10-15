@@ -38,6 +38,33 @@ on stderr and exits `1`, and the job fails. The other gates work the same way:
 Limit it to the agents your team uses with `--agents claude,codex`. A tool you do not use then cannot fail the
 build. Pin the version (`npx @chiragjain7254/ctxsize@0.1.0`) if you want identical results until you upgrade.
 
+## The GitHub Action
+
+This repository is also a composite action, so the job above becomes one step:
+
+```yaml
+      - uses: actions/checkout@v5
+      - uses: Chiragjain7254/ctxsize@main
+        with:
+          agents: claude,codex
+          max-tokens: 8000
+```
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `agents` | every tool that loads something | Comma-separated tool ids, passed to `--agents` |
+| `max-tokens` | no limit | Passed to `--max-tokens` |
+| `max-percent` | no limit | Passed to `--max-percent` |
+| `fail-on-warnings` | `false` | `true` adds `--fail-on-warnings` |
+| `directory` | `.` | The repository folder to measure, relative to the workspace |
+| `version` | `latest` | The ctxsize version to run, such as `0.1.0` |
+| `node-version` | `24` | The Node.js version to set up (ctxsize needs 22.12 or newer) |
+
+The action runs `ctxsize --quiet`, so the job log gets one summary line, and the step fails with exit code `1` when a
+gate fails. Inputs are passed to the shell as environment variables, never pasted into the script. Use
+`@main` until a release tag exists, then pin a tag. For a pull request comment, use the `gh pr comment` step
+shown below, since an action cannot know your token permissions.
+
 ## Comment the numbers on the pull request
 
 `--markdown <file>` writes a short summary table. The step that posts it runs even when the gate fails, so the
