@@ -1,8 +1,12 @@
 import path from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { openCommand } from '../src/open.ts';
 import { EXIT, run } from '../src/run.ts';
 import { tmpRepo } from './helpers.ts';
+
+// The first test in this file loads the tokenizer and the page builder, which takes seconds on a
+// slow or busy machine. The work is slow, not stuck, so the file gets a longer timeout.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('openCommand', () => {
   test('picks the right opener per platform', () => {

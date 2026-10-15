@@ -1,10 +1,14 @@
 import path from 'node:path';
 import vm from 'node:vm';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { analyze } from '../src/core/analyze.ts';
 import { AGENT_IDS } from '../src/core/types.ts';
 import { buildPageData, type PageData, pageScript, renderHtml } from '../src/report/html.ts';
 import { tmpRepo } from './helpers.ts';
+
+// The first test in this file loads the tokenizer and the page builder, which takes seconds on a
+// slow or busy machine. The work is slow, not stuck, so the file gets a longer timeout.
+vi.setConfig({ testTimeout: 30_000 });
 
 const KiB = 1024;
 

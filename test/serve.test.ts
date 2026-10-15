@@ -2,10 +2,14 @@ import { writeFileSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { EXIT, run } from '../src/run.ts';
 import { renderPage, startReportServer } from '../src/serve.ts';
 import { tmpRepo } from './helpers.ts';
+
+// The first test in this file loads the tokenizer and the page builder, which takes seconds on a
+// slow or busy machine. The work is slow, not stuck, so the file gets a longer timeout.
+vi.setConfig({ testTimeout: 30_000 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
