@@ -12,6 +12,9 @@ All notable changes are documented here. This project follows
   names them (`Hidden: Aider, Zed (no files found) — use --all to show`), and `--json` has a `hidden`
   array of their ids. `--agents` always shows the tools it lists.
 
+### Fixed
+- An output file that cannot be written (`--html --out`, `--card`, `--badge`, `--markdown` in a missing or non-file path) now exits 2 with `ctxsize: cannot write <file>: <reason>` instead of printing a stack trace.
+
 ### Added
 - A "Good first issues" section in `CONTRIBUTING.md` with five small ideas taken from the code.
 - Tests for CRLF line endings and Windows-style paths in instruction files, frontmatter, imports, `.gitignore` and `ctxsize.json`.

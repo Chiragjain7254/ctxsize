@@ -100,6 +100,25 @@ Tokens are estimates (o200k_base). Nothing is sent anywhere.
 
 class UsageError extends Error {}
 
+const WRITE_REASONS: Record<string, string> = {
+  ENOENT: 'the folder does not exist',
+  EISDIR: 'it is a folder, not a file',
+  EACCES: 'permission denied',
+  EPERM: 'permission denied',
+  ENOTDIR: 'a parent of it is not a folder',
+};
+
+/** Write an output file; a bad path is a usage error with a plain message, not a stack trace. */
+function writeOutput(file: string, content: string): void {
+  try {
+    writeFileSync(file, content);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? '';
+    const reason = WRITE_REASONS[code] ?? (err instanceof Error ? err.message : String(err));
+    throw new UsageError(`cannot write ${file}: ${reason}`);
+  }
+}
+
 /** After an HTML report is written: open it with --open, otherwise hint at the flag. */
 async function announceHtml(file: string, open: boolean, quiet: boolean, io: Io): Promise<void> {
   if (!open) {
@@ -291,27 +310,27 @@ Run ctxsize --help for usage.
       const live = parsed.watch
         ? { watch: { file: path.basename(dataFileFor(parsed.out)) }, generated: String(Date.now()) }
         : {};
-      writeFileSync(parsed.out, renderHtml(report, { models, ...live }));
+      writeOutput(parsed.out, renderHtml(report, { models, ...live }));
       // Only in watch mode: the open page polls this file for new data.
       if (parsed.watch)
-        writeFileSync(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
+        writeOutput(dataFileFor(parsed.out), renderDataJs(report, { models, ...live }));
       info(`Wrote ${parsed.out}\n`);
       // In watch mode, open the page once; later runs refresh it in place.
       if (!rerun) await announceHtml(parsed.out, parsed.open, parsed.quiet, io);
     }
     if (share) {
       if (parsed.markdown && parsed.markdown !== '-') {
-        writeFileSync(parsed.markdown, share.renderMarkdown(report));
+        writeOutput(parsed.markdown, share.renderMarkdown(report));
         info(`Wrote ${parsed.markdown}
   `);
       }
       if (parsed.card) {
-        writeFileSync(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
+        writeOutput(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
         info(`Wrote ${parsed.card}
   `);
       }
       if (parsed.badge) {
-        writeFileSync(parsed.badge, share.renderBadgeSvg(report));
+        writeOutput(parsed.badge, share.renderBadgeSvg(report));
         info(`Wrote ${parsed.badge}
   README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
   `);
@@ -410,7 +429,7 @@ async function runHistory(
     const labels = Object.fromEntries(tools.map((t) => [t.id, t.label]));
     if (parsed.html) {
       const { renderHistoryHtml } = await import('./report/history-html.ts');
-      writeFileSync(parsed.out, renderHistoryHtml(result, { labels, version: VERSION }));
+      writeOutput(parsed.out, renderHistoryHtml(result, { labels, version: VERSION }));
       io.stderr(`Wrote ${parsed.out}
 `);
       await announceHtml(parsed.out, parsed.open, false, io);
@@ -427,7 +446,7 @@ async function runHistory(
     }
     return EXIT.ok;
   } catch (err) {
-    if (!(err instanceof HistoryError)) throw err;
+    if (!(err instanceof HistoryError || err instanceof UsageError)) throw err;
     io.stderr(`ctxsize: ${err.message}\n`);
     return EXIT.usage;
   }
