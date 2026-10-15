@@ -139,28 +139,108 @@ const color = { FORCE_COLOR: '1' };
 
 // 1. terminal.png
 {
-  const text = run([], EXAMPLE, color);
+  // The first screen only: the summary, the fixes and the tables.
+  const lines = run([], EXAMPLE, color).split(String.fromCharCode(10));
+  const cut = lines.findIndex((l) => stripAnsi(l).startsWith('Biggest files'));
+  const text = lines.slice(0, cut > 0 ? cut : undefined).join(String.fromCharCode(10));
   const p = terminalPage(text, 'npx @chiragjain7254/ctxsize');
   shot(writePage('terminal.html', p.html), path.join(IMG, 'terminal.png'), p.width, p.height);
 }
 
-// 2. report-light.png and report-dark.png (and the file for the --serve screenshot)
+// ---- Chrome DevTools: a real viewport (phones included), a colour scheme and a page height ----
+async function pageShot(url, out, { width, height, theme, mobile = false }) {
+  const port = 9400 + Math.floor(Math.random() * 400);
+  const profile = path.join(tmp, `cdp-${port}`);
+  const child = spawn(
+    browser,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profile}`,
+      'about:blank',
+    ],
+    { stdio: 'ignore' },
+  );
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    let page;
+    for (let i = 0; i < 50 && !page; i++) {
+      try {
+        const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+        page = targets.find((t) => t.type === 'page');
+      } catch {
+        // Chrome is still starting.
+      }
+      if (!page) await sleep(200);
+    }
+    if (!page) throw new Error('Chrome did not start');
+    const ws = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((r) => {
+      ws.onopen = r;
+    });
+    let n = 0;
+    const waiting = new Map();
+    ws.onmessage = (m) => {
+      const d = JSON.parse(m.data);
+      if (d.id && waiting.has(d.id)) {
+        waiting.get(d.id)(d.result);
+        waiting.delete(d.id);
+      }
+    };
+    const send = (method, params = {}) =>
+      new Promise((resolve) => {
+        const id = ++n;
+        waiting.set(id, resolve);
+        ws.send(JSON.stringify({ id, method, params }));
+      });
+    await send('Page.enable');
+    await send('Emulation.setDeviceMetricsOverride', {
+      width,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile,
+    });
+    await send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: theme }],
+    });
+    await send('Page.navigate', { url });
+    await sleep(2500);
+    const shot = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width, height, scale: 1 },
+    });
+    writeFileSync(out, Buffer.from(shot.data, 'base64'));
+    ws.close();
+  } finally {
+    child.kill();
+    await sleep(300);
+  }
+  const kb = Math.round(statSync(out).size / 1024);
+  console.error(`${path.relative(ROOT, out)}  ${kb} KB`);
+  if (kb > 300) console.error('  WARNING: over 300 KB');
+}
+
+// 2. report-light.png, report-dark.png and report-mobile.png: the top of the page, where a
+// first-time reader decides what to do. (--html file; the page follows the colour scheme.)
 {
   const htmlFile = path.join(tmp, 'report.html');
   run(['--html', '--out', htmlFile], EXAMPLE);
-  const page = readFileSync(htmlFile, 'utf8');
+  const url = pathToFileURL(htmlFile).href;
   for (const theme of ['light', 'dark']) {
-    const themed = page.replace(
-      /<html([^>]*)>/,
-      (_m, a) => `<html${a.replace(/\sdata-theme="[^"]*"/, '')} data-theme="${theme}">`,
-    );
-    shot(
-      writePage(`report-${theme}.html`, themed),
-      path.join(IMG, `report-${theme}.png`),
-      1280,
-      1500,
-    );
+    await pageShot(url, path.join(IMG, `report-${theme}.png`), {
+      width: 1100,
+      height: 1900,
+      theme,
+    });
   }
+  await pageShot(url, path.join(IMG, 'report-mobile.png'), {
+    width: 390,
+    height: 2600,
+    theme: 'light',
+    mobile: true,
+  });
 }
 
 // 3. serve.png
@@ -184,7 +264,11 @@ const color = { FORCE_COLOR: '1' };
       if (up) break;
       await new Promise((r) => setTimeout(r, 200));
     }
-    shot(`http://localhost:${port}/`, path.join(IMG, 'serve.png'), 1280, 1500, true);
+    await pageShot(`http://localhost:${port}/`, path.join(IMG, 'serve.png'), {
+      width: 1100,
+      height: 1900,
+      theme: 'light',
+    });
   } finally {
     child.kill();
   }

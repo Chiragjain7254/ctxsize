@@ -7,7 +7,7 @@
 
 ![ctxsize terminal output: tokens each coding agent loads at startup, what it costs, what is dropped, and checks](docs/img/terminal.png)
 
-![ctxsize HTML report in light mode: ranked tools, cost table and a treemap of every startup file](docs/img/report-light.png)
+![ctxsize HTML report in light mode: a plain-language summary, the problems with how to fix them, and a bar chart of what each agent reads](docs/img/report-light.png)
 
 ## Try it and tell us
 
@@ -103,11 +103,15 @@ The HTML page lets you switch model, window and price, untick files to see "what
 
 ![ctxsize HTML report in dark mode](docs/img/report-dark.png)
 
+**On a phone.** The same report at 390 px wide.
+
+![ctxsize HTML report on a phone](docs/img/report-mobile.png)
+
 **The live page** (`--serve`) updates as you edit your instruction files.
 
 ![ctxsize live report served on localhost, showing a live indicator and the same tables](docs/img/serve.png)
 
-**What gets dropped, and what to fix.** The "Dropped or at risk" and "Checks" sections up close.
+**What gets dropped, and what to fix.** The "Dropped or at risk" and "Checks" sections up close (the summary at the top of the output lists the same problems with a "How to fix" line).
 
 ![The Dropped or at risk and Checks sections of the terminal report](docs/img/checks.png)
 
@@ -143,7 +147,7 @@ The HTML page lets you switch model, window and price, untick files to see "what
 | CI gate | `--max-tokens 10000` |
 | JSON output | `--json` |
 
-New here? Read the [5-minute walkthrough](docs/GETTING-STARTED.md). Every flag: [docs/CLI.md](docs/CLI.md). What each tool reads: [docs/tools.md](docs/tools.md).
+New here? Hover the small (i) icons in the report, or read the [glossary](docs/GLOSSARY.md). Then the [5-minute walkthrough](docs/GETTING-STARTED.md). Every flag: [docs/CLI.md](docs/CLI.md). What each tool reads: [docs/tools.md](docs/tools.md).
 
 ## Config
 

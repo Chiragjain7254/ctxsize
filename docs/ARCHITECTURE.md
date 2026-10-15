@@ -101,6 +101,8 @@ only folder that is published to npm.
 | `page-client.ts` | The browser-side code of the page. It is copied into the HTML as text, so it must not import anything. |
 | `calc.ts` | The numbers behind the page. It is also copied into the page, so it has no imports and the tests run the same code. |
 | `treemap.ts` | The squarified treemap layout. |
+| `summary.ts` | The plain-language summary and the problem list with a fix for each, shared by the terminal and the HTML page. |
+| `glossary.ts` | Every term the report uses, explained once. Feeds the hover help, the page glossary and `docs/GLOSSARY.md` (`npm run docs:glossary`). |
 | `diff.ts` | Terminal output for `--diff` and `--history`. |
 | `history-html.ts` | The `--history --html` chart. |
 | `share.ts` | The markdown summary, SVG card and SVG badge. |

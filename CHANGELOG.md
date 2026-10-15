@@ -6,6 +6,7 @@ All notable changes are documented here. This project follows
 ## [0.2.0] - 2026-10-16
 
 ### Changed
+- Clearer report with a summary, hover help and a glossary. The terminal and the HTML page now open with 3 to 5 plain sentences (who reads the most, what is cut off, what to fix, what costs the most) and a "Problems and how to fix" list with a "How to fix" line for each. The HTML page is reordered: summary, problems, a bar chart of startup tokens with each agent's model next to its name, per-agent details (what it reads, why, how to reduce it), then collapsed "Adjust model, messages and price", "Fine print" and "What do these words mean?". Every column, label, control and symbol has a small (i) help that works on hover, keyboard focus and tap. The words are defined once in `src/report/glossary.ts` and also published as [docs/GLOSSARY.md](docs/GLOSSARY.md).
 - Token counts are cached by content hash, so `--watch` and `--serve` do not re-tokenize files that did not change.
 - Errors in `ctxsize.json` are more specific: they say what was found (`got "80" (a string)`), suggest the closest key for a typo, and give the line and column of invalid JSON.
 - Tools that load 0 startup and 0 on-demand tokens are hidden by default. One line after the table

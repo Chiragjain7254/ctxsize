@@ -129,7 +129,7 @@ npx @chiragjain7254/ctxsize --json > report.json
 
 ### `--html`
 
-Write an interactive treemap report. Default file: `ctxsize-report.html` in the current folder (change it
+Write an interactive report: a plain-language summary, the problems with how to fix them, a bar chart of what each agent reads, and a details view per agent with a treemap. Every term has a hover help; the words are listed in [GLOSSARY.md](GLOSSARY.md). Default file: `ctxsize-report.html` in the current folder (change it
 with `--out`). With `--history`, it writes the trend chart instead.
 
 ```sh
