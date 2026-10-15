@@ -1,3 +1,5 @@
+> This is a test fixture for [docs/VERIFY.md](../../docs/VERIFY.md), not a real project.
+
 # Secret-word test
 
 Every instruction file here holds one fruit word and one line naming the tool it is for. Ask an

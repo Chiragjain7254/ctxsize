@@ -22,9 +22,5 @@ startup and how many tokens it costs. It never runs agents and never touches the
 - After every push, check GitHub CI passes (`gh run watch`). Never leave main red.
 - Commit and push only project files. Temporary or local-only files go in `.local/` (git-ignored) and are never committed.
 
-## Progress tracking
-- Keep docs/PROGRESS.md with every outstanding task as a checkbox.
-- A "Now working on: X of N" line at the top.
-- Tick each box the moment it's done and commit it with the work.
-- Also use the built-in todo list so it shows live.
+## Commits
 - Never add Co-Authored-By, Claude-Session or "Generated with Claude Code" to any commit, PR or release.

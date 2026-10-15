@@ -6,3 +6,5 @@ coverage/
 ctxsize-report.html
 .claude/worktrees/
 .local/
+*.tgz
+ctxsize-*.html
