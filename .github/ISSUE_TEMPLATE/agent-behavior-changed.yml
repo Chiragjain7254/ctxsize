@@ -1,0 +1,35 @@
+name: An agent changed its behavior
+description: An agent loads different files, or cuts different things, than ctxsize predicts
+labels: [profiles]
+body:
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      placeholder: Claude Code
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Agent version
+      description: The output of the agent's --version command
+      placeholder: 2.1.277
+    validations: { required: true }
+  - type: textarea
+    id: change
+    attributes:
+      label: What changed?
+      description: What the agent does now, and what ctxsize says instead
+    validations: { required: true }
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the official docs or changelog
+    validations: { required: true }
+  - type: textarea
+    id: secret-word
+    attributes:
+      label: Secret-word test result
+      description: Which fruits the agent named when you ran examples/secret-word (see docs/VERIFY.md). Write "not run" if you did not.
+      placeholder: "Named: MANGO, LIME. Expected from ctxsize: MANGO, LIME, ..."
+    validations: { required: true }

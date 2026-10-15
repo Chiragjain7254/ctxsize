@@ -47,6 +47,39 @@ npm run typecheck # TypeScript
 Write code that looks like the code around it. Use `node:path`, never a hard-coded `/` or `\`. Label token
 counts as estimates.
 
+## Keeping agent profiles up to date
+
+Tools change their rules often, and a profile that is out of date misleads everyone. If you notice an
+agent loading different files than ctxsize predicts, [open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=agent-behavior-changed.yml)
+or send a pull request.
+
+**1. Update the profile.** Edit `src/profiles.ts` (or the loader in `src/agents/`):
+
+- Change the number or behaviour to match the official docs, and add the doc link to that agent's `sources`.
+- Set `CHECKED` (or the source's `checked` date) to the day you read the docs.
+- Add or change a test in `test/agents/` or `test/profiles.test.ts` that fails without your change.
+- If the docs are silent or unclear, say so in the agent's `notes` instead of guessing.
+
+**2. Run the secret-word test on the real agent.** Copy `examples/secret-word` outside any repo, run
+`git init` there, open the agent in a new session and ask exactly the question in
+[docs/VERIFY.md](docs/VERIFY.md). Note the fruits it names and the agent's version. If you changed
+what a file does, change the fruit files in `examples/secret-word/` to match.
+
+**3. Regenerate the docs.**
+
+```sh
+npm run verify:gen   # rewrites the predicted columns in docs/VERIFY.md from ctxsize's real output
+npm run study        # re-runs the 50-repo study and rewrites docs/study/results.json and docs/STUDY.md
+```
+
+Then fill in the "Observed (date, agent version)" and "Match?" cells of that agent's row in
+`docs/VERIFY.md` by hand. `verify:gen` keeps what you wrote there. Never write an observed result you
+did not see. A test fails if the predicted columns drift from ctxsize's output.
+`npm run study` clones 50 repositories and needs the `gh` CLI signed in, so a pull request does not
+have to include it; say in the pull request that the study needs a re-run.
+
+**4. Run `npm run check`, add a CHANGELOG line, and open the pull request.**
+
 ## Agent limits changed?
 
 All documented limits live in `src/profiles.ts`, each with a source URL and the date it was

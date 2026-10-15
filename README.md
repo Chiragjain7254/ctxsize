@@ -15,6 +15,8 @@ Steps and the full table: [docs/VERIFY.md](docs/VERIFY.md).
 
 Why this exists, with sources: [docs/WHY.md](docs/WHY.md).
 
+Agent changed its behavior? [Open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=agent-behavior-changed.yml) or PR, so everyone stays accurate.
+
 ## Install
 
 ```sh
