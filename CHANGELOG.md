@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Added
+- `--sort <startup|name|cost>` orders the terminal agent and cost tables.
 - `--quiet` prints one summary line plus gate failures and errors, for CI logs.
 - A feature request issue template (a bug report template already existed).
 - README badges: npm version, downloads, license and CI.

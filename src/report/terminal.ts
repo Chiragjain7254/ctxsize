@@ -2,8 +2,13 @@ import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
 import { formatUsd } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 
+export type SortKey = 'startup' | 'name' | 'cost';
+export const SORT_KEYS: readonly SortKey[] = ['startup', 'name', 'cost'];
+
 export interface TerminalOptions {
   color: boolean;
+  /** Order of the agent and cost tables; default: the order of the tools. */
+  sort?: SortKey | undefined;
 }
 
 const KIND_LABEL: Record<DropKind, string> = {
@@ -21,6 +26,18 @@ const KIND_LABEL: Record<DropKind, string> = {
 const MAX_LINES = 8;
 
 /** --quiet: one line with the startup tokens of every agent shown. */
+/** The agents ordered for the tables: biggest first for startup and cost, A to Z for name. */
+export function sortAgents(agents: AgentReport[], sort: SortKey | undefined): AgentReport[] {
+  if (sort === undefined) return agents;
+  const cost = (a: AgentReport) => a.usage.overheadCostUsd ?? -1;
+  const key = {
+    startup: (a: AgentReport, b: AgentReport) => b.startup.total - a.startup.total,
+    cost: (a: AgentReport, b: AgentReport) => cost(b) - cost(a),
+    name: (a: AgentReport, b: AgentReport) => a.label.localeCompare(b.label, 'en'),
+  }[sort];
+  return [...agents].sort((a, b) => key(a, b) || a.label.localeCompare(b.label, 'en'));
+}
+
 export function renderSummary(report: Report): string {
   if (report.agents.length === 0) return 'ctxsize: no agent loads any files from this repo\n';
   const parts = report.agents.map((a) => `${a.label} ~${a.startup.total.toLocaleString('en-US')}`);
@@ -35,13 +52,15 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   );
   out.push('');
   if (report.agents.length > 0) {
-    out.push(...table(report.agents, c));
+    out.push(...table(sortAgents(report.agents, opts.sort), c));
   } else {
     out.push('  No agent loads any files from this repo.');
   }
   const hidden = hiddenSentence(report);
   if (hidden) out.push('', c.dim(hidden));
-  if (report.agents.length > 0) out.push(...costLines(report, c));
+  if (report.agents.length > 0) {
+    out.push(...costLines({ ...report, agents: sortAgents(report.agents, opts.sort) }, c));
+  }
   out.push(...biggestFiles(report, c));
   out.push(...treeLines(report, c));
   out.push(...mcpLines(report, c));

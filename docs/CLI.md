@@ -219,6 +219,16 @@ errors still go to stderr. `--json` is unchanged. It cannot be combined with `--
 npx @chiragjain7254/ctxsize --quiet --max-tokens 8600
 ```
 
+### `--sort <key>`
+
+Order the agent table and the cost table in the terminal report: `startup` (biggest load first),
+`cost` (most expensive first) or `name` (A to Z). Default: the order of the tools. `--json`, the HTML
+report and the other outputs keep the tool order.
+
+```sh
+npx @chiragjain7254/ctxsize --sort startup
+```
+
 ### `--no-color`
 
 Turn colors off. `NO_COLOR` is honoured too. Colors are on when the output is a terminal (or

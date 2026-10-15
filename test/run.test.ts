@@ -191,3 +191,46 @@ describe('--quiet', () => {
     }
   });
 });
+
+describe('--sort', () => {
+  const sorted = () =>
+    tmpRepo({
+      '.git/': '',
+      'AGENTS.md': '# Agents\n\nShared.\n',
+      '.windsurf/rules/big.md': `# Rules\n\n${'Windsurf-only rule text. '.repeat(60)}\n`,
+    });
+  const labels = (stdout: string) =>
+    stdout
+      .split('\n')
+      .slice(2, 12)
+      .map((l) => l.trim().split(/\s{2,}/)[0])
+      .filter((l): l is string => !!l && /^[A-Z]/.test(l) && l !== 'Agent');
+
+  test('startup puts the biggest load first', async () => {
+    const r = await cli(['--sort', 'startup'], sorted());
+    expect(labels(r.stdout)[0]).toBe('Windsurf');
+  });
+
+  test('name sorts A to Z', async () => {
+    const r = await cli(['--sort', 'name', '--all'], sorted());
+    const names = labels(r.stdout);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')));
+  });
+
+  test('cost puts the most expensive first, in the cost table too', async () => {
+    const r = await cli(['--sort', 'cost'], sorted());
+    const cost = r.stdout.slice(r.stdout.indexOf('Cost of carrying it'));
+    expect(cost.split('\n')[2]).toContain('Windsurf');
+  });
+
+  test('JSON keeps the tool order', async () => {
+    const r = await cli(['--sort', 'name', '--json', '--all'], sorted());
+    expect(JSON.parse(r.stdout).agents[0].agent).toBe('claude');
+  });
+
+  test('an unknown key is a usage error', async () => {
+    const r = await cli(['--sort', 'size'], sorted());
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('--sort must be one of startup, name, cost');
+  });
+});

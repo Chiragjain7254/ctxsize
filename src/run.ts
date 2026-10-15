@@ -21,7 +21,7 @@ import { allModels, type ModelChoice, modelForTool, presets } from './models.ts'
 import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
 import { toJson } from './report/json.ts';
-import { renderSummary, renderTerminal } from './report/terminal.ts';
+import { renderSummary, renderTerminal, SORT_KEYS, type SortKey } from './report/terminal.ts';
 import type { ReportServer } from './serve.ts';
 import { buildTools, type Tool } from './tools.ts';
 import { VERSION } from './version.ts';
@@ -82,6 +82,7 @@ Options:
   --check-profiles     Print every documented agent limit with its source URL and checked date
   --no-checks          Skip the duplicate, suggestion and skill-health checks
   --quiet              Print only a one-line summary, gate failures and errors (for CI)
+  --sort <key>         Order the agent tables: startup (biggest first), name or cost
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
   -h, --help           Print this help
@@ -264,7 +265,7 @@ Run ctxsize --help for usage.
       if (parsed.quiet) {
         io.stdout(renderSummary(report));
       } else {
-        io.stdout(renderTerminal(report, { color: parsed.color }));
+        io.stdout(renderTerminal(report, { color: parsed.color, sort: parsed.sort }));
         if (diff) io.stdout(renderDiff(diff, { color: parsed.color }));
       }
     }
@@ -437,6 +438,7 @@ function parse(argv: string[], io: Io) {
       'check-profiles': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false },
+      sort: { type: 'string' },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -513,6 +515,11 @@ function parse(argv: string[], io: Io) {
     }
   }
 
+  const sort = values.sort as SortKey | undefined;
+  if (sort !== undefined && !SORT_KEYS.includes(sort)) {
+    throw new UsageError(`--sort must be one of ${SORT_KEYS.join(', ')}, got "${values.sort}"`);
+  }
+
   const color =
     !values['no-color'] &&
     !values.json &&
@@ -533,6 +540,7 @@ function parse(argv: string[], io: Io) {
     includeUser: values['include-user'],
     noChecks: values['no-checks'],
     quiet: values.quiet,
+    sort,
     checkProfiles: values['check-profiles'],
     json: values.json,
     html: values.html,
