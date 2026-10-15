@@ -1,0 +1,3 @@
+# Secret word test: .rules
+
+This file is read by Zed, which uses the first match only and so ignores AGENTS.md and CLAUDE.md. Secret fruit: APRICOT

@@ -7,6 +7,12 @@
 Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
 `ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
 
+## Don't trust us, check it in 5 minutes
+
+`examples/secret-word/` hides one fruit in each instruction file: `CLAUDE.md` = MANGO, `AGENTS.md` = BANANA, `GEMINI.md` = GRAPES.
+Open an agent there, ask which fruits it knows, and compare with what ctxsize predicted.
+Steps and the full table: [docs/VERIFY.md](docs/VERIFY.md).
+
 ## Install
 
 ```sh

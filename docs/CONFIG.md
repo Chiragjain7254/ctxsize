@@ -156,3 +156,9 @@ How many messages a session is assumed to have when the overhead is estimated
 | `--context 200000` | the context window of every tool |
 | `--price 3` | the input price (USD per 1M tokens) of every tool |
 | `--agents claude,acme` | which tools run (built-in and your own) |
+
+## Keeping a folder out of the scan: `.ctxsizeignore`
+
+Put an empty file named `.ctxsizeignore` in a folder and every scan that starts above it skips the
+folder, whatever `.gitignore` says. ctxsize's own `examples/secret-word/` uses it so the sample
+instruction files do not count as this repo's. A scan started inside that folder still reads it.

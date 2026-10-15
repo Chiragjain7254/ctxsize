@@ -87,6 +87,9 @@ export function readText(file: string): string | undefined {
   }
 }
 
+/** Put a file with this name in a folder to keep it out of walks that start above it. */
+export const IGNORE_MARKER = '.ctxsizeignore';
+
 /**
  * Directories no agent reads instructions from, skipped so a walk of a big repo stays
  * fast: VCS data, dependencies, build output, and agents' own worktree copies of the repo.
@@ -134,7 +137,10 @@ function gitIgnored(scopes: Scope[], full: string): boolean {
 function skipDir(parent: string, name: string): boolean {
   if (SKIP_DIRS.has(name)) return true;
   // .claude/worktrees and similar hold full copies of the repo.
-  return name === 'worktrees' && path.basename(parent) === '.claude';
+  if (name === 'worktrees' && path.basename(parent) === '.claude') return true;
+  // A folder holding a .ctxsizeignore file (sample repos, test data) is left out of walks
+  // that start above it. A walk that starts inside it still works.
+  return existsSync(path.join(parent, name, IGNORE_MARKER));
 }
 
 export interface WalkOptions {
