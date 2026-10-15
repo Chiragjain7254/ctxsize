@@ -234,3 +234,49 @@ describe('--sort', () => {
     expect(r.stderr).toContain('--sort must be one of startup, name, cost');
   });
 });
+
+describe('--top', () => {
+  const many = () =>
+    tmpRepo({
+      '.git/': '',
+      'AGENTS.md': '# Agents\n\nShared.\n',
+      ...Object.fromEntries(
+        Array.from({ length: 8 }, (_, i) => [
+          `.windsurf/rules/r${i}.md`,
+          `# Rule ${i}\n\n${'Rule text. '.repeat(10 + i)}\n`,
+        ]),
+      ),
+    });
+  const biggest = (stdout: string) => {
+    const lines = stdout.split('\n');
+    const start = lines.findIndex((l) => l.includes('Biggest files at startup'));
+    const out: string[] = [];
+    for (const l of lines.slice(start + 1)) {
+      if (!l.trim()) break;
+      out.push(l);
+    }
+    return out;
+  };
+
+  test('lists five files by default', async () => {
+    expect(biggest((await cli([], many())).stdout)).toHaveLength(5);
+  });
+
+  test('--top 2 lists two, --top 7 lists seven', async () => {
+    expect(biggest((await cli(['--top', '2'], many())).stdout)).toHaveLength(2);
+    expect(biggest((await cli(['--top', '7'], many())).stdout)).toHaveLength(7);
+  });
+
+  test('--json topFiles follows --top', async () => {
+    const r = await cli(['--top', '3', '--json', '--agents', 'windsurf'], many());
+    expect(JSON.parse(r.stdout).agents[0].topFiles).toHaveLength(3);
+  });
+
+  test('a bad value is a usage error', async () => {
+    for (const bad of ['0', 'x', '1.5']) {
+      const r = await cli(['--top', bad], many());
+      expect(r.code).toBe(EXIT.usage);
+      expect(r.stderr).toContain('--top must be a positive whole number');
+    }
+  });
+});

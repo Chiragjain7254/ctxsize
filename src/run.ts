@@ -83,6 +83,7 @@ Options:
   --no-checks          Skip the duplicate, suggestion and skill-health checks
   --quiet              Print only a one-line summary, gate failures and errors (for CI)
   --sort <key>         Order the agent tables: startup (biggest first), name or cost
+  --top <n>            List the n biggest startup files (default: 5)
   --no-color           Disable colors (NO_COLOR is honoured too)
   -v, --version        Print the version
   -h, --help           Print this help
@@ -181,6 +182,7 @@ Run ctxsize --help for usage.
     models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
     env: io.env,
     checks: !parsed.noChecks,
+    ...(parsed.top !== undefined ? { top: parsed.top } : {}),
     ...(parsed.includeUser ? { home: os.homedir() } : {}),
     ...(parsed.context !== undefined ? { contextTokens: parsed.context } : {}),
   };
@@ -265,7 +267,9 @@ Run ctxsize --help for usage.
       if (parsed.quiet) {
         io.stdout(renderSummary(report));
       } else {
-        io.stdout(renderTerminal(report, { color: parsed.color, sort: parsed.sort }));
+        io.stdout(
+          renderTerminal(report, { color: parsed.color, sort: parsed.sort, top: parsed.top }),
+        );
         if (diff) io.stdout(renderDiff(diff, { color: parsed.color }));
       }
     }
@@ -439,6 +443,7 @@ function parse(argv: string[], io: Io) {
       watch: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false },
       sort: { type: 'string' },
+      top: { type: 'string' },
       'no-color': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -541,6 +546,7 @@ function parse(argv: string[], io: Io) {
     noChecks: values['no-checks'],
     quiet: values.quiet,
     sort,
+    top: positiveInt(values.top, '--top'),
     checkProfiles: values['check-profiles'],
     json: values.json,
     html: values.html,

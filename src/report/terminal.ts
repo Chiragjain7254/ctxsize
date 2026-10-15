@@ -1,5 +1,5 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
-import { formatUsd } from '../core/usage.ts';
+import { formatUsd, TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 
 export type SortKey = 'startup' | 'name' | 'cost';
@@ -9,6 +9,8 @@ export interface TerminalOptions {
   color: boolean;
   /** Order of the agent and cost tables; default: the order of the tools. */
   sort?: SortKey | undefined;
+  /** How many "Biggest files" to list (default 5). */
+  top?: number | undefined;
 }
 
 const KIND_LABEL: Record<DropKind, string> = {
@@ -61,7 +63,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   if (report.agents.length > 0) {
     out.push(...costLines({ ...report, agents: sortAgents(report.agents, opts.sort) }, c));
   }
-  out.push(...biggestFiles(report, c));
+  out.push(...biggestFiles(report, c, opts.top ?? TOP_FILES));
   out.push(...treeLines(report, c));
   out.push(...mcpLines(report, c));
 
@@ -243,7 +245,7 @@ function costLines(report: Report, c: Colors): string[] {
   ];
 }
 
-function biggestFiles(report: Report, c: Colors): string[] {
+function biggestFiles(report: Report, c: Colors, limit: number): string[] {
   const byPath = new Map<string, { tokens: number; tools: Set<string> }>();
   for (const a of report.agents) {
     for (const f of a.topFiles) {
@@ -256,7 +258,7 @@ function biggestFiles(report: Report, c: Colors): string[] {
   }
   const top = [...byPath]
     .sort((a, b) => b[1].tokens - a[1].tokens || (a[0] < b[0] ? -1 : 1))
-    .slice(0, 5);
+    .slice(0, limit);
   if (top.length === 0) return [];
   const pathWidth = Math.min(48, Math.max(...top.map(([p]) => p.length)));
   const tokenWidth = Math.max(...top.map(([, v]) => num(v.tokens).length));

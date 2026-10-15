@@ -15,7 +15,7 @@ import {
   type Report,
   type ToolId,
 } from './types.ts';
-import { DEFAULT_MESSAGES, topFiles, usageFor } from './usage.ts';
+import { DEFAULT_MESSAGES, TOP_FILES, topFiles, usageFor } from './usage.ts';
 
 export interface AnalyzeOptions {
   /** Directory the agents start in. */
@@ -34,6 +34,8 @@ export interface AnalyzeOptions {
   messages?: number;
   /** Which model each tool is measured with; omit to use a generic 200k-window model. */
   models?: ModelSelection;
+  /** How many of the biggest startup files each agent lists in topFiles (default 5). */
+  top?: number;
   /** Run the smart checks (default true). */
   checks?: boolean;
 }
@@ -92,6 +94,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
         sim.items,
         sim,
         result.warnings,
+        opts.top ?? TOP_FILES,
       ),
     );
   }
@@ -118,6 +121,7 @@ function summarize(
   items: LoadedItem[],
   sim: { drops: AgentReport['drops']; notes: string[] },
   warnings: AgentReport['warnings'],
+  top: number,
 ): AgentReport {
   const byCategory = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>;
   let total = 0;
@@ -140,7 +144,7 @@ function summarize(
     notes: sim.notes,
     startup: { total, byCategory },
     usage: usageFor(total, contextTokens, messages, model.pricePer1MInput),
-    topFiles: topFiles(items),
+    topFiles: topFiles(items, top),
     onDemand: { total: onDemandTotal, count: onDemandCount },
     items,
     drops: sim.drops,

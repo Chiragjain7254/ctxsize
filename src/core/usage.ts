@@ -24,8 +24,11 @@ export function usageFor(
   };
 }
 
+/** How many of the biggest startup files are listed by default. */
+export const TOP_FILES = 5;
+
 /** The items that cost the most at startup, biggest first (ties by path, for stable output). */
-export function topFiles(items: LoadedItem[], limit = 5): TopFile[] {
+export function topFiles(items: LoadedItem[], limit = TOP_FILES): TopFile[] {
   return items
     .filter((i) => i.load === 'startup' && i.tokens > 0)
     .map((i) => ({

@@ -229,6 +229,15 @@ report and the other outputs keep the tool order.
 npx @chiragjain7254/ctxsize --sort startup
 ```
 
+### `--top <n>`
+
+How many files to list under "Biggest files at startup" (default 5). A positive whole number. It also
+sets how many entries each agent's `topFiles` has in `--json`.
+
+```sh
+npx @chiragjain7254/ctxsize --top 10
+```
+
 ### `--no-color`
 
 Turn colors off. `NO_COLOR` is honoured too. Colors are on when the output is a terminal (or

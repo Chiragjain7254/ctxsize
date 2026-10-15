@@ -225,7 +225,7 @@ export interface AgentReport {
   /** Startup tokens after drops. */
   startup: { total: number; byCategory: Record<Category, number> };
   usage: Usage;
-  /** The five items that cost the most at startup. */
+  /** The items that cost the most at startup (five by default, --top changes it). */
   topFiles: TopFile[];
   /** MCP servers this repo configures for the tool (set when there are any). */
   mcp?: McpReport;
