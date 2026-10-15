@@ -4,7 +4,7 @@
 // squarify, document and window are passed in. That also lets a test run it against a stub
 // DOM. All text that comes from the repo is escaped with esc() before it is put in markup.
 
-export function pageMain(calc, squarify, document, window) {
+export function pageMain(calc, squarify, summarize, document, window) {
   const $ = (id) => document.getElementById(id);
   let DATA = JSON.parse($('ctxsize-data').textContent);
   let MODELS = {};
@@ -110,6 +110,49 @@ export function pageMain(calc, squarify, document, window) {
       );
     }
     $('notes').innerHTML = out.length ? `<ul class="recheck">${out.join('')}</ul>` : '';
+  }
+
+  // ---- summary and problems ----
+  const MARK = { bad: '✗', warn: '!', ok: '✓', info: '•' };
+  function activeProblems() {
+    const on = S.order.filter((id) => S.on[id]);
+    return DATA.problems.filter((p) => p.tools.length === 0 || p.tools.some((t) => on.includes(t)));
+  }
+  function renderSummary() {
+    const agents = S.order
+      .filter((id) => S.on[id])
+      .map((id) => {
+        const a = agentById(id);
+        const r = result(a);
+        return {
+          id,
+          label: a.label,
+          startup: r.startup,
+          est: !tokSpec(a).exact,
+          pct: r.windowPct,
+          cost: r.costUsd,
+        };
+      });
+    const lines = summarize({ messages: globals().messages, agents, problems: activeProblems() });
+    $('summary').innerHTML = `<h2 id="h-summary">Summary</h2><ul class="sum">${lines
+      .map(
+        (l) =>
+          `<li class="${l.level}"><span class="mk" aria-hidden="true">${MARK[l.level]}</span><span>${esc(l.text)}</span></li>`,
+      )
+      .join('')}</ul>`;
+  }
+  const LEVEL = { bad: 'Cut off', warn: 'At risk', info: 'Tip' };
+  function renderProblems() {
+    const ps = activeProblems();
+    const body = ps.length
+      ? `<ul class="plist">${ps
+          .map(
+            (p) =>
+              `<li class="${p.level}"><span class="badge ${p.level}">${LEVEL[p.level]}</span><div><p class="ptitle">${esc(p.title)}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p></div></li>`,
+          )
+          .join('')}</ul>`
+      : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix.</p>';
+    $('problems').innerHTML = `<h2 id="h-problems">Problems &amp; how to fix</h2>${body}`;
   }
 
   // ---- comparison table ----
@@ -330,6 +373,8 @@ ${filesTable(a)}`;
     const active = document.activeElement;
     const f = active?.getAttribute ? active.getAttribute('data-f') : null;
     renderNotes();
+    renderSummary();
+    renderProblems();
     renderCompare();
     renderTabs();
     renderPanel();

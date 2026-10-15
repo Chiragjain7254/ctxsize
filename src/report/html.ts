@@ -5,6 +5,7 @@ import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './cal
 import { hiddenSentence } from './common.ts';
 import { pageMain } from './page-client.ts';
 import { renderCardSvg, renderMarkdown } from './share.ts';
+import { buildProblems, type Problem, summarize } from './summary.ts';
 import { squarify } from './treemap.ts';
 
 // One self-contained interactive file: inline CSS, inline JS, the data embedded as JSON, no
@@ -53,6 +54,8 @@ export interface PageData {
   stream: string | null;
   models: PageModel[];
   agents: PageAgent[];
+  /** Everything worth fixing, worst first, each with a how-to-fix line. */
+  problems: Problem[];
 }
 
 function pageModel(m: Model): PageModel {
@@ -175,6 +178,7 @@ export function buildPageData(report: Report, opts: HtmlOptions = {}): PageData 
     stream: opts.stream ?? null,
     models: [...byId.values()],
     agents: report.agents.map(pageAgent),
+    problems: buildProblems(report),
   };
 }
 
@@ -190,8 +194,9 @@ export function pageScript(): string {
   return `(function(){
 var createCalc=${createCalc.toString()};
 var squarify=${squarify.toString()};
+var summarize=${summarize.toString()};
 var pageMain=${pageMain.toString()};
-pageMain(createCalc(), squarify, document, window);
+pageMain(createCalc(), squarify, summarize, document, window);
 })();`;
 }
 
@@ -231,6 +236,8 @@ ${hiddenNote(report)}<section class="controls" aria-label="Controls">
 <button type="button" class="btn" data-act="reset">Reset</button>
 </div>
 </section>
+<section id="summary" aria-labelledby="h-summary"></section>
+<section id="problems" aria-labelledby="h-problems"></section>
 <div id="notes" aria-live="polite"></div>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--bg)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--bad)" stroke-width="2"/></pattern></defs></svg>
 <div id="compare"></div>
@@ -264,11 +271,11 @@ const num = (n: number) => n.toLocaleString('en-US');
 
 const CSS = `
 :root{color-scheme:light;--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--ink3:#7a7974;--line:#e4e3df;--chip:#f0efec;
---c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--bad:#d03b3b;--warn:#a86b00;--tint:22%}
+--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--bad:#d03b3b;--warn:#a86b00;--ok:#1b7f4b;--tint:22%}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;
---c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--tint:30%}}
+--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--ok:#4cc38a;--tint:30%}}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--ink3:#8f8e88;--line:#383835;--chip:#262624;
---c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--tint:30%}
+--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--bad:#e66767;--warn:#fab219;--ok:#4cc38a;--tint:30%}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:1000px;margin:0 auto;padding:28px 16px 48px}
@@ -293,6 +300,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .fields label{display:grid;gap:2px;font-size:13px;color:var(--ink2)}
 .fields input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:3px 6px}
 .fields input[aria-invalid=true]{border-color:var(--bad)}
+.sum,.plist{list-style:none;margin:0;padding:0}
+.sum li{display:flex;gap:10px;padding:5px 0;font-size:16px}.mk{font-weight:700;width:1.2em;flex:none;text-align:center}
+.sum .bad .mk,.plist .bad .ptitle{color:var(--bad)}.sum .warn .mk{color:var(--warn)}.sum .ok .mk,.allgood .mk{color:var(--ok)}
+.plist li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}.ptitle{margin:0;font-weight:600}.pfix{margin:2px 0 0;color:var(--ink2)}
+.badge{flex:none;align-self:flex-start;font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;border:1px solid currentColor}
+.badge.bad{color:var(--bad)}.badge.warn{color:var(--warn)}.badge.info{color:var(--ink2)}
+#summary,#problems{margin-bottom:18px}
 .recheck{margin:0 0 12px;padding:8px 12px 8px 28px;border:1px solid var(--warn);border-radius:8px;color:var(--ink2);font-size:13px}
 [role=tablist]{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}
 [role=tab]{font:inherit;color:var(--ink2);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline}

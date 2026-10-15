@@ -1,6 +1,7 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
 import { formatUsd, TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
+import { buildProblems, type Problem, reportSummary } from './summary.ts';
 
 export type SortKey = 'startup' | 'name' | 'cost';
 export const SORT_KEYS: readonly SortKey[] = ['startup', 'name', 'cost'];
@@ -53,6 +54,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
     `${c.bold('ctxsize')} ${c.dim(`v${report.tool.version}`)}  what each agent loads before your first prompt`,
   );
   out.push('');
+  out.push(...summaryLines(report, c));
   if (report.agents.length > 0) {
     out.push(...table(sortAgents(report.agents, opts.sort), c));
   } else {
@@ -100,6 +102,31 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
     c.dim("Your files only: agents' own system prompts and tools are not counted."),
   );
   return `${out.join('\n')}\n`;
+}
+
+const MAX_PROBLEMS = 6;
+
+/** The plain-language summary and the problems with a fix each; the tables come after. */
+function summaryLines(report: Report, c: Colors): string[] {
+  const mark = { bad: c.red('✗'), warn: c.yellow('!'), ok: c.green('✓'), info: c.dim('-') };
+  const out = [
+    c.bold('Summary'),
+    ...reportSummary(report).map((l) => `  ${mark[l.level]} ${l.text}`),
+  ];
+  const problems = buildProblems(report);
+  if (problems.length > 0) {
+    out.push('', c.bold('Problems and how to fix'));
+    out.push(...problems.slice(0, MAX_PROBLEMS).flatMap((p) => problemLines(p, c)));
+    if (problems.length > MAX_PROBLEMS) {
+      out.push(c.dim(`  … ${problems.length - MAX_PROBLEMS} more below`));
+    }
+  }
+  return [...out, ''];
+}
+
+function problemLines(p: Problem, c: Colors): string[] {
+  const mark = { bad: c.red('✗'), warn: c.yellow('!'), info: c.dim('i') }[p.level];
+  return [`  ${mark} ${p.title}`, c.dim(`      How to fix: ${p.fix}`)];
 }
 
 function table(agents: AgentReport[], c: Colors): string[] {
@@ -200,6 +227,7 @@ function colors(enabled: boolean) {
     bold: wrap(1, 22),
     dim: wrap(2, 22),
     red: wrap(31, 39),
+    green: wrap(32, 39),
     yellow: wrap(33, 39),
   };
 }

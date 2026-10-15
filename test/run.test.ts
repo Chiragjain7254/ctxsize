@@ -202,7 +202,8 @@ describe('--sort', () => {
   const labels = (stdout: string) =>
     stdout
       .split('\n')
-      .slice(2, 12)
+      .slice(stdout.split('\n').findIndex((l) => /^\s+Agent\s+Instructions/.test(l)) + 1)
+      .slice(0, 10)
       .map((l) => l.trim().split(/\s{2,}/)[0])
       .filter((l): l is string => !!l && /^[A-Z]/.test(l) && l !== 'Agent');
 

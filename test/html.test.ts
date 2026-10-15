@@ -179,3 +179,15 @@ test('buildPageData keeps a model the report used even when it is not offered', 
   const data = buildPageData(r, { models: new Map() });
   expect(data.models.map((m) => m.id)).toEqual([r.agents[0]?.model.id]);
 });
+
+test('the page opens with a plain-language summary and a list of problems with fixes', async () => {
+  const out = await html({
+    'AGENTS.md': 'Use npm.\n',
+    '.claude/skills/nodesc/SKILL.md': '---\nname: nodesc\n---\nBody\n',
+  });
+  const run = runPage(out);
+  expect(run('summary')).toContain('reads the most before your first message');
+  expect(run('problems')).toContain('How to fix:');
+  expect(dataOf(out).problems.length).toBeGreaterThan(0);
+  expect(out.indexOf('id="summary"')).toBeLessThan(out.indexOf('id="compare"'));
+});
