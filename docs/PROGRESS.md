@@ -17,3 +17,13 @@ Now working on: 3 of 12 (blocked: npm publish needs a real 2FA code)
 - [x] 12. Add `--serve` live report server and `--open` for `--html`
 
 Standing rule: no Co-Authored-By, Claude-Session or "Generated with Claude Code" in any commit, PR or release.
+
+## v0.2.0 pre-release audit
+
+- [x] Run every flag and combination against five targets (examples, secret-word, empty, no git, shallow next.js)
+- [x] Exercise `--serve` (/, /api/report, /events, live update), `--watch`, `--html --open` (mocked), `--mcp`
+- [x] Test the GitHub Action and the PR-comment recipe on a real PR (PR #4, closed, branch deleted)
+- [x] `npm run check` 5 times in a row: 5 of 5 passed, no flaky tests
+- [x] Fix: stack trace when an output file path cannot be written
+- [x] Fix: "1 commits" in the history heading
+- [ ] Publish 0.2.0 to npm: the action and the PR-comment recipe call `ctxsize --quiet`, which the published 0.1.0 does not have
