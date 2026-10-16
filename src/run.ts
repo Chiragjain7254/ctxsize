@@ -41,6 +41,8 @@ export interface Io {
   signal?: AbortSignal | undefined;
   /** Opens a file or URL in the default browser for --open and --serve; returns an error message on failure. */
   open?: ((target: string) => Promise<string | undefined>) | undefined;
+  /** Asks a question on the terminal (`ctxsize init`); set only when stdin and stdout are a terminal. */
+  ask?: ((question: string) => Promise<string>) | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -51,6 +53,7 @@ See what your AI coding agent reads before you type, what it costs,
 and what it silently drops.
 
 Usage: ctxsize [dir] [options]
+       ctxsize init [dir] [--workflow]   Create a starter ctxsize.json (ctxsize init --help)
 
 Options:
   --agents <list>      Comma-separated tool ids (default: all). Built in: ${BUILT_IN.join(',')}
@@ -137,6 +140,10 @@ async function announceHtml(file: string, open: boolean, quiet: boolean, io: Io)
 const dataFileFor = (html: string) => `${html.replace(/.html?$/i, '')}.data.js`;
 
 export async function run(argv: string[], io: Io): Promise<number> {
+  if (argv[0] === 'init') {
+    const { runInit } = await import('./init.ts');
+    return runInit(argv.slice(1), io);
+  }
   let parsed: ReturnType<typeof parse>;
   try {
     parsed = parse(argv, io);

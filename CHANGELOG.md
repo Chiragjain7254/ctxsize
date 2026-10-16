@@ -7,6 +7,7 @@ All notable changes are documented here. This project follows
 
 ### Added
 - **Context health grade (A to F)** for each agent and overall, counted from the same problems as the Fix list so the two cannot disagree (A means nothing to fix; anything cut off caps it at C). Shown on the Overview, in the terminal summary and table, in `--markdown` and in `--json` (`grade`). An agent that starts with 20% or more of its context window used now has a "startup load" problem in the Fix list. Rules: [docs/GRADE.md](docs/GRADE.md).
+- **`ctxsize init`** creates a starter `ctxsize.json` (with `$schema`) and, with `--workflow` or when you say yes on a terminal, `.github/workflows/ctxsize.yml` using the ctxsize action with a budget 25% above today's load. It never overwrites a file without `--force` and never asks questions outside a terminal. See [docs/CLI.md](docs/CLI.md).
 
 ### Changed
 - **Breaking change from 0.1.0: ctxsize no longer has built-in prices.** Prices change often and depend on your plan, so ctxsize never shows a price it chose itself. Cost appears only when you give a price: `--price <amount>`, with `--per <tokens>` (default `1m`; accepts `1000`, `1k`, `1m`) and `--currency <symbol or code>` (default `# Changelog

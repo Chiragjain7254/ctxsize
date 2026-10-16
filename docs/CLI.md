@@ -10,6 +10,19 @@ nearest parent folder with a `.git`. Pass at most one directory.
 The examples use `npx @chiragjain7254/ctxsize`. If you installed it globally, type `ctxsize` instead.
 Run `ctxsize --help` to print the same list in your terminal. All token counts are estimates.
 
+## `ctxsize init`
+
+```text
+ctxsize init [dir] [--workflow] [--no-workflow] [--max-tokens <n>] [--force] [--yes]
+```
+
+Creates a starter `ctxsize.json` (with `$schema`, so your editor completes it) and, if you want, `.github/workflows/ctxsize.yml`, which runs the [GitHub Action](CI.md) on pull requests with a token budget. The budget is 25% above what the heaviest agent loads today, rounded up to 500 and never below 2,000; `--max-tokens` sets your own.
+
+- On a terminal it asks before each file. In CI or a pipe it never asks: it creates `ctxsize.json`, and the workflow only with `--workflow`. `--yes` skips the questions on a terminal too.
+- It never overwrites a file that exists, unless you pass `--force`. A `"ctxsize"` key in `package.json` counts as an existing config.
+- Files go in the repo root (the nearest parent with a `.git`).
+- It makes no network calls. Exit code `2` for a bad flag or folder, otherwise `0`.
+
 ## Exit codes
 
 | Code | Meaning | Examples |
