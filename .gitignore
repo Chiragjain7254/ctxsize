@@ -8,3 +8,5 @@ ctxsize-report.html
 .local/
 *.tgz
 ctxsize-*.html
+ctxsize-card.*
+ctxsize-badge.*

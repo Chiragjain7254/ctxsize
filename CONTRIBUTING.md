@@ -2,6 +2,15 @@
 
 Thanks for helping. The most valuable contribution is keeping agent limits correct.
 
+## What's in this repo
+
+- `src/`: the CLI. `src/agents/` has one loader per agent, `src/profiles.ts` every documented limit (with its source and checked date), `src/report/` the terminal, JSON and HTML output.
+- `test/`: Vitest tests. `test/fixtures/` holds tiny fake repos.
+- `docs/`: the guides, the glossary (generated), the study and the screenshots in `docs/img/`.
+- `examples/`: `secret-word`, a small repo you use to check what an agent really reads (see [docs/VERIFY.md](docs/VERIFY.md)). It is also a test fixture.
+- `scripts/`: maintainer scripts (the glossary, the screenshots, the study, the secret-word generator).
+- `.github/`: CI, the release workflow, and issue and pull request templates.
+
 ## Setup
 
 You need Node 22.12 or newer and git. ctxsize works on macOS, Windows and Linux; CI runs all three.
