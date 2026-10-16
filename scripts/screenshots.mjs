@@ -223,7 +223,8 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
 }
 
 // 2. report-light.png, report-dark.png and report-mobile.png: the Overview, the first screen a
-// reader sees, at 1366x768 (a laptop) and 390x844 (a phone). (--html file; the page follows the
+// reader sees. The laptop shots are 1180x740: the page is 1120 px wide, so no empty margins and
+// the text stays readable when GitHub scales the image. The phone shot is 390x844. (--html file; the page follows the
 // colour scheme.)
 {
   const htmlFile = path.join(tmp, 'report.html');
@@ -231,8 +232,8 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
   const url = pathToFileURL(htmlFile).href;
   for (const theme of ['light', 'dark']) {
     await pageShot(url, path.join(IMG, `report-${theme}.png`), {
-      width: 1366,
-      height: 768,
+      width: 1180,
+      height: 740,
       theme,
     });
   }
