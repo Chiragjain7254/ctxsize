@@ -148,7 +148,7 @@ const color = { FORCE_COLOR: '1' };
 }
 
 // ---- Chrome DevTools: a real viewport (phones included), a colour scheme and a page height ----
-async function pageShot(url, out, { width, height, theme, mobile = false }) {
+async function pageShot(url, out, { width, height, theme, mobile = false, js }) {
   const port = 9400 + Math.floor(Math.random() * 400);
   const profile = path.join(tmp, `cdp-${port}`);
   const child = spawn(
@@ -206,6 +206,11 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
     });
     await send('Page.navigate', { url });
     await sleep(2500);
+    // Optional: put the page in a state first (open a tab, type an example price).
+    if (js) {
+      await send('Runtime.evaluate', { expression: js, awaitPromise: true });
+      await sleep(600);
+    }
     const shot = await send('Page.captureScreenshot', {
       format: 'png',
       captureBeyondViewport: true,
@@ -237,11 +242,33 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
       theme,
     });
   }
-  await pageShot(url, path.join(IMG, 'report-mobile.png'), {
-    width: 390,
-    height: 844,
+  for (const theme of ['light', 'dark']) {
+    await pageShot(
+      url,
+      path.join(IMG, theme === 'light' ? 'report-mobile.png' : 'report-mobile-dark.png'),
+      {
+        width: 390,
+        height: 844,
+        theme,
+        mobile: true,
+      },
+    );
+  }
+  // The Cost calculator with an example price (the numbers are an example, not anyone's price list).
+  const typeInto = (sel, value) =>
+    `(()=>{const el=document.querySelector('${sel}');el.value='${value}';el.dispatchEvent(new Event('input',{bubbles:true}))})();`;
+  const calculator = `(()=>{
+    document.querySelector('[data-act=view][data-id=cost]').click();
+    ${typeInto('[data-calc=amount][data-row="0"]', '250')}
+    const s=document.querySelector('[data-calc=currencyKind][data-row="0"]');s.value='₹';s.dispatchEvent(new Event('change',{bubbles:true}));
+    document.querySelector('[data-act=calc-add]').click();
+    ${typeInto('[data-calc=amount][data-row="1"]', '100')}
+  })()`;
+  await pageShot(url, path.join(IMG, 'calculator.png'), {
+    width: 1180,
+    height: 1120,
     theme: 'light',
-    mobile: true,
+    js: calculator,
   });
 }
 
