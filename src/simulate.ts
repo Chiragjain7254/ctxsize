@@ -262,7 +262,7 @@ function codexSkills(input: SimulateInput, result: SimulateResult): void {
       result.drops.push({
         agent: 'codex',
         kind: 'skill-description-truncated',
-        certainty: 'will',
+        certainty: useChars ? 'at-risk' : 'will',
         path: item.path,
         skill: info.name,
         ...lost,
@@ -288,7 +288,7 @@ function codexSkills(input: SimulateInput, result: SimulateResult): void {
     result.drops.push({
       agent: 'codex',
       kind: 'skill-omitted',
-      certainty: 'will',
+      certainty: useChars ? 'at-risk' : 'will',
       path: item.path,
       skill: item.skill?.name ?? item.path,
       ...lost,
