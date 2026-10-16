@@ -54,4 +54,4 @@ Screenshots coming.
 If an agent knows a fruit the table says it should not, or misses one it should have, ctxsize is
 wrong or the agent changed. [Open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=agent-behavior-changed.yml)
 with the agent, its version, the fruits it named and a link to its docs. See
-[CONTRIBUTING.md](../CONTRIBUTING.md#keeping-agent-profiles-up-to-date) for how to fix the profile.
+[CONTRIBUTING.md](../CONTRIBUTING.md#add-or-update-an-agent) for how to fix the profile.
