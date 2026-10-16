@@ -11,6 +11,7 @@ All notable changes are documented here. This project follows
 - **A new share card** (`--card`, 1200×630): the grade, the top 3 fixes and each agent, readable at small size. `--card card.png` writes a PNG, `.svg` an SVG and no extension both, all drawn offline. The card no longer shows cost, and its default title is now `Context health report`.
 - **`--badge` with no file** prints a ready-to-paste Markdown badge with the grade and the startup tokens (`B · 8.8k tokens`, colored by grade, linking to ctxsize). `--badge file.svg` still writes the SVG.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): copy-paste setups for an npm script, a plain git pre-commit hook, Husky, a VS Code task and the GitHub Action (the hook is tested in the docs test).
+- A small logo (three bars filling up, like a token meter) at the top of `--help` and `--version`, only on a color terminal at least 40 columns wide. Never in normal output, when piped, in CI, with `NO_COLOR`, `--no-color`, `--json`, `--quiet` or `--markdown`.
 
 ### Changed
 - **Breaking change from 0.1.0: ctxsize no longer has built-in prices.** Prices change often and depend on your plan, so ctxsize never shows a price it chose itself. Cost appears only when you give a price: `--price <amount>`, with `--per <tokens>` (default `1m`; accepts `1000`, `1k`, `1m`) and `--currency <symbol or code>` (default `# Changelog

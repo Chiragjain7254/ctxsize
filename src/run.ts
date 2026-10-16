@@ -19,6 +19,7 @@ import {
   type SnapshotOptions,
   validateRef,
 } from './history.ts';
+import { renderLogo, shouldShowLogo } from './logo.ts';
 import { allModels, type ModelChoice, modelForTool, presets } from './models.ts';
 import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
@@ -43,6 +44,8 @@ export interface Io {
   open?: ((target: string) => Promise<string | undefined>) | undefined;
   /** Asks a question on the terminal (`ctxsize init`); set only when stdin and stdout are a terminal. */
   ask?: ((question: string) => Promise<string>) | undefined;
+  /** Terminal width; the logo in --help and --version is drawn only when it is known and wide enough. */
+  columns?: number | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -154,8 +157,16 @@ export async function run(argv: string[], io: Io): Promise<number> {
     io.stderr(`ctxsize: ${message}\nRun ctxsize --help for usage.\n`);
     return EXIT.usage;
   }
+  // The logo appears in --help and --version only, and only for a person at a color terminal.
+  const logo = shouldShowLogo({
+    isTTY: io.isTTY,
+    color: parsed.color,
+    env: io.env,
+    columns: io.columns,
+    plain: parsed.json || parsed.quiet || Boolean(parsed.markdown),
+  });
   if (parsed.help) {
-    io.stdout(HELP);
+    io.stdout(logo ? `${renderLogo(VERSION)}\n${HELP.slice(HELP.indexOf('\n') + 1)}` : HELP);
     return EXIT.ok;
   }
   if (parsed.checkProfiles) {
@@ -164,7 +175,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
     return EXIT.ok;
   }
   if (parsed.version) {
-    io.stdout(`${VERSION}\n`);
+    io.stdout(logo ? renderLogo(VERSION) : `${VERSION}\n`);
     return EXIT.ok;
   }
 

@@ -414,3 +414,5 @@ Print the help text.
 ```sh
 npx @chiragjain7254/ctxsize --help
 ```
+
+On a color terminal, `--help` and `--version` start with a small logo (three bars filling up, like a token meter). It is never shown anywhere else: not in a normal run, not when the output is piped, in CI (`CI` is set), with `NO_COLOR`, `--no-color`, `--json`, `--quiet` or `--markdown`, or when the terminal is narrower than 40 columns. Piped, `--version` prints just the version number.

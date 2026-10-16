@@ -11,6 +11,7 @@ process.exitCode = await run(process.argv.slice(2), {
   env: process.env,
   isTTY: process.stdout.isTTY === true,
   cwd: process.cwd(),
+  columns: process.stdout.columns,
   ask: interactive
     ? async (question) => {
         const rl = createInterface({ input: process.stdin, output: process.stderr });
