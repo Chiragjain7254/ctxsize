@@ -150,3 +150,64 @@ describe('--card and --badge', () => {
     expect(badgeMarkdown(report)).toContain('ctxsize: C');
   });
 });
+
+describe('pixel font contract', () => {
+  test('every printable ASCII glyph has seven five-bit rows', () => {
+    const source = readFileSync(new URL('../src/report/pixel.ts', import.meta.url), 'utf8');
+    const table = source.match(/const FONT:[^=]+=(\s*\{[\s\S]*?\n\});/);
+    expect(table, 'FONT table must be present').not.toBeNull();
+    const glyphs = new Map<string, number[]>();
+    for (const match of (table?.[1] ?? '').matchAll(
+      /^\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[\w$]+):\s*\[([\d,\s]+)\],?$/gm,
+    )) {
+      const key = match[1] ?? '';
+      const character =
+        key.startsWith("'") || key.startsWith('"')
+          ? key.slice(1, -1).replace(/\\(['"\\])/g, '$1')
+          : key;
+      expect(glyphs.has(character), `duplicate glyph ${character}`).toBe(false);
+      glyphs.set(
+        character,
+        (match[2] ?? '').split(',').map((n) => Number(n.trim())),
+      );
+    }
+    expect(glyphs.size).toBe(95);
+    for (let code = 32; code <= 126; code++) {
+      const character = String.fromCharCode(code);
+      const rows = glyphs.get(character);
+      expect(rows, `missing ASCII glyph ${code}`).toBeDefined();
+      expect(rows, `ASCII glyph ${code}`).toHaveLength(7);
+      for (const bits of rows ?? []) {
+        expect(Number.isInteger(bits)).toBe(true);
+        expect(bits).toBeGreaterThanOrEqual(0);
+        expect(bits).toBeLessThan(32);
+      }
+    }
+  });
+
+  test.each(['é', '₹'])('unsupported character %s draws the question-mark pixels', (ch) => {
+    const actual = new Canvas(24, 24, '#000000');
+    const expected = new Canvas(24, 24, '#000000');
+    actual.text(ch, 2, 3, 2, '#ffffff');
+    expected.text('?', 2, 3, 2, '#ffffff');
+    expect(actual.data).toEqual(expected.data);
+  });
+
+  for (const scale of [1, 2, 3]) {
+    test.each(['end', 'middle'] as const)(
+      `anchor %s uses the text width at scale ${scale}`,
+      (anchor) => {
+        const actual = new Canvas(100, 30, '#000000');
+        const expected = new Canvas(100, 30, '#000000');
+        const text = 'HH'; // H has a lit leftmost pixel in its first row.
+        const width = text.length * 6 * scale - scale;
+        const left = anchor === 'end' ? 60 - width : 60 - width / 2;
+        actual.text(text, 60, 3, scale, '#ffffff', anchor);
+        expected.text(text, left, 3, scale, '#ffffff');
+        expect(actual.data).toEqual(expected.data);
+        const firstPixel = actual.data.findIndex((value) => value !== 0) / 3;
+        expect(firstPixel).toBe(3 * actual.width + Math.round(left));
+      },
+    );
+  }
+});
