@@ -107,12 +107,41 @@ describe('--exclude and the "exclude" config key', () => {
     expect(parseConfig({ exclude: ['docs'] }, 'ctxsize.json').exclude).toEqual(['docs']);
   });
 
+  test('backslashes suggest the equivalent slash pattern', async () => {
+    const root = tmpRepo(files);
+    const r = await cli(['--exclude', 'docs\\old\\*.md'], root);
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('Did you mean "docs/old/*.md"?');
+  });
+
   test('bad patterns are usage errors', async () => {
     const root = tmpRepo(files);
-    for (const bad of ['../x', '/abs', 'C:x', 'a\\b']) {
+    for (const bad of ['../x', '/abs', 'C:x', 'C:\\x', 'a\\b']) {
       const r = await cli(['--exclude', bad], root);
       expect(r.code, bad).toBe(EXIT.usage);
       expect(r.stderr).toContain('--exclude must be a glob relative to the repo');
     }
+    const drive = await cli(['--exclude', 'C:\\x'], root);
+    expect(drive.stderr).not.toContain('Did you mean');
+  });
+});
+
+describe('exclude suggestions never point outside the repository', () => {
+  test.each([
+    '..\\secret',
+    'docs\\..\\*.md',
+    '\\\\server\\share',
+    '\\rooted',
+    'C:\\secret',
+    'docs/../x',
+  ])('does not suggest unsafe pattern %s', async (pattern) => {
+    const r = await cli(['--exclude', pattern], tmpRepo(files));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+  test('suggests a slash form for mixed relative separators', async () => {
+    const r = await cli(['--exclude', 'docs\\old/*.md'], tmpRepo(files));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('Did you mean "docs/old/*.md"?');
   });
 });
