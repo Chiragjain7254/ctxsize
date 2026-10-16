@@ -59,6 +59,35 @@ export interface CalcResult {
   rechecked: boolean;
 }
 
+/** One price row of the calculator, as typed: every field is text, so half-typed input is kept. */
+export interface CalcPriceRow {
+  label: string;
+  amount: string;
+  /** A symbol ("$", "₹") or a code the person typed. */
+  currency: string;
+  /** "1k", "1m" or "custom". */
+  perKind: string;
+  perCustom: string;
+  /** Optional: the cheaper price of a cached input token, per the same number of tokens. */
+  cachedAmount: string;
+}
+
+/** A price row that is complete enough to use. */
+export interface CalcPrice {
+  label: string;
+  amount: number;
+  per: number;
+  currency: string;
+  /** null when no cached price was given. */
+  cachedAmount: number | null;
+}
+
+export interface CalcCost {
+  message: number;
+  day: number;
+  month: number;
+}
+
 export function createCalc() {
   type Tok = { tok: string; ratio?: number };
 
@@ -133,7 +162,71 @@ export function createCalc() {
     return out;
   }
 
-  return { tokensOf, agentTotals, sortRows, move };
+  /** "1k", "1m", "2.5M", "1,000,000": a token count the way people write it; null when it is not one. */
+  function parseCount(text: string): number | null {
+    const m = /^(\d+(?:\.\d+)?)([km]?)$/i.exec(
+      String(text)
+        .trim()
+        .replace(/[,_\s]/g, ''),
+    );
+    if (!m) return null;
+    const unit = (m[2] ?? '').toLowerCase();
+    const n = Number(m[1]) * (unit === 'k' ? 1e3 : unit === 'm' ? 1e6 : 1);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+
+  /** A plain number, 0 or more, from text such as "250" or "0.5"; null when it is not one. */
+  function parseAmount(text: string): number | null {
+    const t = String(text).trim().replace(/,/g, '');
+    return /^\d+(?:\.\d+)?$/.test(t) ? Number(t) : null;
+  }
+
+  /** The row as a usable price, or null while the amount (or a custom "per") is missing or wrong. */
+  function priceOf(row: CalcPriceRow, fallbackLabel: string): CalcPrice | null {
+    const amount = parseAmount(row.amount);
+    if (amount === null) return null;
+    const per = row.perKind === 'custom' ? parseCount(row.perCustom) : parseCount(row.perKind);
+    if (per === null) return null;
+    const cached = row.cachedAmount.trim() === '' ? null : parseAmount(row.cachedAmount);
+    return {
+      label: row.label.trim() === '' ? fallbackLabel : row.label.trim(),
+      amount,
+      per,
+      currency: row.currency.trim(),
+      cachedAmount: cached,
+    };
+  }
+
+  /** The price per `per` tokens once a share of the messages is cached (0 to 100). */
+  function blendedAmount(price: CalcPrice, cachedPct: number): number {
+    const share = price.cachedAmount === null ? 0 : Math.min(100, Math.max(0, cachedPct)) / 100;
+    return price.amount * (1 - share) + (price.cachedAmount ?? 0) * share;
+  }
+
+  /** What `tokens` of startup text cost per message, per day and per month at this price. */
+  function costOf(
+    tokens: number,
+    price: CalcPrice,
+    cachedPct: number,
+    msgsPerDay: number,
+    daysPerMonth: number,
+  ): CalcCost {
+    const message = (tokens / price.per) * blendedAmount(price, cachedPct);
+    const day = message * msgsPerDay;
+    return { message, day, month: day * daysPerMonth };
+  }
+
+  return {
+    tokensOf,
+    agentTotals,
+    sortRows,
+    move,
+    parseCount,
+    parseAmount,
+    priceOf,
+    blendedAmount,
+    costOf,
+  };
 }
 
 export const calc = createCalc();

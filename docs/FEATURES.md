@@ -35,7 +35,7 @@ npx @chiragjain7254/ctxsize --html --open        # an interactive page (writes c
 npx @chiragjain7254/ctxsize --serve              # the same page, live: http://localhost:4321
 ```
 
-The page has five tabs: **Overview** (the answer on one screen), **Agents** (what each one reads and how to read less), **Fix list**, **Settings** (what if: another model, price or number of messages) and **Help**. Click the agents you use at the top of the Overview and everything counts only those.
+The page has six tabs: **Overview** (the answer on one screen), **Agents** (what each one reads and how to read less), **Fix list**, **Cost calculator** (type your own price and see the cost per message, per day and per month, or compare two prices), **Settings** (what if: another model or window) and **Help**. Click the agents you use at the top of the Overview and everything counts only those.
 
 `--serve` listens on `127.0.0.1` only. `http://localhost:<port>/api/report` returns the same JSON as `--json`. Press Ctrl+C to stop.
 

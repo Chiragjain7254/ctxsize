@@ -97,6 +97,30 @@ What you pay for input tokens, from your provider's price list. ctxsize has no p
 
 Example: ₹250 per 1M tokens means 1,000 tokens cost ₹0.25.
 
+### Cost per message
+
+What the startup text costs each time you send a message, at your price. It is the startup tokens times your price per token.
+
+Example: 1,634 tokens × ₹250 / 1,000,000 = ₹0.41.
+
+### Cost per day
+
+The cost per message times the messages you send on a normal day.
+
+Example: ₹0.41 × 50 messages = ₹20.43.
+
+### Cost per month
+
+The cost per day times your working days in a month. A rough estimate: real bills depend on caching and your plan.
+
+Example: ₹20.43 × 22 days = ₹449.
+
+### Cheapest
+
+The agent whose startup text costs the least per month at your price. Agents that read nothing from your repo are left out.
+
+Example: Zed reads 103 tokens, so it costs the least here.
+
 ### ~ (estimate)
 
 A ~ means the number is an estimate. Only OpenAI models are counted with their own tokenizer; the others are approximated.
@@ -217,6 +241,54 @@ Example: Move a big section into a skill so it loads only when needed.
 
 ## Controls
 
+### Per (tokens)
+
+How many tokens your price is for. Price lists usually say per 1M or per 1K tokens.
+
+Example: $3 per 1M tokens.
+
+### Currency
+
+The symbol or letters shown next to money. It only changes how numbers look; ctxsize does not convert between currencies.
+
+Example: ₹, € or EUR.
+
+### Name of this price
+
+A short name so you can tell prices apart when you compare them, such as the model it belongs to.
+
+Example: Model A.
+
+### Messages per day
+
+How many messages you send to an agent on a normal working day. The startup text goes along with every one of them.
+
+Example: 50 messages a day.
+
+### Working days per month
+
+How many days a month you use the agent, to turn a daily cost into a monthly one.
+
+Example: 22 days is a normal working month.
+
+### Cached price (optional)
+
+Some providers charge less for text they have seen a moment ago. Enter that lower price here if your provider has one, for the same number of tokens.
+
+Example: ₹25 per 1M cached tokens.
+
+### % of messages cached
+
+How many of your messages get the cheaper cached price. Leave it empty if you are not sure; it only matters when you entered a cached price.
+
+Example: 70 means 7 messages in 10.
+
+### Compare another price
+
+Add a second price, for example another model's, to see which one is cheaper for your repo. Prices in different currencies are shown but not compared.
+
+Example: Model A against Model B.
+
 ### Which agents do you use?
 
 Click an agent to include it or leave it out; everything on the page then counts only the agents you picked. Your choice is remembered in this browser.
@@ -225,9 +297,9 @@ Example: Leave out agents you never open.
 
 ### Show cost
 
-Adds two columns to the chart: how much of the agent's memory the text uses, and the cost, if you have entered a price.
+Adds two columns to the chart: how much of the agent's memory the text uses, and the cost per month, once you have entered your price.
 
-Example: 0.4% of memory, and ₹0.41 per message.
+Example: 0.4% of memory, and ₹449 a month.
 
 ### Show this agent
 

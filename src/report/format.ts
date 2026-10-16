@@ -22,7 +22,12 @@ export function createFmt() {
     if (v === null) return 'n/a';
     if (v === 0) return withCurrency('0', currency);
     if (v < 0.0001) return `<${withCurrency('0.0001', currency)}`;
-    return withCurrency(v.toFixed(v < 1 ? 4 : 2), currency);
+    return withCurrency(
+      v < 1
+        ? v.toFixed(4)
+        : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      currency,
+    );
   };
 
   const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);

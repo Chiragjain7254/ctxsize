@@ -30,6 +30,7 @@ All notable changes are documented here. This project follows
 - `--history 1` (and a shallow clone with one commit) says "at the last commit" instead of "over the last 1 commits".
 
 ### Added
+- A **Cost calculator** tab in the HTML report (and a "See cost" button on the Overview). Type your own price: an amount, a currency (USD $, INR ₹, EUR €, GBP £ or your own text) and "per" 1K, 1M or a custom number of tokens, plus messages per day (default 50) and working days per month (default 22). It shows each agent's cost per message, per day and per month from ctxsize's token counts, cheapest first, with a worked example ("1,634 tokens × ₹250 / 1,000,000 = ₹0.41 per message"). An optional cheaper cached price with a "% of messages cached" lowers the cost, and "Compare another price" shows several labelled prices side by side and says which is cheaper for your repo (prices in different currencies are shown but not compared). Your inputs are remembered in your browser, and with no price it says "Enter your price to see cost" instead of showing zeros. A plain-words disclaimer sits above the results: real cost depends on caching and your plan, and on a monthly subscription you do not pay per token, so watch tokens instead.
 - A feedback issue template and a feedback Discussion, and a "Try it and tell us" section in the README.
 - A "Good first issues" section in `CONTRIBUTING.md` with five small ideas taken from the code.
 - Tests for CRLF line endings and Windows-style paths in instruction files, frontmatter, imports, `.gitignore` and `ctxsize.json`.

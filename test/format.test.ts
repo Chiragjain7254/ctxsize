@@ -9,6 +9,7 @@ test('money is written in your own currency: a symbol goes in front, a code afte
   expect(fmt.money(0.4085, '₹')).toBe('₹0.4085');
   expect(fmt.money(1.2, '€')).toBe('€1.20');
   expect(fmt.money(12.5, 'EUR')).toBe('12.50 EUR');
+  expect(fmt.money(1050.5, '₹')).toBe('₹1,050.50');
   expect(fmt.money(0.00001, 'EUR')).toBe('<0.0001 EUR');
 });
 
