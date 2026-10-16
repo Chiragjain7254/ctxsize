@@ -110,8 +110,8 @@ function layout(report: Report, opts: CardOptions): Item[] {
 
   // The agents: a bar of startup tokens and the agent's own grade.
   text('What each agent reads', colX, 356, 3, INK, 'start', true);
-  const agents = report.agents;
-  const shown = agents.length > 5 ? agents.slice(0, 4) : agents;
+  const agents = [...report.agents].sort((a, b) => b.startup.total - a.startup.total);
+  const shown = agents.length > 5 ? agents.slice(0, 4) : agents; // heaviest first
   const max = Math.max(1, ...shown.map((a) => a.startup.total));
   const barX = colX + 260;
   const barMax = 280;
