@@ -56,10 +56,10 @@ Every agent and your repo overall get a grade. **A** means nothing to fix; anyth
 In [a study of 50 popular repos](https://github.com/Chiragjain7254/ctxsize/blob/main/docs/STUDY.md) (picked for being well known, not sampled):
 
 - **36%** ship both a `CLAUDE.md` and an `AGENTS.md` at the root.
-- **22%** have a file that some agent ignores.
-- The median Claude Code startup load is **602 tokens**, the largest **7,514**.
+- **6%** have a file that some agent ignores (a `CLAUDE.md` that is a symlink to `AGENTS.md` is not counted).
+- The median Claude Code startup load is **1,429 tokens**, the largest **7,514**.
 
-Measured with ctxsize 0.1.0 on 2026-10-15. Tokens are estimates. Method and every repo: [docs/STUDY.md](https://github.com/Chiragjain7254/ctxsize/blob/main/docs/STUDY.md).
+Measured with ctxsize 0.2.0 on 2026-10-16. Tokens are estimates. Method and every repo: [docs/STUDY.md](https://github.com/Chiragjain7254/ctxsize/blob/main/docs/STUDY.md).
 
 ## ctxsize vs doing it by hand
 

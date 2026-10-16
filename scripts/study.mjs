@@ -4,7 +4,15 @@
 //   node scripts/study.mjs --render   rewrite docs/STUDY.md from the existing results.json only
 // Each repo is cloned shallow and sparse (agent files only) into a temp folder, then deleted.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,6 +76,7 @@ function analyseRepo(name, tmp) {
   ]);
   git(['sparse-checkout', 'set', '--no-cone', ...SPARSE], dir);
   const sha = git(['rev-parse', 'HEAD'], dir);
+  const symlinks = materialiseSymlinks(dir);
   const out = execFileSync(process.execPath, [CLI, dir, '--all', '--json'], {
     encoding: 'utf8',
     maxBuffer: 1 << 28,
@@ -77,15 +86,37 @@ function analyseRepo(name, tmp) {
   const files = git(['ls-files'], dir)
     .split('\n')
     .filter((f) => AGENT_FILE.test(f));
-  return { repo: name, sha, files, report };
+  return { repo: name, sha, files, symlinks, report };
+}
+
+/**
+ * A symlinked agent file (typically CLAUDE.md -> AGENTS.md) is checked out as a text file holding
+ * the target path when the platform cannot create symlinks, and an agent would read the target's
+ * content instead. Replace such a file with a copy of its target so the study measures what the
+ * agent reads. Returns the symlinks it resolved, as "link -> target".
+ */
+function materialiseSymlinks(dir) {
+  const resolved = [];
+  for (const line of git(['ls-files', '-s'], dir).split('\n')) {
+    const match = /^120000 \S+ \d\t(.+)$/.exec(line);
+    if (!match || !AGENT_FILE.test(match[1])) continue;
+    const link = path.join(dir, ...match[1].split('/'));
+    if (!existsSync(link) || !statSync(link).isFile()) continue;
+    const target = path.join(path.dirname(link), readFileSync(link, 'utf8').trim());
+    if (!existsSync(target) || !statSync(target).isFile() || !target.startsWith(dir)) continue;
+    writeFileSync(link, readFileSync(target));
+    resolved.push(`${match[1]} -> ${path.relative(dir, target).split(path.sep).join('/')}`);
+  }
+  return resolved;
 }
 
 /** Keeps only what the statistics and the page need. */
-function summarise({ repo, sha, files, report }) {
+function summarise({ repo, sha, files, symlinks, report }) {
   return {
     repo,
     sha,
     files,
+    symlinks,
     agents: report.agents.map((a) => ({
       agent: a.agent,
       label: a.label,
@@ -98,6 +129,7 @@ function summarise({ repo, sha, files, report }) {
         tokens: i.tokens,
         reason: i.reason,
       })),
+      warnings: a.warnings.map((w) => ({ path: w.path, message: w.message })),
       drops: a.drops.map((d) => ({
         kind: d.kind,
         certainty: d.certainty,
@@ -173,8 +205,18 @@ export function stats(data) {
       null,
     )?.label,
   }));
+  // An ignored file that is the same file on disk as one the agent reads (a symlink either way, or
+  // two links to one target) is not ignored: the agent gets its content.
+  const realPath = (r, p) =>
+    (r.symlinks ?? []).find((l) => l.startsWith(`${p} -> `))?.split(' -> ')[1] ?? p;
   const ignoredFile = rs.filter((r) =>
-    r.agents.some((a) => a.items.some((i) => i.load === 'ignored')),
+    r.agents.some((a) =>
+      a.items.some(
+        (i) =>
+          i.load === 'ignored' &&
+          !a.items.some((o) => o.load !== 'ignored' && realPath(r, o.path) === realPath(r, i.path)),
+      ),
+    ),
   );
   const willDrop = rs.filter((r) =>
     r.agents.some((a) => a.drops.some((d) => d.certainty === 'will')),
@@ -253,6 +295,7 @@ function render(data) {
     '- Because only agent files are checked out, a file pulled in with `@path` that is not itself an agent file is missing. Startup tokens can be higher for repos that import such files.',
     '- Tokens are estimates (o200k_base). "Startup" is what loads before the first prompt, per ctxsize\'s profile of each agent.',
     '- Home-directory files are not read, so user-level instructions are not counted.',
+    '- A symlink between agent files (for example CLAUDE.md pointing to AGENTS.md) is replaced by a copy of its target, because an agent reads what the link points to. Such a pair is one file on disk but counts as duplicate text in the checks, and the target is not counted as ignored.',
     '',
   );
   if (data.failed.length)
