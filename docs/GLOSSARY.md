@@ -121,6 +121,12 @@ The agent whose startup text costs the least per month at your price. Agents tha
 
 Example: Zed reads 103 tokens, so it costs the least here.
 
+### Saves ~N tokens per message
+
+How many tokens every message gets lighter once you make this fix, worked out from your own files. It is shown only when ctxsize can count it.
+
+Example: Moving a 921-token section into a skill saves ~921 tokens per message.
+
 ### ~ (estimate)
 
 A ~ means the number is an estimate. Only OpenAI models are counted with their own tokenizer; the others are approximated.

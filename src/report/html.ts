@@ -408,6 +408,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .fx .si{margin-top:1px}
 .ptitle{margin:0;font-weight:600;font-size:14px}.pfix{margin:2px 0 0;color:var(--ink2);font-size:13px}.pfile{margin:1px 0 0;color:var(--ink2);font-size:13px}.pwho{margin:3px 0 0;color:var(--ink3);font-size:12px}
 .seeall{font-weight:600}
+.psave{margin:3px 0 0;font-size:13px;font-weight:600;color:var(--ok)}
+.saves{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--okbg);font-size:14px}
 .allgood{color:var(--ok);font-weight:600;margin:6px 0}.allgood .mk{margin-right:4px}
 .emptybox{border:1px dashed var(--line);border-radius:12px;padding:20px 24px;max-width:640px;margin:20px auto;background:var(--card)}.emptybox h2{font-size:20px}.emptybox li{margin:6px 0}
 .empty{padding:24px;text-align:center;color:var(--ink2);border:1px dashed var(--line);border-radius:8px}

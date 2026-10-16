@@ -25,6 +25,12 @@ export interface Problem {
   tools: string[];
   /** POSIX paths it is about. */
   paths: string[];
+  /**
+   * Tokens that doing the fix takes off every message, for each agent it concerns. Set only when
+   * ctxsize can work it out from real data (duplicated text, a section that could be a skill);
+   * left out otherwise, and then nothing is claimed.
+   */
+  saves?: number;
 }
 
 export interface SummaryAgent {
@@ -82,6 +88,11 @@ export interface Insights {
   tips: number;
   /** The worst few things to fix, for the first screen. */
   fixFirst: Problem[];
+  /**
+   * What fixing those saves per message, for the agent that gains most; null when none of them
+   * has a saving ctxsize can work out.
+   */
+  saves: { tokens: number; agent: string } | null;
   verdict: SummaryLine;
   /** The cost sentence, or null when it would say nothing. */
   cost: SummaryLine | null;
@@ -112,6 +123,11 @@ export function createSummary(f: Fmt) {
     const warn = mine.filter((p) => p.level === 'warn').length;
     const tips = mine.filter((p) => p.level === 'info').length;
     return { level: bad > 0 ? 'bad' : warn > 0 ? 'warn' : 'ok', bad, warn, tips };
+  }
+
+  /** Tokens per message the fixes of one agent take off, from the problems that have a saving. */
+  function savingFor(problems: Problem[], id: string): number {
+    return problems.filter((p) => p.tools.includes(id)).reduce((sum, p) => sum + (p.saves ?? 0), 0);
   }
 
   function costLine(
@@ -168,6 +184,13 @@ export function createSummary(f: Fmt) {
     const bad = problems.filter((p) => p.level === 'bad');
     const toFix = problems.filter((p) => p.level !== 'info');
     const cutNoun = bad.every((p) => p.code === 'file-truncated') ? 'file' : 'thing';
+    const fixFirst = toFix.slice(0, 3);
+    let saves: Insights['saves'] = null;
+    for (const a of agents) {
+      const tokens = savingFor(fixFirst, a.id);
+      if (tokens > 0 && (saves === null || tokens > saves.tokens))
+        saves = { tokens, agent: a.label };
+    }
     const reading = agents.filter((a) => a.startup > 0);
     const mostReads = reading.length
       ? reading.reduce((best, a) => (a.startup > best.startup ? a : best))
@@ -198,7 +221,8 @@ export function createSummary(f: Fmt) {
       cutNoun,
       toFix: toFix.length,
       tips: problems.length - toFix.length,
-      fixFirst: toFix.slice(0, 3),
+      fixFirst,
+      saves,
       verdict,
       cost: agents.length > 0 ? costLine(agents, input.messages, input.currency ?? '$') : null,
     };
@@ -219,6 +243,13 @@ export function createSummary(f: Fmt) {
         : 'No agent reads anything from this repo before your first message.',
     });
     if (i.cost) lines.push(i.cost);
+    if (i.saves) {
+      const n = i.fixFirst.length;
+      lines.push({
+        level: 'info',
+        text: `Fixing ${n === 1 ? 'the top item' : `the top ${n} items`} saves ~${num(i.saves.tokens)} tokens per message (for ${i.saves.agent}).`,
+      });
+    }
     if (i.tips > 0) {
       lines.push({
         level: 'info',
@@ -228,13 +259,14 @@ export function createSummary(f: Fmt) {
     return lines;
   }
 
-  return { insights, summarize, statusOf, forAgents };
+  return { insights, summarize, statusOf, forAgents, savingFor };
 }
 
 const S = createSummary(createFmt());
 export const insights = S.insights;
 export const statusOf = S.statusOf;
 export const forAgents = S.forAgents;
+export const savingFor = S.savingFor;
 
 export function summarize(input: SummaryInput): SummaryLine[] {
   return S.summarize(input);
@@ -387,6 +419,23 @@ function checkTools(c: Check, report: Report): string[] {
   return report.agents.filter(loading).map((a) => a.agent);
 }
 
+/**
+ * Tokens a check's fix takes off every message, when that is really so: moving a section into a
+ * skill, and removing text that an agent loads twice (a duplicate that no agent loads together is
+ * only untidy, not paid for twice). Everything else has no saving we can work out.
+ */
+function checkSaves(c: Check): number {
+  if (c.tokens === undefined) return 0;
+  if (c.code === 'move-to-skill') return c.tokens;
+  const duplicates = [
+    'duplicate-file',
+    'near-identical-files',
+    'duplicate-paragraphs',
+    'duplicate-skill',
+  ];
+  return duplicates.includes(c.code) && c.tool !== undefined ? c.tokens : 0;
+}
+
 function checkProblem(c: Check, report: Report): Problem {
   const text = CHECK_TEXT[c.code];
   const tools = checkTools(c, report);
@@ -403,6 +452,7 @@ function checkProblem(c: Check, report: Report): Problem {
       'Open the file and tidy it up, or run ctxsize --json for the details of this check.',
     tools,
     paths: c.paths,
+    ...(checkSaves(c) > 0 ? { saves: checkSaves(c) } : {}),
   };
 }
 

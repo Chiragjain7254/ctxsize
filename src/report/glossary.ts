@@ -217,6 +217,13 @@ export const GLOSSARY: GlossaryEntry[] = [
     example: 'Zed reads 103 tokens, so it costs the least here.',
   },
   {
+    id: 'saves',
+    term: 'Saves ~N tokens per message',
+    group: 'numbers',
+    text: 'How many tokens every message gets lighter once you make this fix, worked out from your own files. It is shown only when ctxsize can count it.',
+    example: 'Moving a 921-token section into a skill saves ~921 tokens per message.',
+  },
+  {
     id: 'estimate',
     term: '~ (estimate)',
     group: 'numbers',

@@ -380,10 +380,22 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
 <p class="legend"><span class="key"><i class="si ok" aria-hidden="true">✓</i>Fine ${helpIcon('ok')}</span><span class="key"><i class="si warn" aria-hidden="true">!</i>Worth fixing ${helpIcon('risk')}</span><span class="key"><i class="si bad" aria-hidden="true">✗</i>Cut off ${helpIcon('dropped')}</span>${anyEst ? `<span class="key"><b>~</b> estimate ${helpIcon('estimate')}</span>` : ''}</p>`;
   }
 
+  // What a fix saves, from real data only: nothing is shown for a fix ctxsize cannot count.
+  function savesText(tokens) {
+    const base = `saves ~${num(tokens)} tokens per message`;
+    const price = primary();
+    if (!price) return base;
+    const c = priceCost(tokens, price);
+    return `${base} (${moneyIn(c.day, price)} per day, ${moneyIn(c.month, price)} per month)`;
+  }
+  const savesLine = (p, each) =>
+    p.saves
+      ? `<p class="psave">${cap(savesText(p.saves))}${each && p.tools.filter((t) => S.on[t]).length > 1 ? ' for each of those agents' : ''}${helpIcon('saves')}</p>`
+      : '';
   function fixItem(p) {
     const file = p.paths[0];
     const showFile = file && !p.short.includes(file) && !p.title.includes(file);
-    return `<li class="fx ${p.level}"><span class="si ${p.level}" aria-hidden="true">${MARK[p.level]}</span><div><p class="ptitle">${esc(cap(p.short))}</p>${showFile ? `<p class="pfile">File: <code>${esc(file)}</code></p>` : ''}<p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p></div></li>`;
+    return `<li class="fx ${p.level}"><span class="si ${p.level}" aria-hidden="true">${MARK[p.level]}</span><div><p class="ptitle">${esc(cap(p.short))}</p>${showFile ? `<p class="pfile">File: <code>${esc(file)}</code></p>` : ''}<p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${savesLine(p, false)}</div></li>`;
   }
   function renderFirst(ins) {
     const head = `<h2 id="h-first">Fix these first ${helpIcon('fix-first')}</h2>`;
@@ -403,8 +415,12 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
       ins.toFix > ins.fixFirst.length
         ? `See all ${ins.toFix}`
         : `Open the Fix list${ins.tips ? ` (${ins.tips} optional ${plural(ins.tips, 'tip', 'tips')} too)` : ''}`;
+    const n = ins.fixFirst.length;
+    const saved = ins.saves
+      ? `<p class="saves">${helpIcon('saves')} Fixing ${n === 1 ? 'the top item' : `the top ${n} items`} ${savesText(ins.saves.tokens)}${ins.saves.agent ? ` for ${esc(ins.saves.agent)}` : ''}.</p>`
+      : '';
     $('first').innerHTML =
-      `${head}<ol class="fxl">${ins.fixFirst.map(fixItem).join('')}</ol><button type="button" class="btn seeall" data-act="view" data-id="fixes" data-f="seeall">${more} &rarr;</button>`;
+      `${head}${saved}<ol class="fxl">${ins.fixFirst.map(fixItem).join('')}</ol><button type="button" class="btn seeall" data-act="view" data-id="fixes" data-f="seeall">${more} &rarr;</button>`;
   }
 
   function renderOverview(ins) {
@@ -571,7 +587,7 @@ ${field('% of messages cached (optional)', 'cached-share', `<input data-calc="ca
   }
   function problemCard(p) {
     const who = affects(p);
-    return `<li class="${p.level}"><span class="bw"><span class="badge ${p.level}">${GROUP_LEVEL[p.level]}</span>${helpIcon(GROUP_HELP[p.level])}</span><div><p class="ptitle">${esc(p.title)}${CODEHELP[p.code] ? ` ${helpIcon(CODEHELP[p.code])}` : ''}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${who ? `<p class="pwho">Affects: ${esc(who)}</p>` : ''}</div></li>`;
+    return `<li class="${p.level}"><span class="bw"><span class="badge ${p.level}">${GROUP_LEVEL[p.level]}</span>${helpIcon(GROUP_HELP[p.level])}</span><div><p class="ptitle">${esc(p.title)}${CODEHELP[p.code] ? ` ${helpIcon(CODEHELP[p.code])}` : ''}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${savesLine(p, true)}${who ? `<p class="pwho">Affects: ${esc(who)}</p>` : ''}</div></li>`;
   }
   function groupByFile(ps) {
     const groups = [];
@@ -801,6 +817,11 @@ ${field('% of messages cached (optional)', 'cached-share', `<input data-calc="ca
     const msgs = globals().messages;
     const s = statusOf(a);
     const ps = DATA.problems.filter((p) => p.tools.includes(a.id));
+    const agentSave = summary.savingFor(ps, a.id);
+    const agentSaves =
+      agentSave > 0
+        ? `<p class="saves">${helpIcon('saves')} Doing the fixes below ${savesText(agentSave)} for ${esc(a.label)}${r.startup > 0 ? `, about ${Math.round((agentSave / r.startup) * 100)}% of what it reads` : ''}.</p>`
+        : '';
     const tips = reduceTips(a, r);
     const modelNote = `${esc(modelLabel(r.model))}${r.model !== a.model ? ' (changed)' : a.modelDefault ? '*' : ''}`;
     panel.innerHTML = `<h3 class="ptop">${esc(a.label)} <span class="mdl">&rarr; ${modelNote} ${helpIcon('model')}</span> <span class="si ${s.level}" role="img" aria-label="${esc(statusText(s))}">${MARK[s.level]}</span> <span class="mdl">${esc(statusText(s))}</span></h3>
@@ -811,7 +832,7 @@ ${field('% of messages cached (optional)', 'cached-share', `<input data-calc="ca
 <div><b>${num(r.onDemand)}</b><span>more, only when needed ${helpIcon('ondemand')}</span></div>
 </div>
 <h4>Problems for ${esc(a.label)}</h4>
-${ps.length ? `<ul class="plist">${ps.map(problemCard).join('')}</ul>` : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix for this agent.</p>'}
+${agentSaves}${ps.length ? `<ul class="plist">${ps.map(problemCard).join('')}</ul>` : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix for this agent.</p>'}
 <h4>What it reads</h4>
 <p class="sub">These are the files ${esc(a.label)} reads before your first message. The bigger the box, the more tokens it takes.</p>
 ${legendHtml(tiles)}

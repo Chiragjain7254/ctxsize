@@ -1,5 +1,5 @@
 import { describePrice } from '../core/price.ts';
-import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
+import type { AgentReport, Drop, DropKind, Price, Report } from '../core/types.ts';
 import { TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { fmt } from './format.ts';
@@ -118,18 +118,26 @@ function summaryLines(report: Report, c: Colors): string[] {
   const tips = problems.filter((p) => p.level === 'info');
   if (toFix.length > 0) {
     out.push('', c.bold(`${toFix.length} ${fmt.plural(toFix.length, 'thing', 'things')} to fix`));
-    out.push(...toFix.flatMap((p) => problemLines(p, c)));
+    out.push(...toFix.flatMap((p) => problemLines(p, c, report.price)));
   }
   if (tips.length > 0) {
     out.push('', c.bold(`${tips.length} optional ${fmt.plural(tips.length, 'tip', 'tips')}`));
-    out.push(...tips.flatMap((p) => problemLines(p, c)));
+    out.push(...tips.flatMap((p) => problemLines(p, c, report.price)));
   }
   return [...out, ''];
 }
 
-function problemLines(p: Problem, c: Colors): string[] {
+function problemLines(p: Problem, c: Colors, price: Price | null): string[] {
   const mark = { bad: c.red('✗'), warn: c.yellow('!'), info: c.dim('i') }[p.level];
-  return [`  ${mark} ${p.title}`, c.dim(`      How to fix: ${p.fix}`)];
+  const lines = [`  ${mark} ${p.title}`, c.dim(`      How to fix: ${p.fix}`)];
+  if (p.saves) {
+    // Money only when the person gave a price.
+    const money = price
+      ? ` (${fmt.money((p.saves / price.per) * price.amount, price.currency)} per message)`
+      : '';
+    lines.push(c.dim(`      Saves ~${num(p.saves)} tokens per message${money}`));
+  }
+  return lines;
 }
 
 function table(agents: AgentReport[], c: Colors): string[] {
