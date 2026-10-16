@@ -34,6 +34,10 @@ inputs:
     description: Node.js version to set up. ctxsize needs 22.12 or newer.
     required: false
     default: '24'
+  step-summary:
+    description: Append the Markdown report to GitHub's job summary when GITHUB_STEP_SUMMARY is set.
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -51,6 +55,7 @@ runs:
         CTXSIZE_DIRECTORY: ${{ inputs.directory }}
         CTXSIZE_VERSION: ${{ inputs.version }}
         CTXSIZE_ACTION_PATH: ${{ github.action_path }}
+        CTXSIZE_STEP_SUMMARY: ${{ inputs.step-summary }}
       run: |
         set -euo pipefail
         # No version given: run the release this copy of the action ships with, never a moving @latest.
@@ -63,4 +68,7 @@ runs:
         if [ -n "$CTXSIZE_MAX_PERCENT" ]; then args+=(--max-percent "$CTXSIZE_MAX_PERCENT"); fi
         if [ "$CTXSIZE_FAIL_ON_WARNINGS" = "true" ]; then args+=(--fail-on-warnings); fi
         args+=("$CTXSIZE_DIRECTORY")
+        if [ "$CTXSIZE_STEP_SUMMARY" != "false" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          args+=(--markdown "$GITHUB_STEP_SUMMARY")
+        fi
         npx --yes "@chiragjain7254/ctxsize@${CTXSIZE_VERSION}" "${args[@]}"

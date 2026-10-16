@@ -59,9 +59,12 @@ This repository is also a composite action, so the job above becomes one step:
 | `directory` | `.` | The repository folder to measure, relative to the workspace |
 | `version` | the action's own release | The ctxsize version to run, such as `0.2.0`. By default the action runs the ctxsize version in its own `package.json`, so `@v0.2.0` runs ctxsize 0.2.0 and never a surprise `latest`. Set `latest` to opt in to the newest release |
 | `node-version` | `24` | The Node.js version to set up (ctxsize needs 22.12 or newer) |
+| `step-summary` | `true` | Append the Markdown report to the GitHub Actions job summary when `GITHUB_STEP_SUMMARY` is available; set `false` to disable it |
 
 The action runs `ctxsize --quiet`, so the job log gets one summary line, and the step fails with exit code `1` when a
-gate fails. Inputs are passed to the shell as environment variables, never pasted into the script. Pin a release tag such as
+gate fails. When `GITHUB_STEP_SUMMARY` is set, the action also appends the Markdown report to the job summary by default,
+including when a budget gate fails. Set `step-summary: false` to opt out. Outside GitHub Actions, the summary is not written.
+Inputs are passed to the shell as environment variables, never pasted into the script. Pin a release tag such as
 `@v0.2.0`; `@main` runs whatever version main currently holds. For a pull request comment, use the `gh pr comment` step
 shown below, since an action cannot know your token permissions.
 

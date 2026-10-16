@@ -16,7 +16,10 @@ const hasBash = spawnSync('bash', ['--version']).status === 0;
 function runScript(env: Record<string, string>, fakeExit = 0) {
   const dir = tmpRepo({});
   const npx = path.join(dir, 'npx');
-  writeFileSync(npx, `#!/bin/bash\nfor a in "$@"; do echo "ARG:$a"; done\nexit ${fakeExit}\n`);
+  writeFileSync(
+    npx,
+    `#!/bin/bash\nfor a in "$@"; do echo "ARG:$a"; done\nfor ((i=1; i<=$#; i++)); do if [[ "\${!i}" == "--markdown" ]]; then j=$((i+1)); printf '# ctxsize test summary\n' > "\${!j}"; fi; done\nexit ${fakeExit}\n`,
+  );
   chmodSync(npx, 0o755);
   const toPosix = (p: string) => p.split(path.sep).join('/');
   const r = spawnSync('bash', ['-c', script], {
@@ -27,6 +30,7 @@ function runScript(env: Record<string, string>, fakeExit = 0) {
       CTXSIZE_DIRECTORY: '.',
       CTXSIZE_VERSION: '',
       CTXSIZE_ACTION_PATH: toPosix(root),
+      CTXSIZE_STEP_SUMMARY: 'true',
       CTXSIZE_FAIL_ON_WARNINGS: 'false',
       CTXSIZE_AGENTS: '',
       CTXSIZE_MAX_TOKENS: '',
@@ -51,6 +55,7 @@ describe('action.yml', () => {
       'max-percent',
       'max-tokens',
       'node-version',
+      'step-summary',
       'version',
     ]);
     for (const input of Object.values<{ description: string }>(action.inputs)) {
@@ -86,6 +91,10 @@ describe('action.yml', () => {
     expect(action.inputs.version.default).toBe('');
   });
 
+  test('step-summary defaults to on', () => {
+    expect(action.inputs['step-summary'].default).toBe('true');
+  });
+
   test.skipIf(!hasBash)('passes agents, limits, warnings, directory and version', () => {
     const r = runScript({
       CTXSIZE_AGENTS: 'claude,codex',
@@ -119,5 +128,27 @@ describe('action.yml', () => {
   test.skipIf(!hasBash)('the exit code of ctxsize fails the step', () => {
     expect(runScript({}, 1).status).toBe(1);
     expect(runScript({}, 2).status).toBe(2);
+  });
+
+  test.skipIf(!hasBash)('writes the job summary on a failed budget gate', () => {
+    const dir = tmpRepo({});
+    const summary = path.join(dir, 'job-summary.md');
+    const r = runScript({ GITHUB_STEP_SUMMARY: summary }, 1);
+    expect(r.status).toBe(1);
+    expect(r.args.slice(-3)).toEqual(['.', '--markdown', summary]);
+    expect(readFileSync(summary, 'utf8')).toContain('# ctxsize test summary');
+  });
+
+  test.skipIf(!hasBash)('does not write a summary when GITHUB_STEP_SUMMARY is unset', () => {
+    const r = runScript({});
+    expect(r.args).not.toContain('--markdown');
+  });
+
+  test.skipIf(!hasBash)('step-summary=false disables the summary even in Actions', () => {
+    const dir = tmpRepo({});
+    const summary = path.join(dir, 'disabled-summary.md');
+    const r = runScript({ GITHUB_STEP_SUMMARY: summary, CTXSIZE_STEP_SUMMARY: 'false' });
+    expect(r.status).toBe(0);
+    expect(r.args).not.toContain('--markdown');
   });
 });
