@@ -3,7 +3,7 @@
 Coding agents read instruction files and skills before you type anything. Which files they read
 differs by agent, changes between versions, and is cut off or skipped without a warning. Below are
 the sources that show it. Every source was opened and read on **2026-10-15**; numbers are the ones
-seen on that day, and a number that could not be confirmed is left out.
+seen on that day, and a number that could not be confirmed is left out. The numbers for #6235, the two Codex issues, the Gemini CLI issue and the Hacker News post were read again on **2026-10-16**.
 
 ## Which file does my agent read?
 
@@ -21,7 +21,7 @@ seen on that day, and a number that could not be confirmed is left out.
   Henning Koch, 2026-07-20. The card is now marked deprecated: from Claude Code 2.1.277 AGENTS.md is read directly.
   > "Create a `CLAUDE.md` at the repo root that imports your `AGENTS.md`"
 - **[Claude Code now reads AGENTS.md if there is no Claude.md (Hacker News)](https://news.ycombinator.com/item?id=49760187)**
-  741 points and 285 comments (Algolia HN API, 2026-10-15). It links the Claude Code changelog.
+  741 points and 283 comments (Algolia HN API, 2026-10-16). It links the Claude Code changelog.
   One commenter on the old workaround: "I tried that before, it doesn't work."
 - **[AGENTS.md silently not loaded (google-gemini/gemini-cli #28227)](https://github.com/google-gemini/gemini-cli/issues/28227)**
   Open, 2 comments, 0 reactions. Gemini CLI reads only `GEMINI.md` unless you set `context.fileName`.

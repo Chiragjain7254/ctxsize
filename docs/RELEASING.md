@@ -80,7 +80,7 @@ Run the commands from the repo root. Replace `X.Y.Z` with the new version.
    ```
 
    In PowerShell, make a new empty folder and `cd` into it first. The command should print `X.Y.Z`. If it
-   prints an older version, see "npx cache issues" in the README's Troubleshooting section.
+   prints an older version, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## Publishing from GitHub Actions
 

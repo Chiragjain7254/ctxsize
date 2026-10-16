@@ -1,175 +1,89 @@
-# ctxsize
+<div align="center">
 
-[![npm version](https://img.shields.io/npm/v/@chiragjain7254/ctxsize)](https://www.npmjs.com/package/@chiragjain7254/ctxsize)
-[![npm downloads](https://img.shields.io/npm/dm/@chiragjain7254/ctxsize)](https://www.npmjs.com/package/@chiragjain7254/ctxsize)
-[![license](https://img.shields.io/github/license/Chiragjain7254/ctxsize)](LICENSE)
-[![CI](https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml/badge.svg)](https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml)
+<img src="docs/img/banner.png" alt="ctxsize: a suitcase on a luggage scale. See what your AI coding agent reads before you type, what it costs, and what it silently drops." width="100%">
 
-![ctxsize terminal output: tokens each coding agent loads at startup, what it costs, what is dropped, and checks](docs/img/terminal.png)
+<p><b>See what your AI coding agent reads before you type, what it costs, and what it silently drops.</b></p>
 
-![ctxsize HTML report in light mode: the Overview tab: one verdict line, three tiles, a bar chart of what each agent reads and the first things to fix](docs/img/report-light.png)
+<p>
+<a href="https://www.npmjs.com/package/@chiragjain7254/ctxsize"><img alt="npm version" src="https://img.shields.io/npm/v/@chiragjain7254/ctxsize"></a>
+<a href="https://www.npmjs.com/package/@chiragjain7254/ctxsize"><img alt="npm downloads per month" src="https://img.shields.io/npm/dm/@chiragjain7254/ctxsize"></a>
+<a href="https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Chiragjain7254/ctxsize/actions/workflows/ci.yml/badge.svg"></a>
+<a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/Chiragjain7254/ctxsize"></a>
+</p>
 
-## Try it and tell us
+</div>
 
 ```sh
-npx @chiragjain7254/ctxsize
+npx @chiragjain7254/ctxsize --serve
 ```
 
-- Tell us what you think, and rate it 1 to 5: [the feedback Discussion](https://github.com/Chiragjain7254/ctxsize/discussions/5).
-- ⭐ Star the repo if it helped.
-- Want to contribute? Pick a [good first issue](https://github.com/Chiragjain7254/ctxsize/labels/good%20first%20issue).
-- Ideas for new directions are welcome, even if they change what ctxsize is.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/report-dark.png">
+  <img src="docs/img/report-light.png" alt="The ctxsize Overview: a verdict line, three tiles (who reads the most, what is cut off, what to fix), a bar chart of what each agent reads and the first things to fix." width="100%">
+</picture>
 
-Coding agents read your instruction files and skills before you type anything. That costs tokens on every message, and each agent silently cuts off what is too big.
-`ctxsize` shows what each agent loads, what it costs, and what gets dropped. It never runs an agent and never uses the network.
+## Sound familiar?
+
+- You have both an `AGENTS.md` and a `CLAUDE.md`, and Claude Code reads only the `CLAUDE.md`. The `AGENTS.md` you wrote is skipped. ([source](docs/WHY.md#which-file-does-my-agent-read), [Claude Code docs](https://code.claude.com/docs/en/memory.md))
+- Your `CLAUDE.md` is loaded at the start of every session and stays in the conversation, so a long one costs tokens on every message. Caching makes that cheaper, never free. ([Claude Code docs](https://code.claude.com/docs/en/memory.md), [source](docs/WHY.md#my-instruction-files-waste-tokens))
+- Your `AGENTS.md` files add up to more than 32 KiB, and Codex stops reading at that limit. ([Codex docs](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [source](docs/WHY.md#agents-silently-drop-or-ignore-files))
+- The same paragraphs sit in two files that one agent reads, so you pay for them twice.
+
+**ctxsize shows all of this in one command.**
+
+## Why I built this
+
+I kept wondering why my agent ignored instructions I'd written. Then I found [Claude Code issue #6235](https://github.com/anthropics/claude-code/issues/6235) asking for `AGENTS.md` support: 5,189 thumbs-up and 409 comments from developers with the same confusion (checked on 2026-10-16; it was closed in August 2026, and Claude Code now reads `AGENTS.md` when there is no `CLAUDE.md`). Others wrote about instruction files that are processed again on every turn ([an example](https://vantaige.io/blog/claude-code-token-waste-9-patterns-fixes-2026)), and about files that [silently do not load](https://github.com/google-gemini/gemini-cli/issues/28227). There was no easy way to see what my agent actually loads, so I built a tool that shows it. All sources: [docs/WHY.md](docs/WHY.md).
+
+— Chirag
+
+## Think of it as airport luggage
+
+ctxsize weighs your agent files like airport luggage: how heavy (tokens), the extra charges (cost per message), what gets removed (files cut or ignored) and what's packed twice (duplicates).
+
+![A 20-second demo: run one command, the Overview opens in the browser, hover a tooltip, edit AGENTS.md, and the page updates by itself.](docs/img/demo.gif)
+
+## What it checks
+
+Each agent reads different files and has different limits. ctxsize applies the rules from each agent's own documentation (every limit is in [`src/profiles.ts`](src/profiles.ts) with its source and the date it was checked). Details: [docs/tools.md](docs/tools.md).
+
+| Agent | Files it reads | Docs |
+| --- | --- | --- |
+| Claude Code | `CLAUDE.md`, `.claude/rules/`, skills, `@imports`; `AGENTS.md` only when there is no `CLAUDE.md` | [memory](https://code.claude.com/docs/en/memory.md), [skills](https://code.claude.com/docs/en/skills.md) |
+| Codex | `AGENTS.md` (and `AGENTS.override.md`) from the repo root down, skills | [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills) |
+| Cursor | `.cursor/rules/`, `AGENTS.md`; the old `.cursorrules` is flagged | [rules](https://cursor.com/docs/context/rules) |
+| GitHub Copilot | `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | [instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions) |
+| Gemini CLI | `GEMINI.md`, `@imports`, skills | [GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), [skills](https://geminicli.com/docs/cli/skills/) |
+| OpenCode | the nearest `AGENTS.md`, else `CLAUDE.md`; skills | [rules](https://opencode.ai/docs/rules/), [skills](https://opencode.ai/docs/skills/) |
+| Cline | `.clinerules/`, `AGENTS.md`, `.cursorrules`, `.windsurfrules`, skills | [rules](https://docs.cline.bot/features/cline-rules), [skills](https://docs.cline.bot/customization/skills) |
+| Windsurf | `.windsurf/rules/`, `AGENTS.md`, `.windsurfrules`, skills | [memories](https://docs.devin.ai/desktop/cascade/memories), [AGENTS.md](https://docs.devin.ai/desktop/cascade/agents-md) |
+| Aider | nothing by itself: `CONVENTIONS.md` counts only if you pass it with `--read` | [conventions](https://aider.chat/docs/usage/conventions.html) |
+| Zed | the first of `.rules`, `.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and a few more; skills | [instructions](https://zed.dev/docs/preview/ai/instructions.html) (preview docs) |
+
+On top of that, ctxsize checks for duplicate text, skills with no description and big sections that could load only when needed. Your own tool? Describe it in [`ctxsize.json`](docs/CONFIG.md).
 
 ## Don't trust us, check it in 5 minutes
 
-`examples/secret-word/` hides one fruit in each instruction file: `CLAUDE.md` = MANGO, `AGENTS.md` = BANANA, `GEMINI.md` = GRAPES.
-Open an agent there, ask which fruits it knows, and compare with what ctxsize predicted.
-Steps and the full table: [docs/VERIFY.md](docs/VERIFY.md).
+[`examples/secret-word`](examples/secret-word) hides one fruit in each instruction file. Open an agent there, ask which fruits it knows, and compare with what ctxsize predicted. Steps and the full table: [docs/VERIFY.md](docs/VERIFY.md).
 
-Why this exists, with sources: [docs/WHY.md](docs/WHY.md).
+## Use it in CI
 
-Agent changed its behavior? [Open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=agent-behavior-changed.yml) or PR, so everyone stays accurate.
-
-## Install
-
-```sh
-npx @chiragjain7254/ctxsize            # no install needed
-npm install -g @chiragjain7254/ctxsize # or keep it
+```yaml
+- uses: Chiragjain7254/ctxsize@v0.2.0
+  with:
+    max-tokens: 8000
 ```
 
-Needs Node 22.12 or newer.
+The job fails when an agent's startup load grows past your budget. A pull request comment, the action's options and the exit codes are in [docs/CI.md](docs/CI.md).
 
-## Three examples
+## Study: 50 popular repos
 
-**1. See the load.** Run it in any repo. Real output on [vercel/next.js](https://github.com/vercel/next.js):
+> **36% of 50 popular repos ship both a CLAUDE.md and an AGENTS.md at the root, 22% have a file some agent ignores, and the median Claude Code startup load is 602 tokens (largest: 7,514).**
 
-```sh
-npx @chiragjain7254/ctxsize
-```
+The repos were picked because they are well known and active, not sampled, and measured with ctxsize 0.1.0 on 2026-10-15. Method and every repo: [docs/STUDY.md](docs/STUDY.md).
 
-```text
-  Agent        Instructions  Rules  Skills  Startup  % ctx   On demand
-  Claude Code         6,819      0   2,000    8,819   0.9%  1,420 (10)
-  Codex               6,819      0   1,712    8,531   2.1%           0
-  Cursor              6,819      0       0    6,819   0.7%   1,410 (8)
-  Gemini CLI              0      0   2,099    2,099   0.2%           0
-
-Cost of carrying it
-  Agent        Model                    Window  Per message  50 messages     Cost
-  Claude Code  Claude Sonnet 5.5*           1M        8,819      440,950  $0.8819
-  Codex        GPT-5.3-Codex*             400k        8,531      426,550  $0.7465
-```
-
-"Startup" is what loads before your first prompt. "On demand" loads later, only when needed.
-The cost is startup tokens times 50 messages, at the model's uncached input price.
-
-**2. Fail CI when it grows too big.**
-
-```sh
-npx @chiragjain7254/ctxsize --agents claude,codex --max-tokens 8600
-```
-
-```text
-ctxsize: Claude Code loads 8,819 tokens at startup, over --max-tokens 8,600
-```
-
-The exit code is `1`, so the CI job fails. A full GitHub Actions workflow with a pull request comment, and a ready-made action (`uses: Chiragjain7254/ctxsize@v0.2.0`), are in [docs/CI.md](docs/CI.md).
-
-**3. Open an interactive report, or comment on a pull request.**
-
-```sh
-npx @chiragjain7254/ctxsize --html                      # writes ctxsize-report.html
-npx @chiragjain7254/ctxsize --html --open               # ...and opens it in your browser
-npx @chiragjain7254/ctxsize --markdown summary.md       # a table for a PR comment
-```
-
-**Live report.** Serve the same interactive page on your machine. It updates by itself when you edit an instruction file:
-
-```sh
-npx @chiragjain7254/ctxsize --serve                     # http://localhost:4321, opens your browser
-npx @chiragjain7254/ctxsize --serve --no-open --port 8080
-```
-
-The server listens on `127.0.0.1` only, and `http://localhost:<port>/api/report` returns the same JSON as `--json`. Press Ctrl+C to stop.
-
-The HTML page lets you switch model, window and price, untick files to see "what if I removed this", reorder and sort tools, search files, and switch to dark mode.
-
-## Screenshots
-
-**The HTML report in dark mode** (`--html`). Light and dark follow your system, with a switch on the page.
-
-![ctxsize HTML report in dark mode](docs/img/report-dark.png)
-
-**On a phone.** The same report at 390 px wide.
-
-![ctxsize HTML report on a phone](docs/img/report-mobile.png)
-
-**The live page** (`--serve`) updates as you edit your instruction files.
-
-![ctxsize live report served on localhost, showing a live indicator and the same tables](docs/img/serve.png)
-
-**What gets dropped, and what to fix.** The "Dropped or at risk" and "Checks" sections up close (the summary at the top of the output lists the same problems with a "How to fix" line).
-
-![The Dropped or at risk and Checks sections of the terminal report](docs/img/checks.png)
-
-**The secret-word test.** Every file in `examples/secret-word` holds one fruit, and this is what ctxsize predicts Claude Code knows. [Check it on the real agent](docs/VERIFY.md).
-
-![examples/secret-word file list next to ctxsize's prediction for Claude Code](docs/img/secret-word.png)
-
-**The 50-repo study.** The ten heaviest startup loads. [Full study](docs/STUDY.md).
-
-![Bar chart of the ten heaviest agent startup loads among 50 popular repositories](docs/img/study.png)
-
-## Features
-
-| Feature | How |
-| --- | --- |
-| Tools with no files are hidden by default | `--all` shows them |
-| 10 built-in tools: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Cline, Windsurf, Aider, Zed | `--agents claude,codex` |
-| Your own tools | `ctxsize.json` ([CONFIG](docs/CONFIG.md)) |
-| Model, context window, tokenizer and price per tool | `--model`, `--context`, `--price` |
-| Share of the window, cost over N messages | `--messages 80` |
-| Biggest files | in every report |
-| What each agent drops or may drop (with the docs link) | in every report |
-| Duplicate instructions and skill health checks | on by default, `--no-checks` to skip |
-| List every documented agent limit with its source and checked date | `--check-profiles` |
-| Interactive HTML report | `--html` |
-| Compare with another commit | `--diff main` |
-| Trend over the last commits | `--history 20` (add `--html` for a chart) |
-| Re-run when files change | `--watch` |
-| Live report in your browser | `--serve` (`--port`, `--no-open`) |
-| Startup load per nested folder (monorepos) | `--tree` |
-| MCP servers (count their tool tokens) | `--mcp` (runs the configured commands) |
-| Pull request summary, SVG card, README badge | `--markdown`, `--card`, `--badge` |
-| CI gate | `--max-tokens 10000` |
-| JSON output | `--json` |
-
-New here? Hover the small (i) icons in the report, or read the [glossary](docs/GLOSSARY.md). Then the [5-minute walkthrough](docs/GETTING-STARTED.md). Every flag: [docs/CLI.md](docs/CLI.md). What each tool reads: [docs/tools.md](docs/tools.md).
-
-## Config
-
-Optional. Put a `ctxsize.json` in the repo root:
-
-```json
-{
-  "messages": 80,
-  "tools": {
-    "claude": { "model": "claude-haiku-5-5" },
-    "acme": {
-      "label": "Acme Agent",
-      "instructions": ["ACME.md"],
-      "skills": { "dirs": [".acme/skills"] }
-    }
-  }
-}
-```
-
-Every option is in [docs/CONFIG.md](docs/CONFIG.md).
-
-## FAQ
+<details>
+<summary><b>FAQ</b></summary>
 
 **Are the numbers exact?** No. They are estimates. Each provider counts tokens its own way, and ctxsize does not call any API.
 
@@ -181,37 +95,24 @@ Every option is in [docs/CONFIG.md](docs/CONFIG.md).
 
 **Does it read my home folder?** Only with `--include-user`.
 
-**Does it work on Windows?** Yes. CI runs on Linux, macOS and Windows. Paths in reports always use `/`.
+**Does it work on Windows?** Yes. CI runs on Linux, macOS and Windows.
 
 **What does `--mcp` run?** The local MCP server commands in the repo's config. Use it only on repos you trust.
 
-**What does `*` after a model mean?** ctxsize picked that model for you. Choose one with `--model`.
+**Something went wrong?** See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). Needs Node 22.12 or newer.
 
-## Troubleshooting
+</details>
 
-**"Unsupported engine" or a syntax error on start.** Your Node is too old. ctxsize needs Node 22.12 or newer. Check with `node --version`, then install a current version from [nodejs.org](https://nodejs.org/).
+## Help make it better
 
-**`npx` runs an old version.** `npx` caches packages. Ask for the newest one explicitly:
+This started as one person's frustration. Your agent, your repo and your ideas make it better.
 
-```sh
-npx @chiragjain7254/ctxsize@latest --version
-```
+- ⭐ **Star it** if it helped.
+- 💬 **Tell us what you think** in the [feedback Discussion](https://github.com/Chiragjain7254/ctxsize/discussions/5).
+- 🛠️ **Fix a [good first issue](https://github.com/Chiragjain7254/ctxsize/labels/good%20first%20issue).** Your first PR can take 10 minutes: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-If that still shows an old number, clear the cache with `npm cache clean --force` and try again. A globally installed copy (`npm install -g`) is not updated by `npx`; update it with `npm install -g @chiragjain7254/ctxsize@latest`.
+Found an agent that behaves differently from what ctxsize predicts? Run the [fruit test](docs/VERIFY.md) and [open an issue](https://github.com/Chiragjain7254/ctxsize/issues/new?template=agent-behavior-changed.yml). That is the most valuable contribution.
 
-**Windows.**
-- In PowerShell, if `npm` or `npx` is blocked by the script execution policy, run `npm.cmd` / `npx.cmd` instead.
-- Paths in the report always use `/`, even on Windows.
-- Quote paths that contain spaces: `npx @chiragjain7254/ctxsize "C:\My Projects\app"`.
+Ideas that change the direction of the project are welcome too.
 
-**"not a directory" or an unknown agent.** Pass one existing folder, and use ids from `ctxsize --help` for `--agents`.
-
-## Development
-
-```sh
-npm ci
-npm run check   # lint, typecheck, test, build
-npm run dev -- path/to/repo
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/RELEASING.md](docs/RELEASING.md). MIT licensed.
+More: [every flag](docs/CLI.md) · [what ctxsize can do](docs/FEATURES.md) · [glossary](docs/GLOSSARY.md) · [architecture](docs/ARCHITECTURE.md) · MIT licensed.
