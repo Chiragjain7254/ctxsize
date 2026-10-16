@@ -56,7 +56,7 @@ Each agent reads different files and has different limits. ctxsize applies the r
 | Gemini CLI | `GEMINI.md`, `@imports`, skills | [GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), [skills](https://geminicli.com/docs/cli/skills/) |
 | OpenCode | the nearest `AGENTS.md`, else `CLAUDE.md`; skills | [rules](https://opencode.ai/docs/rules/), [skills](https://opencode.ai/docs/skills/) |
 | Cline | `.clinerules/`, `AGENTS.md`, `.cursorrules`, `.windsurfrules`, skills | [rules](https://docs.cline.bot/features/cline-rules), [skills](https://docs.cline.bot/customization/skills) |
-| Windsurf | `.windsurf/rules/`, `AGENTS.md`, `.windsurfrules`, skills | [memories](https://docs.devin.ai/desktop/cascade/memories), [AGENTS.md](https://docs.devin.ai/desktop/cascade/agents-md) |
+| Windsurf | `.windsurf/rules/`, `AGENTS.md` or `agents.md`, `.windsurfrules`, skills | [memories](https://docs.devin.ai/desktop/cascade/memories), [AGENTS.md](https://docs.devin.ai/desktop/cascade/agents-md) |
 | Aider | nothing by itself: `CONVENTIONS.md` counts only if you pass it with `--read` | [conventions](https://aider.chat/docs/usage/conventions.html) |
 | Zed | the first of `.rules`, `.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and a few more; skills | [instructions](https://zed.dev/docs/preview/ai/instructions.html) (preview docs) |
 
