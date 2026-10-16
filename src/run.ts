@@ -66,7 +66,7 @@ Options:
   --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
   --price <amount>     Your price for input tokens; cost is shown only when you give one
   --per <tokens>       The price is for this many tokens: 1000, 1k, 1m (default: 1m)
-  --currency <c>       A symbol or code for the price: $, ₹, EUR (default: $)
+  --currency <c>       A symbol or code for the price: $, в‚№, EUR (default: $)
   --messages <n>       Messages assumed for the overhead (default: ${DEFAULT_MESSAGES})
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
@@ -393,7 +393,7 @@ Run ctxsize --help for usage.
         await once(rerun);
         if (announced) return;
         announced = true;
-        io.stderr(`ctxsize report running at ${live.url} — press Ctrl+C to stop\n`);
+        io.stderr(`ctxsize report running at ${live.url} вЂ” press Ctrl+C to stop\n`);
         if (parsed.noOpen) return;
         const error = await (io.open ?? openInBrowser)(live.url);
         if (error) io.stderr(`ctxsize: could not open the browser: ${error}\n`);
@@ -678,15 +678,15 @@ function parse(argv: string[], io: Io) {
 /** --exclude values: relative globs with "/" separators, nothing that reaches outside the repo. */
 function excludePatterns(values: string[]): string[] {
   return values.map((p) => {
-    if (
-      p === '' ||
-      p.includes('\\') ||
-      p.startsWith('/') ||
-      /^[A-Za-z]:/.test(p) ||
-      p.split('/').includes('..')
-    ) {
+    if (p === '' || p.startsWith('/') || /^[A-Za-z]:/.test(p) || p.split('/').includes('..')) {
       throw new UsageError(
         `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}"`,
+      );
+    }
+    if (p.includes('\\')) {
+      const suggestion = p.replaceAll('\\', '/');
+      throw new UsageError(
+        `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}". Did you mean "${suggestion}"?`,
       );
     }
     return p;

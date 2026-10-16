@@ -107,12 +107,21 @@ describe('--exclude and the "exclude" config key', () => {
     expect(parseConfig({ exclude: ['docs'] }, 'ctxsize.json').exclude).toEqual(['docs']);
   });
 
+  test('backslashes suggest the equivalent slash pattern', async () => {
+    const root = tmpRepo(files);
+    const r = await cli(['--exclude', 'docs\\old\\*.md'], root);
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('Did you mean "docs/old/*.md"?');
+  });
+
   test('bad patterns are usage errors', async () => {
     const root = tmpRepo(files);
-    for (const bad of ['../x', '/abs', 'C:x', 'a\\b']) {
+    for (const bad of ['../x', '/abs', 'C:x', 'C:\\x', 'a\\b']) {
       const r = await cli(['--exclude', bad], root);
       expect(r.code, bad).toBe(EXIT.usage);
       expect(r.stderr).toContain('--exclude must be a glob relative to the repo');
     }
+    const drive = await cli(['--exclude', 'C:\\x'], root);
+    expect(drive.stderr).not.toContain('Did you mean');
   });
 });
