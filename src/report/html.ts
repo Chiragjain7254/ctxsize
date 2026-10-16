@@ -243,7 +243,7 @@ ${emptyState()}${hiddenNote(report)}</section>
 <section id="view-cost" role="tabpanel" aria-labelledby="nav-cost" hidden>
 <h2>Cost calculator ${helpIcon('cost')}</h2>
 <p class="disclaimer">Rough estimate from your price and ctxsize's token count. Real cost depends on caching and your plan. On a monthly subscription (Claude Pro, Cursor Pro…) you don't pay per token, so watch tokens instead.</p>
-<div class="calc">
+<div id="calc" class="calc">
 <div id="calc-inputs" class="calc-in"></div>
 <div id="calc-results" class="calc-out" aria-live="polite"></div>
 </div>
@@ -470,13 +470,14 @@ details.adv>summary,details.extra>summary{font-size:15px}.changed{color:var(--wa
 /* Cost calculator */
 .chart-tools{display:inline-flex;align-items:center;gap:12px}
 .disclaimer{margin:0 0 14px;padding:10px 14px;border-left:4px solid var(--warn);background:var(--warnbg);border-radius:6px;font-size:14px;max-width:80ch}
+.calc>*{min-width:0}
 .calc{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:20px;align-items:start}
 .prow{border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;margin:0 0 10px;background:var(--card)}
 .prow legend{font-weight:600;font-size:14px;padding:0 6px}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
 .cf{display:grid;gap:2px;font-size:13px;color:var(--ink2);min-width:0}
 .cf input,.cf select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 6px;min-width:0;width:100%}
-.cf .inline{display:flex;gap:4px}.cf .inline input{width:6em}.cf .inline select{flex:1 1 auto}
+.cf .inline{display:flex;gap:4px;min-width:0}.cf .inline input{width:6em}.cf .inline select{flex:1 1 auto}
 .cf input[aria-invalid=true]{border-color:var(--bad)}
 .opt{margin-top:8px;padding:0;border:0;background:none}.opt summary{font-weight:400;font-size:13px;color:var(--ink2)}
 .calc-out .empty{padding:28px}
@@ -486,6 +487,7 @@ details.adv>summary,details.extra>summary{font-size:15px}.changed{color:var(--wa
 .versus{margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--chip)}
 .worked{margin:12px 0 0;font-size:14px;color:var(--ink2)}
 @media (max-width:900px){.calc{grid-template-columns:1fr}}
+.calc.wide{grid-template-columns:1fr}.calc.wide .calc-in>.btn{justify-self:start;align-self:start}.calc.wide .calc-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 10px;align-items:start}
 
 /* Help */
 .howto{margin:6px 0 18px;padding-left:22px}.howto li{margin:5px 0}
@@ -518,6 +520,7 @@ footer{margin-top:28px;color:var(--ink3);font-size:13px}
 }
 @media (max-width:640px){
 main{padding:8px 12px 32px}
+.chart-head{flex-wrap:wrap;gap:6px}.chart-tools{gap:8px}.chart-tools .btn,.switch{white-space:nowrap}
 .tag{display:none}
 .verdict{font-size:16px;padding:8px 10px}
 .chipbar{flex-direction:column;align-items:flex-start;gap:4px}

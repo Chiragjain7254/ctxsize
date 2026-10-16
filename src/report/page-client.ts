@@ -494,6 +494,8 @@ ${field('% of messages cached (optional)', 'cached-share', `<input data-calc="ca
     const out = $('calc-results');
     const rows = priceRows();
     const prices = rows.filter(Boolean);
+    // Several prices side by side need the full width.
+    $('calc').className = prices.length > 1 ? 'calc wide' : 'calc';
     if (prices.length === 0) {
       out.innerHTML =
         '<p class="empty">Enter your price to see cost.<br><span class="sub">ctxsize has no prices of its own: use the price from your provider.</span></p>';
