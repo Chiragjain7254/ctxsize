@@ -46,8 +46,8 @@ const presetIds = () => presets.map((m) => m.id).join(', ');
 const BUILT_IN = buildTools().map((t) => t.id);
 
 const HELP = `ctxsize v${VERSION}
-See what every coding agent loads before your first prompt, in tokens,
-and what each one silently drops.
+See what your AI coding agent reads before you type, what it costs,
+and what it silently drops.
 
 Usage: ctxsize [dir] [options]
 

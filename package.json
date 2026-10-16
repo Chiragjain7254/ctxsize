@@ -1,7 +1,7 @@
 {
   "name": "@chiragjain7254/ctxsize",
   "version": "0.2.0",
-  "description": "See what every coding agent loads before your first prompt, in tokens, and what each one silently drops.",
+  "description": "See what your AI coding agent reads before you type, what it costs, and what it silently drops.",
   "keywords": [
     "claude-code",
     "codex",
