@@ -28,6 +28,34 @@ export const GROUPS: { id: GlossaryGroup; title: string }[] = [
 export const GLOSSARY: GlossaryEntry[] = [
   // ---- Numbers
   {
+    id: 'reads-most',
+    term: 'Reads the most',
+    group: 'numbers',
+    text: 'The agent that loads the most text from your files before your first message. That text is sent again with every message you type.',
+    example: 'Windsurf, about 3,820 tokens.',
+  },
+  {
+    id: 'cut-off',
+    term: 'Cut off',
+    group: 'numbers',
+    text: 'Files, or the ends of files, that an agent never sees because they are over its size limit.',
+    example: 'A big file that is read only up to its limit.',
+  },
+  {
+    id: 'to-fix',
+    term: 'To fix',
+    group: 'numbers',
+    text: 'Everything worth fixing: files that are cut off plus things that may be ignored or wasted. Optional tips are counted apart.',
+    example: '5 = 1 cut-off file + 4 other things.',
+  },
+  {
+    id: 'fix-first',
+    term: 'Fix these first',
+    group: 'numbers',
+    text: 'The most important things to fix, worst first. The Fix list tab has all of them, grouped by file.',
+    example: 'A file that is cut off comes before an old file type.',
+  },
+  {
     id: 'agent',
     term: 'Agent',
     group: 'numbers',
@@ -243,6 +271,20 @@ export const GLOSSARY: GlossaryEntry[] = [
   },
 
   // ---- Controls
+  {
+    id: 'chips',
+    term: 'Which agents do you use?',
+    group: 'controls',
+    text: 'Click an agent to include it or leave it out; everything on the page then counts only the agents you picked. Your choice is remembered in this browser.',
+    example: 'Leave out agents you never open.',
+  },
+  {
+    id: 'show-cost',
+    term: 'Show cost',
+    group: 'controls',
+    text: "Adds two columns to the chart: how much of the agent's memory the text uses, and a rough price for the whole conversation.",
+    example: '0.4% of memory, about $0.61 for 80 messages.',
+  },
   {
     id: 'include',
     term: 'Show this agent',

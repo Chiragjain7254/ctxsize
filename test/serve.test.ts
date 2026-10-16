@@ -73,7 +73,7 @@ describe('--serve', () => {
       expect(page.status).toBe(200);
       expect(page.headers.get('content-type')).toContain('text/html');
       const html = await page.text();
-      expect(html).toContain('What your coding agents read before you type');
+      expect(html).toContain('What your AI coding agents read before you type');
       expect(html).toContain('"stream":"/events"');
 
       const api = await fetch(`${s.url}/api/report`);

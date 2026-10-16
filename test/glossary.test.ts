@@ -83,15 +83,14 @@ test('the page carries every definition once, plus a collapsible glossary with t
       e.text.replace(/&/g, '&#38;').replace(/'/g, '&#39;').replace(/"/g, '&#34;'),
     );
   }
-  expect(out).toContain(
-    '<details class="extra" id="glossary"><summary>What do these words mean?</summary>',
-  );
+  expect(out).toContain('<h3>What do these words mean?</h3>');
+  expect(out).toContain('<div id="glossary">');
   expect(out).not.toMatch(/https?:\/\//);
 });
 
 test('every help icon in the page markup has a definition to describe it', async () => {
   const out = await page();
-  const used = [...out.matchAll(/data-help="([a-z]+)"/g)].map((m) => m[1]);
+  const used = [...out.matchAll(/data-help="([a-z-]+)"/g)].map((m) => m[1]);
   expect(used.length).toBeGreaterThan(8);
   for (const id of used)
     expect(

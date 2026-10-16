@@ -222,22 +222,23 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
   if (kb > 300) console.error('  WARNING: over 300 KB');
 }
 
-// 2. report-light.png, report-dark.png and report-mobile.png: the top of the page, where a
-// first-time reader decides what to do. (--html file; the page follows the colour scheme.)
+// 2. report-light.png, report-dark.png and report-mobile.png: the Overview, the first screen a
+// reader sees, at 1366x768 (a laptop) and 390x844 (a phone). (--html file; the page follows the
+// colour scheme.)
 {
   const htmlFile = path.join(tmp, 'report.html');
   run(['--html', '--out', htmlFile], EXAMPLE);
   const url = pathToFileURL(htmlFile).href;
   for (const theme of ['light', 'dark']) {
     await pageShot(url, path.join(IMG, `report-${theme}.png`), {
-      width: 1100,
-      height: 1900,
+      width: 1366,
+      height: 768,
       theme,
     });
   }
   await pageShot(url, path.join(IMG, 'report-mobile.png'), {
     width: 390,
-    height: 2600,
+    height: 844,
     theme: 'light',
     mobile: true,
   });
@@ -265,8 +266,8 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
       await new Promise((r) => setTimeout(r, 200));
     }
     await pageShot(`http://localhost:${port}/`, path.join(IMG, 'serve.png'), {
-      width: 1100,
-      height: 1900,
+      width: 1366,
+      height: 768,
       theme: 'light',
     });
   } finally {

@@ -7,6 +7,30 @@ What the words in the ctxsize report mean. The same text appears as hover help a
 
 ## Numbers
 
+### Reads the most
+
+The agent that loads the most text from your files before your first message. That text is sent again with every message you type.
+
+Example: Windsurf, about 3,820 tokens.
+
+### Cut off
+
+Files, or the ends of files, that an agent never sees because they are over its size limit.
+
+Example: A big file that is read only up to its limit.
+
+### To fix
+
+Everything worth fixing: files that are cut off plus things that may be ignored or wasted. Optional tips are counted apart.
+
+Example: 5 = 1 cut-off file + 4 other things.
+
+### Fix these first
+
+The most important things to fix, worst first. The Fix list tab has all of them, grouped by file.
+
+Example: A file that is cut off comes before an old file type.
+
 ### Agent
 
 A coding assistant that reads files from your repo, such as Claude Code, Codex or Cursor.
@@ -192,6 +216,18 @@ An optional way to save tokens. Nothing is broken.
 Example: Move a big section into a skill so it loads only when needed.
 
 ## Controls
+
+### Which agents do you use?
+
+Click an agent to include it or leave it out; everything on the page then counts only the agents you picked. Your choice is remembered in this browser.
+
+Example: Leave out agents you never open.
+
+### Show cost
+
+Adds two columns to the chart: how much of the agent's memory the text uses, and a rough price for the whole conversation.
+
+Example: 0.4% of memory, about $0.61 for 80 messages.
 
 ### Show this agent
 

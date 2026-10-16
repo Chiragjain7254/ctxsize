@@ -7,7 +7,7 @@
 
 ![ctxsize terminal output: tokens each coding agent loads at startup, what it costs, what is dropped, and checks](docs/img/terminal.png)
 
-![ctxsize HTML report in light mode: a plain-language summary, the problems with how to fix them, and a bar chart of what each agent reads](docs/img/report-light.png)
+![ctxsize HTML report in light mode: the Overview tab: one verdict line, three tiles, a bar chart of what each agent reads and the first things to fix](docs/img/report-light.png)
 
 ## Try it and tell us
 

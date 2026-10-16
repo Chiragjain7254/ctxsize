@@ -125,16 +125,6 @@ test('embeds per-item counts for both tokenizers and the character count', async
   expect(data.watch).toBeNull();
 });
 
-test('the page shows one tab per agent, the first selected, and a comparison row each', async () => {
-  const out = await html({ 'AGENTS.md': 'Use npm.\n' });
-  const run = runPage(out);
-  const tabs = run('tabs');
-  expect(tabs.match(/role="tab"/g)).toHaveLength(dataOf(out).agents.length);
-  expect(tabs.match(/aria-selected="true"/g)).toHaveLength(1);
-  expect(run('compare').match(/class="row /g)).toHaveLength(dataOf(out).agents.length);
-  expect(run('tools').match(/<li /g)).toHaveLength(dataOf(out).agents.length);
-});
-
 test('dropped and cut files are drawn hatched with a legend entry', async () => {
   const r = await report(
     {
@@ -178,50 +168,6 @@ test('buildPageData keeps a model the report used even when it is not offered', 
   const r = await report({ 'AGENTS.md': 'x\n' }, '', ['codex']);
   const data = buildPageData(r, { models: new Map() });
   expect(data.models.map((m) => m.id)).toEqual([r.agents[0]?.model.id]);
-});
-
-test('the page opens with a plain-language summary and a list of problems with fixes', async () => {
-  const out = await html({
-    'AGENTS.md': 'Use npm.\n',
-    '.claude/skills/nodesc/SKILL.md': '---\nname: nodesc\n---\nBody\n',
-  });
-  const run = runPage(out);
-  expect(run('summary')).toContain('reads the most before your first message');
-  expect(run('problems')).toContain('How to fix:');
-  expect(dataOf(out).problems.length).toBeGreaterThan(0);
-  expect(out.indexOf('id="summary"')).toBeLessThan(out.indexOf('id="compare"'));
-});
-
-test('the page is laid out summary, problems, comparison, details, then collapsed extras', async () => {
-  const out = await html({ 'AGENTS.md': 'Use npm.\n' });
-  const at = (s: string) => out.indexOf(s);
-  const order = [
-    'id="summary"',
-    'id="problems"',
-    'id="compare"',
-    'id="details"',
-    'id="adjust"',
-    'id="fine"',
-    'id="glossary"',
-  ];
-  for (let i = 1; i < order.length; i++) {
-    expect(at(order[i] ?? ''), order[i]).toBeGreaterThan(at(order[i - 1] ?? ''));
-  }
-  expect(out).toMatch(/<details id="adjust" class="adv"><summary>Adjust model, messages and price/);
-  expect(out).not.toMatch(/<details id="(adjust|fine)"[^>]* open/);
-  expect(out).toContain('What do these words mean?');
-});
-
-test('each bar shows its agent with the model next to it, and the details say how to reduce', async () => {
-  const out = await html({ 'AGENTS.md': `${'Use npm. '.repeat(100)}\n` });
-  const run = runPage(out);
-  const compare = run('compare');
-  expect(compare).toMatch(/Codex<\/b><span class="mdl">&rarr; Generic/);
-  expect(compare).toContain('Which agent reads the most?');
-  const panel = run('panel');
-  for (const part of ['What it reads', 'How to reduce it', 'Problems for'])
-    expect(panel).toContain(part);
-  expect(panel).toContain('startup tokens');
 });
 
 test('long notes and warnings go under Fine print, not in the main flow', async () => {

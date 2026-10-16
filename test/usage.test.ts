@@ -140,7 +140,7 @@ describe('usage in reports', () => {
     const out = `${html}/r.html`;
     expect((await cli(['--html', '--out', out, '--agents', 'codex'], dir)).code).toBe(EXIT.ok);
     const text = (await import('node:fs')).readFileSync(out, 'utf8');
-    expect(text).toContain('Adjust model, messages and price');
+    expect(text).toContain('Price, USD per 1M tokens');
     expect(text).toContain('"messages":50');
     expect(text).toContain('GPT-5.3-Codex');
   });

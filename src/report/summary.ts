@@ -166,7 +166,9 @@ export function createSummary(f: Fmt) {
       ? reading.reduce((best, a) => (a.startup > best.startup ? a : best))
       : null;
 
+    // A file or two cut off is still "mostly fine" (amber); several is red.
     const lead = bad.length < 3 ? 'Mostly fine' : 'Needs attention';
+    const level = bad.length < 3 ? 'warn' : 'bad';
     const cutText = `${bad.length} ${plural(bad.length, cutNoun, `${cutNoun}s`)} ${plural(bad.length, 'is', 'are')} ${cutNoun === 'file' ? 'cut off' : 'cut off or left out'}`;
     const worth = `${toFix.length} ${plural(toFix.length, 'thing is', 'things are')} worth fixing`;
     let verdict: SummaryLine;
@@ -177,9 +179,9 @@ export function createSummary(f: Fmt) {
     } else if (bad.length === 0) {
       verdict = { level: 'warn', text: `Mostly fine — nothing is cut off, but ${worth}.` };
     } else if (bad.length === toFix.length) {
-      verdict = { level: 'bad', text: `${lead} — ${cutText}. That is all that needs fixing.` };
+      verdict = { level: level, text: `${lead} — ${cutText}. That is all that needs fixing.` };
     } else {
-      verdict = { level: 'bad', text: `${lead} — ${cutText}, and ${worth} in all.` };
+      verdict = { level: level, text: `${lead} — ${cutText}, and ${worth} in all.` };
     }
     return {
       agents,
@@ -364,7 +366,7 @@ const CHECK_TEXT: Record<string, { short: (c: Check) => string; fix: string }> =
   },
 };
 
-const skillName = (c: Check) => /^skills? (\S+)/.exec(c.message)?.[1] ?? 'a skill';
+const skillName = (c: Check) => /^skills? ([^\s:]+)/.exec(c.message)?.[1] ?? 'a skill';
 
 /**
  * The agents a finding is about. A check that names no tool (a skill without a description, a

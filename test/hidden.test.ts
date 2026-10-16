@@ -73,13 +73,15 @@ describe('hiding agents with no files', () => {
     expect(r.stdout).toMatch(/_Hidden: .*\(no files found\) — use --all to show_/);
   });
 
-  test('the HTML report notes the hidden agents, including for an empty repo', async () => {
+  test('the HTML report notes the hidden agents, and explains how to add a file for an empty repo', async () => {
     const dir = empty();
     const r = await cli(['--html'], dir);
     expect(r.code).toBe(EXIT.ok);
     const { readFileSync } = await import('node:fs');
     const html = readFileSync(`${dir}/ctxsize-report.html`, 'utf8');
-    expect(html).toContain('id="hidden"');
-    expect(html).toContain('No agent loads any files from this repo.');
+    // With nothing to show, the Overview explains how to add an agent file.
+    expect(html).toContain('id="empty"');
+    expect(html).toContain('No agent files found');
+    expect(html).toContain('npx @chiragjain7254/ctxsize --serve');
   });
 });

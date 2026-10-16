@@ -129,7 +129,7 @@ npx @chiragjain7254/ctxsize --json > report.json
 
 ### `--html`
 
-Write an interactive report: a plain-language summary, the problems with how to fix them, a bar chart of what each agent reads, and a details view per agent with a treemap. Every term has a hover help; the words are listed in [GLOSSARY.md](GLOSSARY.md). Default file: `ctxsize-report.html` in the current folder (change it
+Write an interactive report with five tabs: **Overview** (the default: one verdict line, three tiles, a bar chart and the first things to fix, all on one screen), **Agents** (what each agent reads and how to reduce it), **Fix list** (every problem and optional tip, grouped by file), **Settings** (model, messages, price, sort, which agents to show, order, search, reset) and **Help** (how to read the page, the glossary, the fine print). Chips at the top of the Overview pick the agents you use; the choice is remembered in your browser. Every term has a hover help; the words are listed in [GLOSSARY.md](GLOSSARY.md). Default file: `ctxsize-report.html` in the current folder (change it
 with `--out`). With `--history`, it writes the trend chart instead.
 
 ```sh
