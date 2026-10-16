@@ -14,7 +14,8 @@
     "agents",
     "checks",
     "hidden",
-    "tokensAreEstimates"
+    "tokensAreEstimates",
+    "grade"
   ],
   "properties": {
     "schemaVersion": { "const": 2 },
@@ -60,6 +61,19 @@
       "description": "Ids of tools left out of `agents` because they load nothing (see --all)."
     },
     "tokensAreEstimates": { "type": "boolean" },
+    "grade": {
+      "type": "object",
+      "description": "Context health grade (rules: docs/GRADE.md). Computed from the same problems as the Fix list.",
+      "required": ["overall", "agents"],
+      "properties": {
+        "overall": {
+          "anyOf": [{ "$ref": "#/$defs/grade" }, { "type": "null" }],
+          "description": "Null when no agent loads anything."
+        },
+        "agents": { "type": "object", "additionalProperties": { "$ref": "#/$defs/grade" } }
+      },
+      "additionalProperties": false
+    },
     "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
     "tree": {
       "type": "array",
@@ -81,6 +95,17 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "grade": {
+      "type": "object",
+      "required": ["letter", "score", "bad", "warn"],
+      "properties": {
+        "letter": { "enum": ["A", "B", "C", "D", "F"] },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "bad": { "type": "integer", "minimum": 0, "description": "Things cut off or left out." },
+        "warn": { "type": "integer", "minimum": 0, "description": "Other things worth fixing." }
+      },
+      "additionalProperties": false
+    },
     "category": { "enum": ["instructions", "rules", "skills", "memory"] },
     "agent": {
       "type": "object",

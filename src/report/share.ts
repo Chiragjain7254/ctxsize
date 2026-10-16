@@ -2,6 +2,7 @@ import { describePrice } from '../core/price.ts';
 import type { AgentReport, Report } from '../core/types.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { fmt } from './format.ts';
+import { reportGrades } from './summary.ts';
 
 // Ways to share a result: a markdown summary for a pull request comment, an SVG summary card
 // and an SVG README badge. All plain strings, no network, no dependencies.
@@ -26,16 +27,20 @@ function willDrops(a: AgentReport): number {
 /** A summary for a pull request comment. File contents are never included. */
 export function renderMarkdown(report: Report): string {
   const lines: string[] = ['### ctxsize: what each agent loads before the first prompt', ''];
+  const grades = reportGrades(report);
+  if (grades.overall) {
+    lines.push(`**Context health: ${grades.overall.letter}** (${grades.overall.score}/100)`, '');
+  }
   // The cost column exists only when the user gave a price (--price): ctxsize has none of its own.
   const price = report.price;
   lines.push(
-    `| Tool | Model | Startup tokens | % of window |${price ? ' Overhead cost |' : ''} Dropped |`,
-    `| --- | --- | ---: | ---: |${price ? ' ---: |' : ''} ---: |`,
+    `| Tool | Model | Startup tokens | % of window |${price ? ' Overhead cost |' : ''} Dropped | Grade |`,
+    `| --- | --- | ---: | ---: |${price ? ' ---: |' : ''} ---: | :---: |`,
   );
   for (const a of report.agents) {
     const cost = price ? ` ${fmt.money(a.usage.overheadCost, price.currency)} |` : '';
     lines.push(
-      `| ${cell(a.label)} | ${cell(a.model.label)}${a.model.isDefault ? '*' : ''} | ${num(a.startup.total)} | ${pct(a.usage.startupPctOfContext)} |${cost} ${willDrops(a) || '-'} |`,
+      `| ${cell(a.label)} | ${cell(a.model.label)}${a.model.isDefault ? '*' : ''} | ${num(a.startup.total)} | ${pct(a.usage.startupPctOfContext)} |${cost} ${willDrops(a) || '-'} | ${grades.agents[a.agent]?.letter ?? '-'} |`,
     );
   }
   lines.push('');

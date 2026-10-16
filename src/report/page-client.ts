@@ -302,7 +302,12 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     $('verdict').innerHTML =
       ins.agents.length === 0 && DATA.agents.length > 0
         ? '<p class="verdict v-info"><span class="mk" aria-hidden="true">•</span><span>No agent is picked. Click one above to see its numbers.</span></p>'
-        : `<p class="verdict v-${ins.verdict.level}"><span class="mk" aria-hidden="true">${MARK[ins.verdict.level]}</span><span>${esc(ins.verdict.text)}</span></p>`;
+        : `<p class="verdict v-${ins.verdict.level}"><span class="mk" aria-hidden="true">${MARK[ins.verdict.level]}</span><span>${esc(ins.verdict.text)}</span>${gradeBadge(ins.grade)}</p>`;
+  }
+  function gradeBadge(g) {
+    if (!g) return '';
+    const tip = `Context health ${g.letter}, ${g.score} out of 100: ${g.bad} cut off, ${g.warn} other things to fix. Same list as the Fix list.`;
+    return `<span class="grade g-${g.letter}" title="${esc(tip)}" aria-label="${esc(tip)}">Grade <b>${g.letter}</b></span>`;
   }
 
   function tile(label, help, big, sub, cls) {
@@ -362,6 +367,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
           `${est(a)}${num(r.startup)} tokens · ${pct(r.windowPct)} of its memory`,
           ...(primary() ? [`${money(monthCost(r.startup))} per month at your price`] : []),
           `${STATUS_WORD[s.level]}${s.level === 'ok' ? '' : `: ${statusText(s)}`}`,
+          ...(r.startup > 0 ? [`Grade ${summary.gradeOf(DATA.problems, [a.id]).letter}`] : []),
           'Click for details',
         ].join('\n');
         return `<li><button type="button" class="row st-${s.level}" data-act="open" data-id="${esc(a.id)}" data-f="open-${esc(a.id)}" data-tip="${esc(tip)}" aria-label="${esc(a.label)}: ${est(a)}${num(r.startup)} tokens, ${esc(statusText(s))}. Open details.">

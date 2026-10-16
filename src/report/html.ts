@@ -368,6 +368,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .chip:hover{border-color:var(--ink2)}
 .verdict{display:flex;gap:10px;align-items:center;margin:0 0 10px;padding:8px 14px;border-radius:10px;font-size:18px;font-weight:600;line-height:1.35;background:var(--chip)}
 .verdict .mk{font-weight:700;flex:none;width:1.3em;text-align:center}
+.verdict .grade{margin-left:auto;flex:none;font-size:14px;font-weight:600;padding:2px 10px;border-radius:999px;border:2px solid currentColor;white-space:nowrap}
+.verdict .grade b{font-size:20px;margin-left:2px}
+.g-A{color:var(--ok,#1a7f4b)}.g-B,.g-C{color:var(--warn,#a15c00)}.g-D,.g-F{color:var(--bad,#c0392b)}
 .v-ok{background:var(--okbg)}.v-ok .mk{color:var(--ok)}
 .v-warn{background:var(--warnbg)}.v-warn .mk{color:var(--warn)}
 .v-bad{background:var(--badbg)}.v-bad .mk{color:var(--bad)}

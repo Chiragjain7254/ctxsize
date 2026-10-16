@@ -72,6 +72,19 @@ export interface AgentStatus {
   tips: number;
 }
 
+export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A context health grade. The rules are in docs/GRADE.md. */
+export interface Grade {
+  letter: GradeLetter;
+  /** 0-100: 100 minus 15 per thing cut off and 5 per other thing worth fixing. */
+  score: number;
+  /** Things cut off or left out. */
+  bad: number;
+  /** Other things worth fixing. */
+  warn: number;
+}
+
 export interface Insights {
   /** Agents the numbers are about. */
   agents: SummaryAgent[];
@@ -88,6 +101,8 @@ export interface Insights {
   tips: number;
   /** The worst few things to fix, for the first screen. */
   fixFirst: Problem[];
+  /** The context health grade of the agents shown; null when there are none. */
+  grade: Grade | null;
   /**
    * What fixing those saves per message, for the agent that gains most; null when none of them
    * has a saving ctxsize can work out.
@@ -97,6 +112,9 @@ export interface Insights {
   /** The cost sentence, or null when it would say nothing. */
   cost: SummaryLine | null;
 }
+
+/** An agent whose startup load takes this share of its window or more has a problem (docs/GRADE.md). */
+export const HEAVY_STARTUP_PCT = 20;
 
 /** How many fixes the first screen shows. */
 export const FIX_FIRST = 3;
@@ -123,6 +141,25 @@ export function createSummary(f: Fmt) {
     const warn = mine.filter((p) => p.level === 'warn').length;
     const tips = mine.filter((p) => p.level === 'info').length;
     return { level: bad > 0 ? 'bad' : warn > 0 ? 'warn' : 'ok', bad, warn, tips };
+  }
+
+  /**
+   * The grade comes from the same problem list as the fix list (tips do not count), so the two
+   * cannot disagree: an A means there is nothing to fix, and anything cut off caps it at C.
+   * Rules: docs/GRADE.md.
+   */
+  function gradeOf(problems: Problem[], ids: string[]): Grade {
+    const mine = forAgents(problems, ids);
+    const bad = mine.filter((p) => p.level === 'bad').length;
+    const warn = mine.filter((p) => p.level === 'warn').length;
+    const score = Math.max(0, 100 - 15 * bad - 5 * warn);
+    let letter: GradeLetter = 'F';
+    if (bad === 0 && warn === 0) letter = 'A';
+    else if (score >= 80) letter = 'B';
+    else if (score >= 60) letter = 'C';
+    else if (score >= 40) letter = 'D';
+    if (bad > 0 && letter === 'B') letter = 'C';
+    return { letter, score, bad, warn };
   }
 
   /** Tokens per message the fixes of one agent take off, from the problems that have a saving. */
@@ -222,6 +259,13 @@ export function createSummary(f: Fmt) {
       toFix: toFix.length,
       tips: problems.length - toFix.length,
       fixFirst,
+      grade:
+        agents.length > 0
+          ? gradeOf(
+              problems,
+              agents.map((a) => a.id),
+            )
+          : null,
       saves,
       verdict,
       cost: agents.length > 0 ? costLine(agents, input.messages, input.currency ?? '$') : null,
@@ -259,7 +303,7 @@ export function createSummary(f: Fmt) {
     return lines;
   }
 
-  return { insights, summarize, statusOf, forAgents, savingFor };
+  return { insights, summarize, statusOf, forAgents, savingFor, gradeOf };
 }
 
 const S = createSummary(createFmt());
@@ -267,6 +311,7 @@ export const insights = S.insights;
 export const statusOf = S.statusOf;
 export const forAgents = S.forAgents;
 export const savingFor = S.savingFor;
+export const gradeOf = S.gradeOf;
 
 export function summarize(input: SummaryInput): SummaryLine[] {
   return S.summarize(input);
@@ -523,6 +568,20 @@ export function buildProblems(report: Report): Problem[] {
       });
     }
   }
+  for (const agent of report.agents) {
+    const share = agent.usage.startupPctOfContext;
+    if (share !== null && share >= HEAVY_STARTUP_PCT) {
+      out.push({
+        level: 'warn',
+        code: 'startup-heavy',
+        title: `${agent.label} loads ${num(agent.startup.total)} tokens before you type, ${Math.round(share)}% of its context window`,
+        short: `${agent.label} starts with ${Math.round(share)}% of its window used`,
+        fix: 'Trim the biggest startup file, or move parts that are only needed sometimes into rules or skills that load on demand.',
+        tools: [agent.agent],
+        paths: agent.topFiles[0] ? [agent.topFiles[0].path] : [],
+      });
+    }
+  }
   for (const c of report.checks) out.push(checkProblem(c, report));
   out.push(...warningProblems(report));
   const rank = { bad: 0, warn: 1, info: 2 } as const;
@@ -550,4 +609,20 @@ export function summaryInput(report: Report): SummaryInput {
 
 export function reportSummary(report: Report): SummaryLine[] {
   return summarize(summaryInput(report));
+}
+
+/** The overall grade and one per agent that reads something; the same rules as the Overview. */
+export function reportGrades(report: Report): {
+  overall: Grade | null;
+  agents: Record<string, Grade>;
+} {
+  const problems = buildProblems(report);
+  const agents: Record<string, Grade> = {};
+  for (const a of report.agents) {
+    if (a.startup.total > 0 || problems.some((p) => p.tools.includes(a.agent))) {
+      agents[a.agent] = gradeOf(problems, [a.agent]);
+    }
+  }
+  const ids = report.agents.map((a) => a.agent);
+  return { overall: ids.length > 0 ? gradeOf(problems, ids) : null, agents };
 }

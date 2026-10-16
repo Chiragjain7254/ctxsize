@@ -3,7 +3,7 @@ import type { AgentReport, Drop, DropKind, Price, Report } from '../core/types.t
 import { TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { fmt } from './format.ts';
-import { buildProblems, type Problem, reportSummary } from './summary.ts';
+import { buildProblems, type Grade, type Problem, reportGrades, reportSummary } from './summary.ts';
 
 export type SortKey = 'startup' | 'name' | 'cost';
 export const SORT_KEYS: readonly SortKey[] = ['startup', 'name', 'cost'];
@@ -58,7 +58,7 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   out.push('');
   out.push(...summaryLines(report, c));
   if (report.agents.length > 0) {
-    out.push(...table(sortAgents(report.agents, opts.sort), c));
+    out.push(...table(sortAgents(report.agents, opts.sort), reportGrades(report).agents, c));
   } else {
     out.push('  No agent loads any files from this repo.');
   }
@@ -111,6 +111,7 @@ function summaryLines(report: Report, c: Colors): string[] {
   const mark = { bad: c.red('✗'), warn: c.yellow('!'), ok: c.green('✓'), info: c.dim('-') };
   const out = [
     c.bold('Summary'),
+    ...gradeLine(report, c),
     ...reportSummary(report).map((l) => `  ${mark[l.level]} ${l.text}`),
   ];
   const problems = buildProblems(report);
@@ -127,6 +128,21 @@ function summaryLines(report: Report, c: Colors): string[] {
   return [...out, ''];
 }
 
+/** "Context health: B (85/100)", colored by letter; the rules are in docs/GRADE.md. */
+function gradeLine(report: Report, c: Colors): string[] {
+  const { overall } = reportGrades(report);
+  if (!overall) return [];
+  const paint =
+    overall.letter === 'A'
+      ? c.green
+      : overall.letter === 'B' || overall.letter === 'C'
+        ? c.yellow
+        : c.red;
+  return [
+    `  ${c.dim('-')} Context health: ${paint(c.bold(overall.letter))} (${overall.score}/100)`,
+  ];
+}
+
 function problemLines(p: Problem, c: Colors, price: Price | null): string[] {
   const mark = { bad: c.red('✗'), warn: c.yellow('!'), info: c.dim('i') }[p.level];
   const lines = [`  ${mark} ${p.title}`, c.dim(`      How to fix: ${p.fix}`)];
@@ -140,8 +156,17 @@ function problemLines(p: Problem, c: Colors, price: Price | null): string[] {
   return lines;
 }
 
-function table(agents: AgentReport[], c: Colors): string[] {
-  const header = ['Agent', 'Instructions', 'Rules', 'Skills', 'Startup', '% ctx', 'On demand'];
+function table(agents: AgentReport[], grades: Record<string, Grade>, c: Colors): string[] {
+  const header = [
+    'Agent',
+    'Instructions',
+    'Rules',
+    'Skills',
+    'Startup',
+    '% ctx',
+    'On demand',
+    'Grade',
+  ];
   const rows = agents.map((a) => [
     a.label,
     num(a.startup.byCategory.instructions + a.startup.byCategory.memory),
@@ -150,6 +175,7 @@ function table(agents: AgentReport[], c: Colors): string[] {
     `${a.model.exactTokenizer ? '' : '~'}${num(a.startup.total)}`,
     pct(a.usage.startupPctOfContext),
     a.onDemand.count ? `${num(a.onDemand.total)} (${a.onDemand.count})` : '0',
+    grades[a.agent]?.letter ?? '-',
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)));
   const line = (cells: string[], style: (s: string, i: number) => string) =>
