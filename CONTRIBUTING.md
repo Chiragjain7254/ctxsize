@@ -46,7 +46,7 @@ Tools change their rules often, and a profile that is out of date misleads every
 
    Then fill in the "Observed (date, agent version)" and "Match?" cells of that agent's row in `docs/VERIFY.md` by hand. Never write an observed result you did not see. `npm run study` clones 50 repositories, so a pull request does not have to include it; say in the pull request that the study needs a re-run.
 
-To add a whole new agent, see "How to add a new agent" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). `npx @chiragjain7254/ctxsize --check-profiles` lists every limit with its source and date.
+To add a whole new agent, follow [docs/ADD-AGENT.md](docs/ADD-AGENT.md) (about 15 minutes); the details are in "How to add a new agent" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Where the project is going: [ROADMAP.md](ROADMAP.md). `npx @chiragjain7254/ctxsize --check-profiles` lists every limit with its source and date.
 
 ## What's in this repo
 
@@ -68,6 +68,11 @@ These are small, self-contained changes, each with the files to touch and how to
 - [#8 Add a JSON Schema for --history --json](https://github.com/Chiragjain7254/ctxsize/issues/8)
 - [#9 Give a crash its own exit code, apart from a failed gate](https://github.com/Chiragjain7254/ctxsize/issues/9)
 - [#10 Check Zed's profile against the stable docs](https://github.com/Chiragjain7254/ctxsize/issues/10)
+- [#12 Add a profile for a coding agent ctxsize does not cover yet](https://github.com/Chiragjain7254/ctxsize/issues/12)
+- [#13 Write the ctxsize summary to the GitHub job summary in the Action](https://github.com/Chiragjain7254/ctxsize/issues/13)
+- [#14 Suggest the forward-slash form when --exclude is given backslashes](https://github.com/Chiragjain7254/ctxsize/issues/14)
+- [#15 Test that the PNG card's pixel font is complete](https://github.com/Chiragjain7254/ctxsize/issues/15)
+- [#16 Add the grade to the glossary and its hover help](https://github.com/Chiragjain7254/ctxsize/issues/16)
 
 More are listed under the [`good first issue` label](https://github.com/Chiragjain7254/ctxsize/labels/good%20first%20issue) as they come up.
 

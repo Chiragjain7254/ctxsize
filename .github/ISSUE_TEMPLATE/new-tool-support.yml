@@ -1,0 +1,40 @@
+name: Support a new tool
+description: Ask for a coding agent that ctxsize does not know yet (or add it yourself, see docs/ADD-AGENT.md)
+labels: [new-agent, enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Adding an agent takes about 15 minutes, and you can do it yourself: [docs/ADD-AGENT.md](https://github.com/Chiragjain7254/ctxsize/blob/main/docs/ADD-AGENT.md). If you would rather not, fill this in and someone can pick it up.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent name
+      placeholder: Roo Code
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Agent version you tried
+      placeholder: 3.2.1
+    validations: { required: true }
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the official docs about its instruction files
+      description: ctxsize only states what an official page says.
+    validations: { required: true }
+  - type: textarea
+    id: files
+    attributes:
+      label: Files it reads at startup
+      description: File names, folders, and any limit (size, count) the docs state. Say "not documented" where they are silent.
+      placeholder: ".roo/rules/*.md, AGENTS.md. No limit documented."
+    validations: { required: true }
+  - type: textarea
+    id: fruit
+    attributes:
+      label: Fruit test result
+      description: Copy examples/secret-word outside any repo, run git init there, open the agent and ask the question in docs/VERIFY.md. Which fruits did it name? Write "not run" if you did not.
+      placeholder: "Named: MANGO, LIME."
+    validations: { required: true }
