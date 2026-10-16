@@ -75,13 +75,13 @@ Example: 1,634 tokens × 80 messages = 130,720 tokens.
 
 ### Cost
 
-A rough price for sending the startup text with every message, at the model's normal input price. Caching can make the real price lower.
+A rough price for sending the startup text with every message, worked out from the price you enter. Caching can make the real price lower.
 
-Example: $0.0131 is about one cent over 80 messages.
+Example: 1,634 tokens at ₹250 per 1M tokens is about ₹0.41 per message.
 
 ### Model
 
-The AI model the agent uses. It decides the price, the size of the memory and how tokens are counted.
+The AI model the agent uses. It decides the size of the memory and how tokens are counted; you give the price yourself.
 
 Example: Claude Code → Claude Haiku 5.5.
 
@@ -91,11 +91,11 @@ How many messages you expect to send in one conversation. More messages means a 
 
 Example: 80 messages is a long working session.
 
-### Price per 1M tokens
+### Your price
 
-What the model charges for one million input tokens, in US dollars. Leave it empty to use the model's own price.
+What you pay for input tokens, from your provider's price list. ctxsize has no prices of its own: without yours it shows tokens only.
 
-Example: $3 per 1M tokens means 1,000 tokens cost $0.003.
+Example: ₹250 per 1M tokens means 1,000 tokens cost ₹0.25.
 
 ### ~ (estimate)
 
@@ -225,9 +225,9 @@ Example: Leave out agents you never open.
 
 ### Show cost
 
-Adds two columns to the chart: how much of the agent's memory the text uses, and a rough price for the whole conversation.
+Adds two columns to the chart: how much of the agent's memory the text uses, and the cost, if you have entered a price.
 
-Example: 0.4% of memory, about $0.61 for 80 messages.
+Example: 0.4% of memory, and ₹0.41 per message.
 
 ### Show this agent
 
@@ -245,7 +245,7 @@ Example: Put your favourite agent first.
 
 Choose how the chart is ordered: most tokens first, highest cost first, name, or your own order.
 
-Example: "Highest cost" puts the priciest agent on top.
+Example: "Highest cost" puts the agent that reads the most on top.
 
 ### Search files
 

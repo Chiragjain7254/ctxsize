@@ -9,10 +9,10 @@ import {
 } from '../src/report/calc.ts';
 
 const models: Record<string, CalcModel> = {
-  a: { id: 'a', label: 'A', tok: 'o200k_base', window: 200_000, price: 3 },
-  b: { id: 'b', label: 'B', tok: 'cl100k_base', window: 100_000, price: 1 },
-  r: { id: 'r', label: 'R', tok: 'ratio', ratio: 4, window: 50_000, price: null },
-  free: { id: 'free', label: 'Free', tok: 'o200k_base', window: 10_000, price: 0 },
+  a: { id: 'a', label: 'A', tok: 'o200k_base', window: 200_000 },
+  b: { id: 'b', label: 'B', tok: 'cl100k_base', window: 100_000 },
+  r: { id: 'r', label: 'R', tok: 'ratio', ratio: 4, window: 50_000 },
+  free: { id: 'free', label: 'Free', tok: 'o200k_base', window: 10_000 },
 };
 
 const item = (key: string, o: number, c: number, chars: number, extra: Partial<CalcItem> = {}) => ({
@@ -28,7 +28,6 @@ const item = (key: string, o: number, c: number, chars: number, extra: Partial<C
 const agent: CalcAgent = {
   model: 'a',
   window: 200_000,
-  price: 3,
   items: [
     item('x.md', 1000, 1100, 4000),
     item('y.md', 500, 450, 1802, { category: 'rules' }),
@@ -37,7 +36,7 @@ const agent: CalcAgent = {
     item('gone.md', 9000, 9000, 36000, { load: 'ignored', dropped: true }),
   ],
 };
-const g: CalcGlobal = { ctx: null, messages: 50, price: null };
+const g: CalcGlobal = { ctx: null, messages: 50 };
 const st = (model = 'a', off: string[] = []) => ({
   model,
   off: Object.fromEntries(off.map((k) => [k, true])),
@@ -52,12 +51,11 @@ describe('agentTotals', () => {
     expect(r.rechecked).toBe(false);
   });
 
-  test('percent of window, overhead tokens and cost', () => {
+  test('percent of window and overhead tokens', () => {
     const r = calc.agentTotals(agent, models, st(), g);
     expect(r.window).toBe(200_000);
     expect(r.windowPct).toBeCloseTo(0.8);
     expect(r.overheadTokens).toBe(80_000);
-    expect(r.costUsd).toBeCloseTo(0.24);
   });
 
   test('unticking a file removes it from every total', () => {
@@ -65,19 +63,16 @@ describe('agentTotals', () => {
     expect(r.startup).toBe(600);
     expect(r.byCategory.instructions).toBeUndefined();
     expect(r.windowPct).toBeCloseTo(0.3);
-    expect(r.costUsd).toBeCloseTo(0.09);
     expect(calc.agentTotals(agent, models, st('a', ['x.md', 'y.md', 'skill#s']), g).startup).toBe(
       0,
     );
   });
 
-  test('switching to the other BPE tokenizer uses its counts and the new window and price', () => {
+  test('switching to the other BPE tokenizer uses its counts and the new window', () => {
     const r = calc.agentTotals(agent, models, st('b'), g);
     expect(r.startup).toBe(1640);
     expect(r.window).toBe(100_000);
-    expect(r.price).toBe(1);
     expect(r.rechecked).toBe(true);
-    expect(r.costUsd).toBeCloseTo((1640 * 50) / 1e6);
   });
 
   test('ratio mode is ceil(chars / ratio) per item', () => {
@@ -104,24 +99,24 @@ describe('agentTotals', () => {
     expect(calc.agentTotals(cli, models, st('b'), g).window).toBe(100_000);
   });
 
-  test('messages scale overhead and cost', () => {
+  test('messages scale overhead tokens', () => {
     const r = calc.agentTotals(agent, models, st(), { ...g, messages: 10 });
     expect(r.overheadTokens).toBe(16_000);
-    expect(r.costUsd).toBeCloseTo(0.048);
-    expect(calc.agentTotals(agent, models, st(), { ...g, messages: 0 }).costUsd).toBe(0);
   });
 
-  test('a price override replaces the model price', () => {
-    const r = calc.agentTotals(agent, models, st('b'), { ...g, price: 10 });
-    expect(r.price).toBe(10);
-    expect(r.costUsd).toBeCloseTo((1640 * 50 * 10) / 1e6);
-  });
-
-  test('no price or a zero price means cost is n/a', () => {
-    expect(calc.agentTotals(agent, models, st('r'), g).costUsd).toBeNull();
-    expect(calc.agentTotals(agent, models, st('free'), g).costUsd).toBeNull();
-    expect(calc.agentTotals(agent, models, st(), { ...g, price: 0 }).costUsd).toBeNull();
-    expect(calc.agentTotals({ ...agent, price: null }, models, st(), g).costUsd).toBeNull();
+  test('a model with no stated window has an unknown share, never a made-up one', () => {
+    const unknown = {
+      ...models,
+      u: { id: 'u', label: 'U', tok: 'o200k_base' as const, window: null },
+    };
+    const r = calc.agentTotals(agent, unknown, st('u'), g);
+    expect(r.window).toBeNull();
+    expect(r.windowPct).toBeNull();
+    expect(r.startup).toBe(1600);
+    // The person's own window brings the share back.
+    expect(calc.agentTotals(agent, unknown, st('u'), { ...g, ctx: 4000 }).windowPct).toBeCloseTo(
+      40,
+    );
   });
 
   test('an unknown model id falls back to the as-run model', () => {

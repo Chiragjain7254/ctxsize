@@ -30,7 +30,7 @@ export interface Config {
 }
 
 export const TOP_KEYS = ['$schema', 'tools', 'models', 'messages', 'exclude'];
-export const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer', 'pricePer1MInput', 'sources'];
+export const MODEL_KEYS = ['label', 'contextTokens', 'tokenizer'];
 export const TOOL_KEYS = [
   'model',
   'maxTokens',
@@ -120,6 +120,11 @@ export function parseConfig(raw: unknown, origin: string): Config {
 
 function parseModel(value: unknown, where: string): UserModel {
   if (!isObject(value)) throw new ConfigError(`${where}: expected an object, got ${got(value)}`);
+  if (value.pricePer1MInput !== undefined) {
+    throw new ConfigError(
+      `${where}.pricePer1MInput: ctxsize has no prices of its own any more; give yours on the command line, for example --price 3 --per 1m`,
+    );
+  }
   rejectUnknown(value, MODEL_KEYS, where);
   const model: UserModel = {};
   if (value.label !== undefined) model.label = str(value.label, `${where}.label`);
@@ -127,16 +132,6 @@ function parseModel(value: unknown, where: string): UserModel {
     model.contextTokens = posInt(value.contextTokens, `${where}.contextTokens`);
   }
   if (value.tokenizer !== undefined) model.tokenizer = parseTokenizer(value.tokenizer, where);
-  if (value.pricePer1MInput !== undefined) {
-    const p = value.pricePer1MInput;
-    if (typeof p !== 'number' || !Number.isFinite(p) || p < 0) {
-      throw new ConfigError(
-        `${where}.pricePer1MInput: expected a number of USD, 0 or more, got ${got(p)}`,
-      );
-    }
-    model.pricePer1MInput = p;
-  }
-  if (value.sources !== undefined) model.sources = parseSources(value.sources, `${where}.sources`);
   return model;
 }
 

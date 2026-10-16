@@ -63,9 +63,25 @@ describe('markdown summary', () => {
     const md = renderMarkdown(await sample());
     expect(md).toContain('| Claude Code |');
     expect(md).toContain('| Codex |');
-    expect(md).toContain('x 20 messages');
     expect(md).toContain('`AGENTS.md`');
+    // No price was given: no cost column, only a hint.
+    expect(md).not.toContain('Overhead cost');
+    expect(md).toContain('Add --price 3 --per 1m to see cost.');
     expect(md).not.toContain('Secret-ish');
+  });
+
+  test('with a price the table gets a cost column in your currency', async () => {
+    const report = await analyze({
+      cwd: tmpRepo({ '.git/': '', 'AGENTS.md': 'Use npm. '.repeat(300) }),
+      agents: ['codex'],
+      messages: 20,
+      price: { amount: 250, per: 1_000_000, currency: '₹' },
+    });
+    const md = renderMarkdown(report);
+    expect(md).toContain('| Overhead cost |');
+    expect(md).toMatch(/₹\d/);
+    expect(md).not.toContain('$');
+    expect(md).toContain('x 20 messages at ₹250 per 1M tokens');
   });
 
   test('a pipe in a label cannot break the table', async () => {

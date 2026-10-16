@@ -108,14 +108,14 @@ export const GLOSSARY: GlossaryEntry[] = [
     id: 'cost',
     term: 'Cost',
     group: 'numbers',
-    text: "A rough price for sending the startup text with every message, at the model's normal input price. Caching can make the real price lower.",
-    example: '$0.0131 is about one cent over 80 messages.',
+    text: 'A rough price for sending the startup text with every message, worked out from the price you enter. Caching can make the real price lower.',
+    example: '1,634 tokens at ₹250 per 1M tokens is about ₹0.41 per message.',
   },
   {
     id: 'model',
     term: 'Model',
     group: 'numbers',
-    text: 'The AI model the agent uses. It decides the price, the size of the memory and how tokens are counted.',
+    text: 'The AI model the agent uses. It decides the size of the memory and how tokens are counted; you give the price yourself.',
     example: 'Claude Code → Claude Haiku 5.5.',
   },
   {
@@ -127,10 +127,10 @@ export const GLOSSARY: GlossaryEntry[] = [
   },
   {
     id: 'price',
-    term: 'Price per 1M tokens',
+    term: 'Your price',
     group: 'numbers',
-    text: "What the model charges for one million input tokens, in US dollars. Leave it empty to use the model's own price.",
-    example: '$3 per 1M tokens means 1,000 tokens cost $0.003.',
+    text: "What you pay for input tokens, from your provider's price list. ctxsize has no prices of its own: without yours it shows tokens only.",
+    example: '₹250 per 1M tokens means 1,000 tokens cost ₹0.25.',
   },
   {
     id: 'estimate',
@@ -282,8 +282,8 @@ export const GLOSSARY: GlossaryEntry[] = [
     id: 'show-cost',
     term: 'Show cost',
     group: 'controls',
-    text: "Adds two columns to the chart: how much of the agent's memory the text uses, and a rough price for the whole conversation.",
-    example: '0.4% of memory, about $0.61 for 80 messages.',
+    text: "Adds two columns to the chart: how much of the agent's memory the text uses, and the cost, if you have entered a price.",
+    example: '0.4% of memory, and ₹0.41 per message.',
   },
   {
     id: 'include',
@@ -304,7 +304,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     term: 'Sort bars by',
     group: 'controls',
     text: 'Choose how the chart is ordered: most tokens first, highest cost first, name, or your own order.',
-    example: '"Highest cost" puts the priciest agent on top.',
+    example: '"Highest cost" puts the agent that reads the most on top.',
   },
   {
     id: 'search',

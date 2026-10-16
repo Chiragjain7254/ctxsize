@@ -32,7 +32,11 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   ];
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-  const { num, pct, usd, plural } = fmt;
+  const { num, plural } = fmt;
+  // A share of the window; the window is null (unknown) for a model whose official docs do not state it.
+  const pct = (v) => (v === null ? 'unknown' : fmt.pct(v));
+  // Cost exists only when the person gave a price (--price). ctxsize has no prices of its own.
+  const money = (v) => fmt.money(v, DATA.price ? DATA.price.currency : '$');
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
   // Browser storage can be blocked (private window, file:// policies): every use is guarded and
@@ -68,7 +72,6 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     off: {},
     ctx: null,
     msgs: null,
-    price: null,
     sort: 'tokens',
     fsort: { k: 'tokens', d: -1 },
     tab: null,
@@ -118,9 +121,10 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   const globals = () => ({
     ctx: S.ctx,
     messages: S.msgs === null ? DATA.messages : S.msgs,
-    price: S.price,
   });
   const result = (a) => calc.agentTotals(a, MODELS, astate(a), globals());
+  const costOf = (r) =>
+    DATA.price ? (r.overheadTokens / DATA.price.per) * DATA.price.amount : null;
   const tokSpec = (a) => MODELS[astate(a).model] || MODELS[a.model] || { tok: 'o200k_base' };
   // "~" before a count means an estimate: only OpenAI models are counted with their own tokenizer.
   const est = (a) => (tokSpec(a).exact ? '' : '~');
@@ -138,13 +142,14 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
         startup: r.startup,
         est: !tokSpec(a).exact,
         pct: r.windowPct,
-        cost: r.costUsd,
+        cost: costOf(r),
       };
     });
   }
   function insights() {
     return summary.insights({
       messages: globals().messages,
+      currency: DATA.price ? DATA.price.currency : '$',
       agents: summaryAgents(),
       problems: DATA.problems,
     });
@@ -250,7 +255,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
       return { a, r: result(a) };
     });
     if (S.sort === 'tokens') rows = calc.sortRows(rows, (x) => x.r.startup, -1);
-    else if (S.sort === 'cost') rows = calc.sortRows(rows, (x) => x.r.costUsd, -1);
+    else if (S.sort === 'cost') rows = calc.sortRows(rows, (x) => x.r.overheadTokens, -1);
     else if (S.sort === 'name') rows = calc.sortRows(rows, (x) => x.a.label, 1);
     const msgs = globals().messages;
     const head = `<div class="chart-head"><h2 id="h-compare">Who reads the most? ${helpIcon('startup')}</h2><label class="switch"><input type="checkbox" id="in-cost" data-act="cost"${S.cost ? ' checked' : ''}> Show cost ${helpIcon('show-cost')}</label></div>`;
@@ -268,7 +273,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
         const tip = [
           `${a.label} uses ${model}`,
           `${est(a)}${num(r.startup)} tokens · ${pct(r.windowPct)} of its memory`,
-          `${usd(r.costUsd)} over ${num(msgs)} messages`,
+          ...(DATA.price ? [`${money(costOf(r))} over ${num(msgs)} messages`] : []),
           `${STATUS_WORD[s.level]}${s.level === 'ok' ? '' : `: ${statusText(s)}`}`,
           'Click for details',
         ].join('\n');
@@ -277,13 +282,13 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
 <span class="bar"><span class="fill" style="width:${width.toFixed(1)}%"></span></span>
 <span class="tv2">${est(a)}${num(r.startup)}</span>
 <span class="si ${s.level}" role="img" aria-label="${esc(statusText(s))}" title="${esc(statusText(s))}">${MARK[s.level]}</span>
-<span class="pc">${pct(r.windowPct)}</span><span class="co">${usd(r.costUsd)}</span></button></li>`;
+<span class="pc">${pct(r.windowPct)}</span><span class="co">${DATA.price ? money(costOf(r)) : ''}</span></button></li>`;
       })
       .join('');
     const anyEst = rows.some(({ a }) => est(a));
     $('compare').className = `col-main${S.cost ? ' cost-on' : ''}`;
     $('compare').innerHTML = `${head}
-<div class="bars-head" aria-hidden="true"><span>Agent</span><span></span><span>Tokens</span><span></span><span>Memory</span><span>${num(msgs)} messages</span></div>
+<div class="bars-head" aria-hidden="true"><span>Agent</span><span></span><span>Tokens</span><span></span><span>Memory</span><span>${DATA.price ? `${num(msgs)} messages` : ''}</span></div>
 <ol class="bars">${body}</ol>
 <p class="legend"><span class="key"><i class="si ok" aria-hidden="true">✓</i>Fine ${helpIcon('ok')}</span><span class="key"><i class="si warn" aria-hidden="true">!</i>Worth fixing ${helpIcon('risk')}</span><span class="key"><i class="si bad" aria-hidden="true">✗</i>Cut off ${helpIcon('dropped')}</span>${anyEst ? `<span class="key"><b>~</b> estimate ${helpIcon('estimate')}</span>` : ''}</p>`;
   }
@@ -578,8 +583,8 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     panel.innerHTML = `<h3 class="ptop">${esc(a.label)} <span class="mdl">&rarr; ${modelNote} ${helpIcon('model')}</span> <span class="si ${s.level}" role="img" aria-label="${esc(statusText(s))}">${MARK[s.level]}</span> <span class="mdl">${esc(statusText(s))}</span></h3>
 <div class="big">
 <div><b>${est(a)}${num(r.startup)}</b><span>tokens read at startup ${helpIcon('startup')}</span></div>
-<div><b>${pct(r.windowPct)}</b><span>of its ${num(r.window)}-token memory ${helpIcon('pct')}</span></div>
-<div><b>${usd(r.costUsd)}</b><span>over ${num(msgs)} messages ${helpIcon('cost')}</span></div>
+<div><b>${pct(r.windowPct)}</b><span>${r.window === null ? 'its memory size is not stated by the docs' : `of its ${num(r.window)}-token memory`} ${helpIcon('pct')}</span></div>
+<div><b>${DATA.price ? money(costOf(r)) : num(r.overheadTokens)}</b><span>${DATA.price ? `over ${num(msgs)} messages` : `tokens over ${num(msgs)} messages`} ${helpIcon('cost')}</span></div>
 <div><b>${num(r.onDemand)}</b><span>more, only when needed ${helpIcon('ondemand')}</span></div>
 </div>
 <h4>Problems for ${esc(a.label)}</h4>
@@ -659,7 +664,6 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
       Object.keys(S.model).length > 0 ||
       S.ctx !== null ||
       S.msgs !== null ||
-      S.price !== null ||
       Object.values(S.off).some((o) => Object.keys(o).length > 0) ||
       DATA.agents.some((a) => !S.on[a.id]);
     $('set-state').textContent = changed ? ' (changed from how the report opened)' : '';
@@ -771,7 +775,6 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     const id = e.target?.id;
     if (id === 'in-ctx') readInput(id, 'ctx', true);
     else if (id === 'in-msgs') readInput(id, 'msgs', true);
-    else if (id === 'in-price') readInput(id, 'price', false);
     else if (id === 'in-q') S.q = e.target.value.trim();
     else return;
     renderResults();
@@ -850,7 +853,6 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     S.off = {};
     S.ctx = null;
     S.msgs = null;
-    S.price = null;
     S.sort = 'tokens';
     S.fsort = { k: 'tokens', d: -1 };
     S.q = '';
@@ -859,7 +861,7 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     store.set(COST_KEY, '0');
     S.order = DATA.agents.map((a) => a.id);
     $('in-sort').value = 'tokens';
-    for (const id of ['in-ctx', 'in-msgs', 'in-price', 'in-q']) {
+    for (const id of ['in-ctx', 'in-msgs', 'in-q']) {
       $(id).value = '';
       $(id).setAttribute('aria-invalid', 'false');
     }

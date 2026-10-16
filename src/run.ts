@@ -5,7 +5,8 @@ import { parseArgs } from 'node:util';
 import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
-import type { AgentReport, Report, ToolId } from './core/types.ts';
+import { PriceError, parsePrice } from './core/price.ts';
+import type { AgentReport, Price, Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
 import { gateFailures } from './gates.ts';
 import {
@@ -57,8 +58,10 @@ Options:
   --all                Show every tool, including those that load nothing (hidden by default)
   --context <tokens>   Context window to model (default: the model's own)
   --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
-  --price <usd>        USD per 1M input tokens, replacing every model's price
-  --messages <n>       Messages assumed for the overhead cost (default: ${DEFAULT_MESSAGES})
+  --price <amount>     Your price for input tokens; cost is shown only when you give one
+  --per <tokens>       The price is for this many tokens: 1000, 1k, 1m (default: 1m)
+  --currency <c>       A symbol or code for the price: $, ₹, EUR (default: $)
+  --messages <n>       Messages assumed for the overhead (default: ${DEFAULT_MESSAGES})
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
@@ -208,7 +211,8 @@ Run ctxsize --help for usage.
     agents,
     tools,
     messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
-    models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
+    models: { models, choice },
+    price: parsed.price,
     env: io.env,
     checks: !parsed.noChecks,
     exclude: [...excludeFromConfig, ...parsed.exclude],
@@ -462,6 +466,8 @@ function parse(argv: string[], io: Io) {
       context: { type: 'string' },
       model: { type: 'string' },
       price: { type: 'string' },
+      per: { type: 'string' },
+      currency: { type: 'string' },
       messages: { type: 'string' },
       diff: { type: 'string' },
       history: { type: 'string' },
@@ -588,7 +594,7 @@ function parse(argv: string[], io: Io) {
     agentNames,
     context: positiveInt(values.context, '--context'),
     modelFlag: values.model,
-    price: nonNegativeNumber(values.price, '--price'),
+    price: priceFromFlags(values.price, values.per, values.currency),
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     maxPercent: percent(values['max-percent'], '--max-percent'),
@@ -675,13 +681,17 @@ function nonNegativeInt(value: string | undefined, flag: string, max: number): n
   return n;
 }
 
-function nonNegativeNumber(value: string | undefined, flag: string): number | undefined {
-  if (value === undefined) return undefined;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new UsageError(`${flag} must be a number of USD, 0 or more, got "${value}"`);
+function priceFromFlags(
+  price: string | undefined,
+  per: string | undefined,
+  currency: string | undefined,
+): Price | null {
+  try {
+    return parsePrice({ price, per, currency });
+  } catch (err) {
+    if (err instanceof PriceError) throw new UsageError(err.message);
+    throw err;
   }
-  return n;
 }
 
 /** Combines the config's per-tool models with --model (which wins). */

@@ -1,5 +1,6 @@
+import { describePrice } from '../core/price.ts';
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
-import { formatUsd, TOP_FILES } from '../core/usage.ts';
+import { TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { fmt } from './format.ts';
 import { buildProblems, type Problem, reportSummary } from './summary.ts';
@@ -33,10 +34,10 @@ const MAX_LINES = 8;
 /** The agents ordered for the tables: biggest first for startup and cost, A to Z for name. */
 export function sortAgents(agents: AgentReport[], sort: SortKey | undefined): AgentReport[] {
   if (sort === undefined) return agents;
-  const cost = (a: AgentReport) => a.usage.overheadCostUsd ?? -1;
   const key = {
     startup: (a: AgentReport, b: AgentReport) => b.startup.total - a.startup.total,
-    cost: (a: AgentReport, b: AgentReport) => cost(b) - cost(a),
+    // One price for every agent, so the dearest is the one that carries the most tokens.
+    cost: (a: AgentReport, b: AgentReport) => b.usage.overheadTokens - a.usage.overheadTokens,
     name: (a: AgentReport, b: AgentReport) => a.label.localeCompare(b.label, 'en'),
   }[sort];
   return [...agents].sort((a, b) => key(a, b) || a.label.localeCompare(b.label, 'en'));
@@ -234,22 +235,25 @@ function colors(enabled: boolean) {
   };
 }
 
-const pct = fmt.pct;
+const pct = (n: number | null) => (n === null ? 'unknown' : fmt.pct(n));
 
-/** 1000000 -> "1M", 400000 -> "400k". */
-function windowLabel(tokens: number): string {
+/** 1000000 -> "1M", 400000 -> "400k", null -> "unknown". */
+function windowLabel(tokens: number | null): string {
+  if (tokens === null) return 'unknown';
   if (tokens >= 1_000_000) return `${+(tokens / 1_000_000).toFixed(2)}M`;
   return `${Math.round(tokens / 1000)}k`;
 }
 
 function costLines(report: Report, c: Colors): string[] {
+  // Cost appears only when the user gave a price: ctxsize never shows a price it chose itself.
+  const price = report.price;
   const header = [
     'Agent',
     'Model',
     'Window',
     'Per message',
     `${num(report.messages)} messages`,
-    'Cost',
+    ...(price ? ['Cost'] : []),
   ];
   const anyDefault = report.agents.some((a) => a.model.isDefault);
   const rows = report.agents.map((a) => [
@@ -258,7 +262,7 @@ function costLines(report: Report, c: Colors): string[] {
     windowLabel(a.contextTokens),
     num(a.startup.total),
     num(a.usage.overheadTokens),
-    formatUsd(a.usage.overheadCostUsd),
+    ...(price ? [fmt.money(a.usage.overheadCost, price.currency)] : []),
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)));
   const line = (cells: string[], style: (s: string) => string) =>
@@ -267,10 +271,14 @@ function costLines(report: Report, c: Colors): string[] {
       .join('  ')}`.trimEnd();
   return [
     '',
-    c.bold('Cost of carrying it'),
+    c.bold(price ? 'Cost of carrying it' : 'What each agent carries'),
     line(header, (s) => c.dim(s)),
     ...rows.map((r) => line(r, (s) => s)),
-    c.dim("  Startup tokens x messages, at each model's uncached input price; caching lowers it."),
+    c.dim(
+      price
+        ? `  Startup tokens x messages at ${describePrice(price, fmt.withCurrency)} (uncached; caching lowers it).`
+        : '  Startup tokens x messages. Add --price 3 --per 1m to see cost.',
+    ),
     ...(anyDefault ? [c.dim('  * default model: pick one with --model.')] : []),
   ];
 }

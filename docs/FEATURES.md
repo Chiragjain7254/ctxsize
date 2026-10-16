@@ -7,8 +7,9 @@
 | Tools with no files are hidden by default | `--all` shows them |
 | 10 built-in tools: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Cline, Windsurf, Aider, Zed | `--agents claude,codex` |
 | Your own tools | `ctxsize.json` ([CONFIG](CONFIG.md)) |
-| Model, context window, tokenizer and price per tool | `--model`, `--context`, `--price` |
-| Share of the window, cost over N messages | `--messages 80` |
+| Model, context window and tokenizer per tool | `--model`, `--context` |
+| Share of the window, tokens over N messages | `--messages 80` |
+| Cost, with your own price (ctxsize has none) | `--price 3 --per 1m --currency $` |
 | Biggest files | in every report |
 | What each agent drops or may drop (with the docs link) | in every report |
 | Duplicate instructions and skill health checks | on by default, `--no-checks` to skip |

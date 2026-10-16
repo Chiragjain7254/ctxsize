@@ -218,8 +218,8 @@ describe('--sort', () => {
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')));
   });
 
-  test('cost puts the most expensive first, in the cost table too', async () => {
-    const r = await cli(['--sort', 'cost'], sorted());
+  test('cost puts the agent that carries the most first, in the cost table too', async () => {
+    const r = await cli(['--sort', 'cost', '--price', '3'], sorted());
     const cost = r.stdout.slice(r.stdout.indexOf('Cost of carrying it'));
     expect(cost.split('\n')[2]).toContain('Windsurf');
   });

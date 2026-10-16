@@ -30,10 +30,9 @@ column.
     "my-llama": {
       "label": "My Llama",
       "contextTokens": 128000,
-      "tokenizer": { "charsPerToken": 3.8 },
-      "pricePer1MInput": 0.9
+      "tokenizer": { "charsPerToken": 3.8 }
     },
-    "claude-sonnet-5-5": { "pricePer1MInput": 2.5 }
+    "claude-sonnet-5-5": { "contextTokens": 500000 }
   }
 }
 ```
@@ -106,20 +105,22 @@ What the limits do:
 
 ## `models`
 
-A model sets the context window, the tokenizer and the input price used for a tool. Built-in presets
+A model sets the context window and the tokenizer used for a tool. ctxsize has no prices: you give yours on the command line (`--price`). Built-in presets
 are listed by `ctxsize --help`. An id that matches a preset overrides only the fields you give
-(for example just the price). A new id needs `label`, `contextTokens` and `tokenizer`.
+(for example just the window). A new id needs `label`, `contextTokens` and `tokenizer`.
 
 `tokenizer` is `"o200k_base"`, `"cl100k_base"`, or `{ "charsPerToken": 3.8 }` for models whose
 tokenizer is not available here (Llama, Qwen, DeepSeek, ...). A ratio is a rough estimate: it divides
 the characters of each file by the ratio.
 
-`pricePer1MInput` is USD per million **uncached** input tokens. Presets carry the page and date their
-numbers came from (`src/models.ts`). Prices change, so check them or override them.
+Presets carry the official page that states their window and the date it was read (`src/models.ts`). A
+window the docs do not state is unknown (reports say "unknown" and show no % of window); give one with
+`contextTokens` or `--context`. A `pricePer1MInput` key is refused: prices are yours to give, with
+`--price 3 --per 1m`.
 
 Choosing a model, strongest first: `--model tool=id` (or `--model id` for all tools), then
 `"model"` on the tool in this file, otherwise a default per tool, which reports mark with `*`.
-`--context` overrides the window and `--price` overrides the price for every tool.
+`--context` overrides the window for every tool.
 
 ## `messages`
 
@@ -164,17 +165,16 @@ How many messages a session is assumed to have when the overhead is estimated
     "my-llama": {
       "label": "My Llama",
       "contextTokens": 128000,
-      "tokenizer": { "charsPerToken": 3.8 },
-      "pricePer1MInput": 0.9
+      "tokenizer": { "charsPerToken": 3.8 }
     },
-    "claude-sonnet-5-5": { "pricePer1MInput": 2.5 }
+    "claude-sonnet-5-5": { "contextTokens": 500000 }
   }
 }
 ```
 
 - `aider` with `instructionLoad: "startup"`: count `CONVENTIONS.md` because you always pass it with `--read`.
 - `codex` with only `model` and `maxTokens`: built-in tools with their own loader accept nothing else.
-- `claude-sonnet-5-5` with only a price: keeps the built-in window and tokenizer.
+- `claude-sonnet-5-5` with only a window: keeps the built-in tokenizer.
 
 ## Command-line options that override the file
 
@@ -183,7 +183,6 @@ How many messages a session is assumed to have when the overhead is estimated
 | `--messages 50` | `messages` |
 | `--model claude-haiku-5-5` or `--model codex=gpt-5.3-codex,claude=claude-haiku-5-5` | each tool's `model` |
 | `--context 200000` | the context window of every tool |
-| `--price 3` | the input price (USD per 1M tokens) of every tool |
 | `--agents claude,acme` | which tools run (built-in and your own) |
 
 ## Keeping a folder out of the scan: `.ctxsizeignore`

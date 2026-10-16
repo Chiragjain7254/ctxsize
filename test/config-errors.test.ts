@@ -63,8 +63,8 @@ describe('wrong types say what was found', () => {
       'tools.x.label: expected a non-empty string, got 7 (a number)',
     ],
     [
-      { models: { m: { pricePer1MInput: '2' } } },
-      'models.m.pricePer1MInput: expected a number of USD, 0 or more, got "2" (a string)',
+      { models: { m: { pricePer1MInput: 2 } } },
+      'models.m.pricePer1MInput: ctxsize has no prices of its own any more; give yours on the command line, for example --price 3 --per 1m',
     ],
     [
       { models: { m: { tokenizer: 'gpt2' } } },

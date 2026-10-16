@@ -381,6 +381,8 @@ function suggestionChecks(agents: readonly AgentReport[]): Check[] {
   for (const agent of agents) {
     if (agent.items.some((i) => i.category === 'skills')) continue;
     const { total } = agent.startup;
+    // An unknown window cannot be compared with, so nothing is suggested.
+    if (agent.contextTokens === null) continue;
     if (total < TRIM_MIN_STARTUP_TOKENS || total <= agent.contextTokens * TRIM_STARTUP_SHARE)
       continue;
     const biggest = agent.topFiles[0];

@@ -10,6 +10,7 @@
     "generatedAt",
     "root",
     "messages",
+    "price",
     "agents",
     "checks",
     "hidden",
@@ -36,6 +37,21 @@
       "type": "integer",
       "minimum": 1,
       "description": "Messages assumed for every tool's overhead figure."
+    },
+    "price": {
+      "type": ["object", "null"],
+      "description": "The price from --price, or null. ctxsize has no prices of its own: without --price there is no cost anywhere in the report.",
+      "required": ["amount", "per", "currency"],
+      "properties": {
+        "amount": { "type": "number", "minimum": 0 },
+        "per": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Tokens the amount is for (1000000 by default)."
+        },
+        "currency": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "additionalProperties": false
     },
     "agents": { "type": "array", "items": { "$ref": "#/$defs/agent" } },
     "hidden": {
@@ -91,27 +107,26 @@
         "label": { "type": "string" },
         "model": {
           "type": "object",
-          "required": [
-            "id",
-            "label",
-            "contextTokens",
-            "tokenizer",
-            "exactTokenizer",
-            "pricePer1MInput",
-            "isDefault"
-          ],
+          "required": ["id", "label", "contextTokens", "tokenizer", "exactTokenizer", "isDefault"],
           "properties": {
             "id": { "type": "string" },
             "label": { "type": "string" },
-            "contextTokens": { "type": "integer", "minimum": 1 },
+            "contextTokens": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "null when the official docs do not state the window."
+            },
             "tokenizer": { "type": "string" },
             "exactTokenizer": { "type": "boolean" },
-            "pricePer1MInput": { "type": ["number", "null"], "minimum": 0 },
             "isDefault": { "type": "boolean" }
           },
           "additionalProperties": false
         },
-        "contextTokens": { "type": "integer", "minimum": 1 },
+        "contextTokens": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "null when the window is unknown."
+        },
         "notes": { "type": "array", "items": { "type": "string" } },
         "startup": {
           "type": "object",
@@ -134,12 +149,20 @@
         },
         "usage": {
           "type": "object",
-          "required": ["startupPctOfContext", "messages", "overheadTokens", "overheadCostUsd"],
+          "required": ["startupPctOfContext", "messages", "overheadTokens", "overheadCost"],
           "properties": {
-            "startupPctOfContext": { "type": "number", "minimum": 0 },
+            "startupPctOfContext": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "null when the window is unknown."
+            },
             "messages": { "type": "integer", "minimum": 1 },
             "overheadTokens": { "type": "integer", "minimum": 0 },
-            "overheadCostUsd": { "type": ["number", "null"], "minimum": 0 }
+            "overheadCost": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "In the currency of `price`; null when no --price was given."
+            }
           },
           "additionalProperties": false
         },

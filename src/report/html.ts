@@ -1,5 +1,5 @@
 import { countTokens, type Tokenizer, tokenizerLabel } from '../core/tokenize.ts';
-import type { AgentReport, Category, LoadedItem, ModelInfo, Report } from '../core/types.ts';
+import type { AgentReport, Category, LoadedItem, ModelInfo, Price, Report } from '../core/types.ts';
 import { allModels, type Model } from '../models.ts';
 import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './calc.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
@@ -55,6 +55,8 @@ interface PageAgent extends CalcAgent {
 export interface PageData {
   version: string;
   messages: number;
+  /** The price from --price; null when there is none. The page never invents one. */
+  price: Price | null;
   generated: string | null;
   watch: { file: string; every: number } | null;
   stream: string | null;
@@ -76,11 +78,10 @@ function pageModel(m: Model): PageModel {
     tokLabel: tokenizerLabel(m.tokenizer as Tokenizer),
     exact: m.exactTokenizer,
     window: m.contextTokens,
-    price: m.pricePer1MInput ?? null,
   };
 }
 
-/** A model the report used that is not in the list (a CLI --price changes only the price). */
+/** A model the report used that is not in the list. */
 function fromInfo(info: ModelInfo): PageModel {
   const ratio = /^~([\d.]+) chars per token$/.exec(info.tokenizer)?.[1];
   return {
@@ -91,7 +92,6 @@ function fromInfo(info: ModelInfo): PageModel {
     tokLabel: info.tokenizer,
     exact: info.exactTokenizer,
     window: info.contextTokens,
-    price: info.pricePer1MInput,
   };
 }
 
@@ -138,7 +138,6 @@ function pageAgent(agent: AgentReport): PageAgent {
     label: agent.label,
     model: agent.model.id,
     window: agent.contextTokens,
-    price: agent.model.pricePer1MInput,
     hasDrops: agent.drops.some((d) => d.certainty === 'will'),
     modelDefault: agent.model.isDefault,
     items,
@@ -156,6 +155,7 @@ export function buildPageData(report: Report, opts: HtmlOptions = {}): PageData 
   return {
     version: report.tool.version,
     messages: report.messages,
+    price: report.price,
     generated: opts.generated ?? null,
     watch: opts.watch ? { file: opts.watch.file, every: opts.watch.everyMs ?? 2000 } : null,
     stream: opts.stream ?? null,
@@ -192,7 +192,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
   const noscript = report.agents
     .map(
       (a) =>
-        `<li>${esc(a.label)}: ${a.model.exactTokenizer ? '' : '~'}${a.startup.total.toLocaleString('en-US')} tokens at startup (${fmt.pct(a.usage.startupPctOfContext)} of the window)</li>`,
+        `<li>${esc(a.label)}: ${a.model.exactTokenizer ? '' : '~'}${a.startup.total.toLocaleString('en-US')} tokens at startup ${a.usage.startupPctOfContext === null ? '' : `(${fmt.pct(a.usage.startupPctOfContext)} of the window)`}</li>`,
     )
     .join('');
   return `<!doctype html>
@@ -249,7 +249,6 @@ ${emptyState()}${hiddenNote(report)}</section>
 <div class="grp fields">
 <label><span>Context window ${helpIcon('window')}</span> <input id="in-ctx" inputmode="numeric" placeholder="model's own" aria-invalid="false"></label>
 <label><span>Messages ${helpIcon('messages')}</span> <input id="in-msgs" inputmode="numeric" aria-invalid="false"></label>
-<label><span>Price, USD per 1M tokens ${helpIcon('price')}</span> <input id="in-price" inputmode="decimal" placeholder="model's own" aria-invalid="false"></label>
 <label><span>Sort bars by ${helpIcon('sort')}</span> <select id="in-sort" data-act="sort"><option value="tokens">Most tokens first</option><option value="cost">Highest cost first</option><option value="name">Name, A to Z</option><option value="mine">My order</option></select></label>
 <label><span>Search files ${helpIcon('search')}</span> <input id="in-q" type="search" placeholder="path contains..."></label>
 <span class="hw"><button type="button" class="btn" data-act="reset">Reset everything</button>${helpIcon('reset')}</span>

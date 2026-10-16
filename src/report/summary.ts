@@ -33,14 +33,16 @@ export interface SummaryAgent {
   startup: number;
   /** True when startup is an estimate (shown with a ~). */
   est: boolean;
-  /** Startup tokens as a percentage of the context window. */
-  pct: number;
-  /** USD over the messages; null when no price is known. */
+  /** Startup tokens as a percentage of the context window; null when the window is unknown. */
+  pct: number | null;
+  /** In the user's currency over the messages; null when they gave no price. */
   cost: number | null;
 }
 
 export interface SummaryInput {
   messages: number;
+  /** The user's currency symbol or code for the cost sentence; "$" when there is none. */
+  currency?: string;
   /** The agents to talk about (the ones shown). */
   agents: SummaryAgent[];
   /** Every problem of the run; the ones that concern no shown agent are ignored. */
@@ -89,7 +91,7 @@ export interface Insights {
 export const FIX_FIRST = 3;
 
 export function createSummary(f: Fmt) {
-  const { num, pct, usd, plural } = f;
+  const { num, pct, money, plural } = f;
   const tok = (a: SummaryAgent) => `${a.est ? '~' : ''}${num(a.startup)}`;
   const names = (list: SummaryAgent[]) =>
     list.length <= 2
@@ -112,7 +114,12 @@ export function createSummary(f: Fmt) {
     return { level: bad > 0 ? 'bad' : warn > 0 ? 'warn' : 'ok', bad, warn, tips };
   }
 
-  function costLine(agents: SummaryAgent[], messages: number): SummaryLine | null {
+  function costLine(
+    agents: SummaryAgent[],
+    messages: number,
+    currency: string,
+  ): SummaryLine | null {
+    const usd = (v: number | null) => money(v, currency);
     const readers = agents.filter((a) => a.startup > 0 && a.cost !== null);
     const cost = (a: SummaryAgent) => a.cost ?? 0;
     if (readers.length >= 2) {
@@ -139,7 +146,7 @@ export function createSummary(f: Fmt) {
       const least = reading.reduce((best, a) => (a.startup < best.startup ? a : best));
       return {
         level: 'info',
-        text: `Reads the least: ${least.label} (${tok(least)} tokens). No price is known, so no cost is shown.`,
+        text: `Reads the least: ${least.label} (${tok(least)} tokens).`,
       };
     }
     const only = readers[0];
@@ -193,7 +200,7 @@ export function createSummary(f: Fmt) {
       tips: problems.length - toFix.length,
       fixFirst: toFix.slice(0, 3),
       verdict,
-      cost: agents.length > 0 ? costLine(agents, input.messages) : null,
+      cost: agents.length > 0 ? costLine(agents, input.messages, input.currency ?? '$') : null,
     };
   }
 
@@ -208,7 +215,7 @@ export function createSummary(f: Fmt) {
     lines.push({
       level: 'info',
       text: most
-        ? `${most.label} reads the most before your first message: ${tok(most)} tokens (${pct(most.pct)} of its memory).`
+        ? `${most.label} reads the most before your first message: ${tok(most)} tokens${most.pct === null ? '' : ` (${pct(most.pct)} of its memory)`}.`
         : 'No agent reads anything from this repo before your first message.',
     });
     if (i.cost) lines.push(i.cost);
@@ -478,13 +485,14 @@ export function buildProblems(report: Report): Problem[] {
 export function summaryInput(report: Report): SummaryInput {
   return {
     messages: report.messages,
+    currency: report.price?.currency ?? '$',
     agents: report.agents.map((a) => ({
       id: a.agent,
       label: a.label,
       startup: a.startup.total,
       est: !a.model.exactTokenizer,
       pct: a.usage.startupPctOfContext,
-      cost: a.usage.overheadCostUsd,
+      cost: a.usage.overheadCost,
     })),
     problems: buildProblems(report),
   };

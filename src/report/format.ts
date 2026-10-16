@@ -10,17 +10,24 @@ export function createFmt() {
   const pct = (n: number): string =>
     n === 0 ? '0%' : n < 0.1 ? '<0.1%' : n < 9.95 ? `${n.toFixed(1)}%` : `${Math.round(n)}%`;
 
-  /** "$0.0123", "$1.20", "<$0.0001" or "n/a" when no price is known. */
-  const usd = (v: number | null): string => {
+  /** Puts a number written as text next to its currency: a symbol in front, a code (letters) after. */
+  const withCurrency = (text: string, currency = '$'): string =>
+    /^[A-Za-z]{2,}$/.test(currency) ? `${text} ${currency}` : `${currency}${text}`;
+
+  /**
+   * Money in the user's own currency: "$0.0123", "₹1.20", "<₹0.0001" or "12.50 EUR".
+   * null (no price given) is "n/a".
+   */
+  const money = (v: number | null, currency = '$'): string => {
     if (v === null) return 'n/a';
-    if (v === 0) return '$0';
-    if (v < 0.0001) return '<$0.0001';
-    return `$${v.toFixed(v < 1 ? 4 : 2)}`;
+    if (v === 0) return withCurrency('0', currency);
+    if (v < 0.0001) return `<${withCurrency('0.0001', currency)}`;
+    return withCurrency(v.toFixed(v < 1 ? 4 : 2), currency);
   };
 
   const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
-  return { num, pct, usd, plural };
+  return { num, pct, money, withCurrency, plural };
 }
 
 export type Fmt = ReturnType<typeof createFmt>;

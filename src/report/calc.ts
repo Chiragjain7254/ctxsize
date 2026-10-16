@@ -8,9 +8,8 @@ export interface CalcModel {
   /** Which count to use: one of the two BPE tokenizers, or chars / ratio. */
   tok: 'o200k_base' | 'cl100k_base' | 'ratio';
   ratio?: number;
-  window: number;
-  /** USD per 1M input tokens; null when unknown. */
-  price: number | null;
+  /** Tokens; null when the official docs do not state it. */
+  window: number | null;
 }
 
 export interface CalcItem {
@@ -29,9 +28,8 @@ export interface CalcItem {
 export interface CalcAgent {
   /** Model the CLI measured this tool with. */
   model: string;
-  /** Window and price as the CLI ran (they may come from --context / --price). */
-  window: number;
-  price: number | null;
+  /** Window as the CLI ran (it may come from --context); null when unknown. */
+  window: number | null;
   items: CalcItem[];
 }
 
@@ -45,20 +43,17 @@ export interface CalcGlobal {
   /** Window override in tokens; null for none. */
   ctx: number | null;
   messages: number;
-  /** Price override in USD per 1M tokens; null for none. */
-  price: number | null;
 }
 
 export interface CalcResult {
   startup: number;
   byCategory: Record<string, number>;
   onDemand: number;
-  window: number;
-  windowPct: number;
+  /** null when unknown. */
+  window: number | null;
+  /** null when the window is unknown. */
+  windowPct: number | null;
   overheadTokens: number;
-  /** null when no (or a zero) price is known. */
-  costUsd: number | null;
-  price: number | null;
   model: string;
   /** True when the model or window differs from what the CLI simulated. */
   rechecked: boolean;
@@ -98,19 +93,14 @@ export function createCalc() {
       byCategory[item.category] = (byCategory[item.category] ?? 0) + t;
     }
     const window = g.ctx !== null && g.ctx > 0 ? g.ctx : run || !m ? agent.window : m.window;
-    const basePrice = run || !m ? agent.price : m.price;
-    const rawPrice = g.price !== null ? g.price : basePrice;
-    const price = rawPrice !== null && rawPrice > 0 ? rawPrice : null;
     const overheadTokens = startup * g.messages;
     return {
       startup,
       byCategory,
       onDemand,
       window,
-      windowPct: window > 0 ? (startup / window) * 100 : 0,
+      windowPct: window === null ? null : window > 0 ? (startup / window) * 100 : 0,
       overheadTokens,
-      costUsd: price === null ? null : (overheadTokens / 1e6) * price,
-      price,
       model: st.model,
       rechecked: !run || (g.ctx !== null && g.ctx !== agent.window),
     };

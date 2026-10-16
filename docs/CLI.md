@@ -99,14 +99,29 @@ number; `_` is allowed, as in `1_000_000`.
 npx @chiragjain7254/ctxsize --context 200000
 ```
 
-### `--price <usd>`
+### `--price <amount>`
 
-USD per 1 million input tokens, replacing every model's price. Default: each model's own price. A
-number, 0 or more.
+Your price for input tokens. **ctxsize has no prices of its own** (prices change often and depend on your plan), so cost is shown only when you give one. Without `--price` the terminal, Markdown and JSON show tokens only, with one hint line: `Add --price 3 --per 1m to see cost.` A plain number, 0 or more; put the symbol in `--currency`.
 
 ```sh
-npx @chiragjain7254/ctxsize --price 3
+npx @chiragjain7254/ctxsize --price 3 --per 1m
 ```
+
+The cost is startup tokens × messages ÷ `--per` × the price, uncached; prompt caching and subscription plans make real bills lower or flat.
+
+### `--per <tokens>`
+
+The number of tokens `--price` is for. Price lists say per 1M or per 1K tokens. Accepts `1000`, `1k`, `1m`, `2.5m` and `1,000,000`. Default: `1m`. Needs `--price`.
+
+### `--currency <symbol or code>`
+
+What to print next to the money: a symbol (`$`, `₹`, `€`, `£`) goes in front, a code (`EUR`, `INR`) goes after. Up to 8 characters. Default: `$`. Needs `--price`.
+
+```sh
+npx @chiragjain7254/ctxsize --price 250 --per 1m --currency ₹
+```
+
+In the HTML report, the **Cost calculator** tab does the same with more options (messages per day, cached price, several prices side by side) and remembers what you type in your browser.
 
 ### `--messages <n>`
 
@@ -173,7 +188,7 @@ default browser opens automatically; add `--no-open` to skip that.
   dot turns green again.
 - When files change and the report refreshes, a short notice ("Files changed. The report was updated.") appears in
   the bottom right corner for three seconds.
-- The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--messages`,
+- The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--per`, `--currency`, `--messages`,
   `--include-user`, `--tree`, `--no-checks`.
 - It cannot be combined with `--html`, `--json`, `--markdown`, `--card`, `--badge`, `--diff`,
   `--history`, `--mcp`, `--quiet` or a gate (`--max-tokens`, `--max-percent`, `--fail-on-warnings`); that is a
