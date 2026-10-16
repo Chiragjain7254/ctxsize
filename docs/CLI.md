@@ -238,29 +238,36 @@ normal table. Default: off.
 npx @chiragjain7254/ctxsize --markdown summary.md
 ```
 
-### `--card <file.svg>`
+### `--card <file>`
 
-Write an SVG summary card. Default: off.
+Write a share card: a 1200×630 picture with your **grade**, the **top 3 fixes** and what each agent reads, sized to stay readable when a social site shrinks it. Default: off.
+
+- `--card card.png` writes a PNG, `--card card.svg` an SVG, and `--card card` (no extension) writes both.
+- It is drawn on your machine: no browser, no image library, no network. The PNG uses a built-in pixel font; the SVG uses your system's monospace font.
 
 ```sh
-npx @chiragjain7254/ctxsize --card card.svg --title "My repo"
+npx @chiragjain7254/ctxsize --card card --title "My repo"
 ```
 
 ### `--title <text>`
 
-The heading of the `--card` image. Default: `ctxsize report`.
+The heading of the `--card` image (cut at 36 characters). Default: `Context health report`.
 
 ```sh
-npx @chiragjain7254/ctxsize --card card.svg --title "Agent load"
+npx @chiragjain7254/ctxsize --card card.png --title "Agent load"
 ```
 
-### `--badge <file.svg>`
+### `--badge [file.svg]`
 
-Write an SVG README badge and print a shields.io snippet you can paste into the README. Default: off.
+Print a ready-to-paste Markdown badge with your grade and startup tokens, for your own README. Default: off.
 
 ```sh
-npx @chiragjain7254/ctxsize --badge badge.svg
+npx @chiragjain7254/ctxsize --badge
+# [![ctxsize: B · 8.8k tokens](https://img.shields.io/badge/ctxsize-B%20%C2%B7%208.8k%20tokens-4d8a1f)](https://github.com/Chiragjain7254/ctxsize)
 ```
+
+- With no file, it prints just that line, so you can pipe it. With a file (`--badge badge.svg`) it also writes the badge as an SVG and prints the line on stderr.
+- The badge is a static shields.io image: the text is in the URL, so shields.io never sees your repo. The badge links to ctxsize; delete the link part if you prefer. It does not update by itself: run the command again when you want a new grade.
 
 ### `--quiet`
 

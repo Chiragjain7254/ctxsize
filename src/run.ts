@@ -78,8 +78,10 @@ Options:
   --port <n>           First port for --serve (default 4321; the next 9 are tried if it is taken)
   --no-open            With --serve, do not open the browser
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
-  --card <file.svg>    Write an SVG summary card (--title sets its heading)
-  --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
+  --card <file>        Write a summary card: .png, .svg, or no extension for both (--title sets its
+                       heading). It shows the grade, the top 3 fixes and each agent
+  --badge [file.svg]   Print a Markdown badge (grade and startup tokens) to paste into your README;
+                       with a file, also write the badge as SVG
   --title <text>       Heading for --card
   --watch              Re-run when files in the repo change (Ctrl+C to stop). With --html, the
                        open page updates itself from a .data.js file written next to it
@@ -115,7 +117,7 @@ const WRITE_REASONS: Record<string, string> = {
 };
 
 /** Write an output file; a bad path is a usage error with a plain message, not a stack trace. */
-function writeOutput(file: string, content: string): void {
+function writeOutput(file: string, content: string | Uint8Array): void {
   try {
     writeFileSync(file, content);
   } catch (err) {
@@ -304,6 +306,9 @@ Run ctxsize --help for usage.
       io.stdout(toJson(report, diff ? { diff } : {}, generatedAt(io.env)));
     } else if (parsed.markdown === '-' && share) {
       io.stdout(share.renderMarkdown(report));
+    } else if (parsed.badge === '-' && share) {
+      io.stdout(`${share.badgeMarkdown(report)}
+`);
     } else {
       if (parsed.quiet) {
         io.stdout(renderSummary(report));
@@ -336,11 +341,26 @@ Run ctxsize --help for usage.
   `);
       }
       if (parsed.card) {
-        writeOutput(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
-        info(`Wrote ${parsed.card}
-  `);
+        const ext = path.extname(parsed.card).toLowerCase();
+        const files = ext === '' ? [`${parsed.card}.svg`, `${parsed.card}.png`] : [parsed.card];
+        for (const file of files) {
+          const png = path.extname(file).toLowerCase() === '.png';
+          writeOutput(
+            file,
+            png
+              ? share.renderCardPng(report, { title: parsed.title })
+              : share.renderCardSvg(report, { title: parsed.title }),
+          );
+          info(`Wrote ${file}
+`);
+        }
       }
-      if (parsed.badge) {
+      if (parsed.badge === '-') {
+        // The snippet already went to stdout, unless --json or --markdown - took it.
+        if (parsed.json || parsed.markdown === '-')
+          info(`${share.badgeMarkdown(report)}
+`);
+      } else if (parsed.badge) {
         writeOutput(parsed.badge, share.renderBadgeSvg(report));
         info(`Wrote ${parsed.badge}
   README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
@@ -464,8 +484,15 @@ async function runHistory(
 }
 
 function parse(argv: string[], io: Io) {
+  // A bare --badge (no file) prints the snippet; "-" is how parseArgs is told so.
+  const args = argv.map((a, i) => {
+    const next = argv[i + 1];
+    return a === '--badge' && (next === undefined || (next.startsWith('-') && next !== '-'))
+      ? '--badge=-'
+      : a;
+  });
   const { values, positionals } = parseArgs({
-    args: argv,
+    args,
     allowPositionals: true,
     options: {
       agents: { type: 'string' },
@@ -629,7 +656,7 @@ function parse(argv: string[], io: Io) {
     markdown:
       values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),
     card: values.card && path.resolve(io.cwd, values.card),
-    badge: values.badge && path.resolve(io.cwd, values.badge),
+    badge: values.badge === '-' ? '-' : values.badge && path.resolve(io.cwd, values.badge),
     title: values.title,
     color,
     help: values.help,

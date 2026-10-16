@@ -105,10 +105,11 @@ describe('SVG card and badge', () => {
   test('the badge shows the heaviest tool and the shields.io snippet encodes it', async () => {
     const report = await sample();
     const worst = Math.max(...report.agents.map((a) => a.startup.total));
-    expect(badgeText(report).value).toBe(`${compactTokens(worst)} tokens`);
-    expect(renderBadgeSvg(report)).toContain(`ctxsize: ${compactTokens(worst)} tokens`);
+    const value = badgeText(report).value;
+    expect(value).toBe(`A · ${compactTokens(worst)} tokens`);
+    expect(renderBadgeSvg(report)).toContain(`ctxsize: ${value}`);
     expect(badgeMarkdown(report)).toMatch(
-      /^!\[ctxsize\]\(https:\/\/img\.shields\.io\/badge\/ctxsize-[\w.%-]+-2f6fed\)$/,
+      /^\[!\[ctxsize: A · [\w.]+ tokens\]\(https:\/\/img\.shields\.io\/badge\/ctxsize-[\w.%-]+-1b7f4b\)\]\(https:\/\/github\.com\/Chiragjain7254\/ctxsize\)$/,
     );
   });
 });
