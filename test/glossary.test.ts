@@ -37,6 +37,7 @@ const REQUIRED = [
   'risk',
   'tip',
   'ok',
+  'grade',
 ];
 
 test('every term a beginner needs has a definition with an example', () => {
