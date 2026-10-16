@@ -26,6 +26,11 @@ async function cli(
 }
 
 const BARS = '██';
+const stripColor = (s: string) =>
+  s
+    .split('\u001b[')
+    .map((part, i) => (i === 0 ? part : part.slice(part.indexOf('m') + 1)))
+    .join('');
 const tty = { isTTY: true, columns: 100 };
 
 describe('the logo', () => {
@@ -34,7 +39,7 @@ describe('the logo', () => {
     expect(help.stdout).toContain(BARS);
     expect(help.stdout).toContain(`ctxsize\u001b[0m v${VERSION}`);
     // The name and version are in the logo, not repeated on the next line.
-    expect(help.stdout.match(/ctxsize\u001b\[0m v/g)).toHaveLength(1);
+    expect(help.stdout.split('ctxsize\u001b[0m v')).toHaveLength(2);
     expect(help.stdout).toContain('See what your AI coding agent reads before you type');
     const version = await cli(['--version'], tty);
     expect(version.stdout).toContain(BARS);
@@ -42,11 +47,7 @@ describe('the logo', () => {
   });
 
   test('it is three short lines, at most 40 columns wide', () => {
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: strips the color codes
-    const lines = renderLogo(VERSION)
-      .replace(/\u001b\[[\d;]*m/g, '')
-      .trimEnd()
-      .split('\n');
+    const lines = stripColor(renderLogo(VERSION)).trimEnd().split('\n');
     expect(lines).toHaveLength(3);
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(40);
   });
