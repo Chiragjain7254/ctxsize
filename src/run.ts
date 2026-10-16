@@ -678,15 +678,16 @@ function parse(argv: string[], io: Io) {
 /** --exclude values: relative globs with "/" separators, nothing that reaches outside the repo. */
 function excludePatterns(values: string[]): string[] {
   return values.map((p) => {
-    if (p === '' || p.startsWith('/') || /^[A-Za-z]:/.test(p) || p.split('/').includes('..')) {
+    const slash = p.replaceAll('\\', '/');
+    const unsafe =
+      slash === '' ||
+      slash.startsWith('/') ||
+      /^[A-Za-z]:/.test(slash) ||
+      slash.split('/').includes('..');
+    if (unsafe || p.includes('\\')) {
+      const hint = unsafe ? '' : `. Did you mean "${slash}"?`;
       throw new UsageError(
-        `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}"`,
-      );
-    }
-    if (p.includes('\\')) {
-      const suggestion = p.replaceAll('\\', '/');
-      throw new UsageError(
-        `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}". Did you mean "${suggestion}"?`,
+        `--exclude must be a glob relative to the repo, with "/" separators and no "..", got "${p}"${hint}`,
       );
     }
     return p;

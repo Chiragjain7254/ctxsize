@@ -125,3 +125,23 @@ describe('--exclude and the "exclude" config key', () => {
     expect(drive.stderr).not.toContain('Did you mean');
   });
 });
+
+describe('exclude suggestions never point outside the repository', () => {
+  test.each([
+    '..\\secret',
+    'docs\\..\\*.md',
+    '\\\\server\\share',
+    '\\rooted',
+    'C:\\secret',
+    'docs/../x',
+  ])('does not suggest unsafe pattern %s', async (pattern) => {
+    const r = await cli(['--exclude', pattern], tmpRepo(files));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+  test('suggests a slash form for mixed relative separators', async () => {
+    const r = await cli(['--exclude', 'docs\\old/*.md'], tmpRepo(files));
+    expect(r.code).toBe(EXIT.usage);
+    expect(r.stderr).toContain('Did you mean "docs/old/*.md"?');
+  });
+});
