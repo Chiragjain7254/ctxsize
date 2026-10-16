@@ -122,7 +122,6 @@ describe('agentTotals', () => {
     expect(calc.agentTotals(agent, models, st('free'), g).costUsd).toBeNull();
     expect(calc.agentTotals(agent, models, st(), { ...g, price: 0 }).costUsd).toBeNull();
     expect(calc.agentTotals({ ...agent, price: null }, models, st(), g).costUsd).toBeNull();
-    expect(calc.usd(null)).toBe('n/a');
   });
 
   test('an unknown model id falls back to the as-run model', () => {
@@ -131,13 +130,6 @@ describe('agentTotals', () => {
 });
 
 describe('helpers', () => {
-  test('usd formats like the terminal report', () => {
-    expect(calc.usd(0)).toBe('$0');
-    expect(calc.usd(0.00001)).toBe('<$0.0001');
-    expect(calc.usd(0.0123)).toBe('$0.0123');
-    expect(calc.usd(1.2)).toBe('$1.20');
-  });
-
   test('sortRows sorts numbers and strings, either way, nulls last, stable', () => {
     const rows = [
       { n: 'b', v: 2 },

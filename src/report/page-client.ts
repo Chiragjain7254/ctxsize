@@ -4,7 +4,7 @@
 // squarify, document and window are passed in. That also lets a test run it against a stub
 // DOM. All text that comes from the repo is escaped with esc() before it is put in markup.
 
-export function pageMain(calc, squarify, summarize, helpIcon, document, window) {
+export function pageMain(calc, squarify, summary, fmt, helpIcon, document, window) {
   const $ = (id) => document.getElementById(id);
   let DATA = JSON.parse($('ctxsize-data').textContent);
   let MODELS = {};
@@ -20,8 +20,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   const CATS = ['instructions', 'rules', 'skills', 'memory'];
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-  const num = (n) => Math.round(n).toLocaleString('en-US');
-  const pct = (v) => `${v < 10 ? v.toFixed(2) : v.toFixed(1)}%`;
+  const { num, pct } = fmt;
 
   // UI state. Only the theme is remembered between visits; the rest is per page load.
   const S = {
@@ -118,7 +117,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   const MARK = { bad: '✗', warn: '!', ok: '✓', info: '•' };
   function activeProblems() {
     const on = S.order.filter((id) => S.on[id]);
-    return DATA.problems.filter((p) => p.tools.length === 0 || p.tools.some((t) => on.includes(t)));
+    return summary.forAgents(DATA.problems, on);
   }
   function renderSummary() {
     const agents = S.order
@@ -135,7 +134,11 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
           cost: r.costUsd,
         };
       });
-    const lines = summarize({ messages: globals().messages, agents, problems: activeProblems() });
+    const lines = summary.summarize({
+      messages: globals().messages,
+      agents,
+      problems: activeProblems(),
+    });
     $('summary').innerHTML = `<h2 id="h-summary">Summary</h2><ul class="sum">${lines
       .map(
         (l) =>
@@ -158,11 +161,9 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
   // ---- how an agent is doing: red = something cut off, amber = something to fix, green = fine ----
   const problemsOf = (a) => DATA.problems.filter((p) => p.tools.includes(a.id));
   function statusOf(a) {
-    const ps = problemsOf(a);
-    const bad = ps.filter((p) => p.level === 'bad').length;
-    const warn = ps.filter((p) => p.level === 'warn').length;
-    if (bad > 0) return { cls: 'bad', text: `\u2717 ${bad} cut off` };
-    if (warn > 0) return { cls: 'warn', text: `! ${warn} to fix` };
+    const s = summary.statusOf(DATA.problems, a.id);
+    if (s.bad > 0) return { cls: 'bad', text: `\u2717 ${s.bad} cut off` };
+    if (s.warn > 0) return { cls: 'warn', text: `! ${s.warn} to fix` };
     return { cls: 'ok', text: '\u2713 Fine' };
   }
   const modelText = (a, r) => {
@@ -197,7 +198,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
 <span class="who"><b>${esc(a.label)}</b><span class="mdl">&rarr; ${modelText(a, r)}</span><span class="stat">${st.text}</span></span>
 <span class="bar"><span class="fill" style="width:${width.toFixed(1)}%"></span><b class="bv">${est(a)}${num(r.startup)}</b></span>
 <span class="pc"><b>${pct(r.windowPct)}</b></span>
-<span class="co"><b>${calc.usd(r.costUsd)}</b></span></button></li>`;
+<span class="co"><b>${fmt.usd(r.costUsd)}</b></span></button></li>`;
       })
       .join('');
     const anyEst = rows.some(({ a }) => est(a));
@@ -415,7 +416,7 @@ export function pageMain(calc, squarify, summarize, helpIcon, document, window) 
 <div class="big">
 <div><b>${est(a)}${num(r.startup)}</b><span>startup tokens ${helpIcon('startup')}</span></div>
 <div><b>${pct(r.windowPct)}</b><span>of its ${num(r.window)}-token window ${helpIcon('pct')}</span></div>
-<div><b>${calc.usd(r.costUsd)}</b><span>over ${num(msgs)} messages ${helpIcon('cost')}</span></div>
+<div><b>${fmt.usd(r.costUsd)}</b><span>over ${num(msgs)} messages ${helpIcon('cost')}</span></div>
 <div><b>${num(r.onDemand)}</b><span>more, only when needed ${helpIcon('ondemand')}</span></div>
 </div>
 <h4>Problems for ${esc(a.label)}</h4>

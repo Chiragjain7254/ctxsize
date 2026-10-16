@@ -1,13 +1,14 @@
 import type { AgentReport, Report } from '../core/types.ts';
 import { formatUsd } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
+import { fmt } from './format.ts';
 
 // Ways to share a result: a markdown summary for a pull request comment, an SVG summary card
 // and an SVG README badge. All plain strings, no network, no dependencies.
 
 const num = (n: number) => n.toLocaleString('en-US');
 const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-const pct = (n: number) => (n === 0 ? '0%' : n < 0.1 ? '<0.1%' : `${n.toFixed(n < 10 ? 1 : 0)}%`);
+const pct = fmt.pct;
 
 /** 8819 -> "8.8k", 950 -> "950". */
 export function compactTokens(n: number): string {

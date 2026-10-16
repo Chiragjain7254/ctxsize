@@ -1,3 +1,4 @@
+import { fmt } from '../report/format.ts';
 import type { Category, LoadedItem, TopFile, Usage } from './types.ts';
 
 /** How many messages a session is assumed to have when the overhead is estimated. */
@@ -43,10 +44,7 @@ export function topFiles(items: LoadedItem[], limit = TOP_FILES): TopFile[] {
 
 /** "$0.0123", "$1.20", "<$0.0001" or "n/a" when no price is known. */
 export function formatUsd(usd: number | null): string {
-  if (usd === null) return 'n/a';
-  if (usd === 0) return '$0';
-  if (usd < 0.0001) return '<$0.0001';
-  return `$${usd.toFixed(usd < 1 ? 4 : 2)}`;
+  return fmt.usd(usd);
 }
 
 function round(n: number, digits: number): number {

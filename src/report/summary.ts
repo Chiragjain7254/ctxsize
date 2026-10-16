@@ -1,10 +1,12 @@
-import type { AgentReport, Check, Drop, Report } from '../core/types.ts';
+import type { AgentReport, Check, Drop, Report, Warning } from '../core/types.ts';
+import { createFmt, type Fmt } from './format.ts';
 
-// The plain-language summary: a few sentences and a list of problems, each with a "how to fix"
-// line, written for someone who has never seen ctxsize. The terminal and the HTML page both use
-// this file, so they always say the same thing. summarize() is copied into the page with
-// Function.prototype.toString (the page re-runs it when you change the model or price), so it
-// must not use anything from outside itself.
+// The plain-language summary and the list of things to fix, written for someone who has never
+// seen ctxsize. The terminal and the HTML page both use this file, so they always say the same
+// thing: one list of problems (buildProblems) is the only source for the verdict, the counts,
+// each agent's status and the fix list. createSummary() is copied into the page with
+// Function.prototype.toString (the page re-runs it when you change the model, the price or the
+// agents shown), so it must not use anything from outside itself.
 
 export type Level = 'bad' | 'warn' | 'info';
 
@@ -19,7 +21,7 @@ export interface Problem {
   short: string;
   /** Simple words: what to do about it. */
   fix: string;
-  /** Tool ids the problem concerns. */
+  /** Tool ids the problem concerns. Every problem names the agents it affects. */
   tools: string[];
   /** POSIX paths it is about. */
   paths: string[];
@@ -39,7 +41,9 @@ export interface SummaryAgent {
 
 export interface SummaryInput {
   messages: number;
+  /** The agents to talk about (the ones shown). */
   agents: SummaryAgent[];
+  /** Every problem of the run; the ones that concern no shown agent are ignored. */
   problems: Problem[];
 }
 
@@ -49,100 +53,185 @@ export interface SummaryLine {
   text: string;
 }
 
-export function summarize(input: SummaryInput): SummaryLine[] {
-  const num = (n: number) => Math.round(n).toLocaleString('en-US');
-  const pct = (n: number) => (n === 0 ? '0%' : n < 0.1 ? '<0.1%' : `${n.toFixed(n < 10 ? 1 : 0)}%`);
-  const usd = (v: number) =>
-    v === 0 ? '$0' : v < 0.0001 ? '<$0.0001' : `$${v.toFixed(v < 0.1 ? 4 : 2)}`;
-  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-  const tok = (a: SummaryAgent) => `${a.est ? '~' : ''}${num(a.startup)}`;
-  const lines: SummaryLine[] = [];
-  const { agents, problems } = input;
-
-  if (agents.length === 0) {
-    return [{ level: 'info', text: 'No agent reads any instruction files from this repo.' }];
-  }
-
-  // 1. Who reads the most.
-  const biggest = agents.reduce((best, a) => (a.startup > best.startup ? a : best));
-  if (biggest && biggest.startup > 0) {
-    lines.push({
-      level: 'info',
-      text: `${biggest.label} reads the most before your first message: ${tok(biggest)} tokens (${pct(biggest.pct)} of its memory).`,
-    });
-  } else {
-    lines.push({
-      level: 'info',
-      text: 'No agent reads anything from this repo before your first message.',
-    });
-  }
-
-  // 2. What is cut off.
-  const bad = problems.filter((p) => p.level === 'bad');
-  if (bad.length === 0) {
-    lines.push({
-      level: 'ok',
-      text: 'Nothing is cut off: every agent reads all of your files in full (within the limits we know).',
-    });
-  } else {
-    const filesOnly = bad.every((p) => p.code === 'file-truncated');
-    const noun = filesOnly
-      ? plural(bad.length, 'file', 'files')
-      : plural(bad.length, 'thing', 'things');
-    const verb = filesOnly ? 'cut off' : 'cut off or left out';
-    const shown = bad.slice(0, 3).map((p) => p.short);
-    const more = bad.length > 3 ? `, and ${bad.length - 3} more` : '';
-    lines.push({
-      level: 'bad',
-      text: `${bad.length} ${noun} ${plural(bad.length, 'is', 'are')} ${verb}: ${shown.join('; ')}${more}.`,
-    });
-  }
-
-  // 3. What to fix.
-  const warn = problems.filter((p) => p.level === 'warn');
-  const tips = problems.filter((p) => p.level === 'info');
-  const tipText =
-    tips.length > 0
-      ? ` Plus ${tips.length} optional ${plural(tips.length, 'tip', 'tips')} to save tokens.`
-      : '';
-  if (warn.length === 0) {
-    lines.push({ level: 'ok', text: `Nothing else to fix.${tipText}` });
-  } else {
-    const shown = warn.slice(0, 3).map((p) => p.short);
-    const more = warn.length > 3 ? `, and ${warn.length - 3} more` : '';
-    lines.push({
-      level: 'warn',
-      text: `${warn.length}${bad.length > 0 ? ' more' : ''} ${plural(warn.length, 'thing', 'things')} to fix: ${shown.join(', ')}${more}.${tipText}`,
-    });
-  }
-
-  // 4. Cost. Agents that read nothing are left out: they are not "cheap", they are empty.
-  const reading = agents.filter((a) => a.startup > 0);
-  const priced = reading.filter((a) => a.cost !== null);
-  if (priced.length >= 2) {
-    const cost = (a: SummaryAgent) => a.cost ?? 0;
-    const top = priced.reduce((best, a) => (cost(a) > cost(best) ? a : best));
-    const low = priced.reduce((best, a) => (cost(a) < cost(best) ? a : best));
-    lines.push({
-      level: 'info',
-      text: `Most expensive over ${num(input.messages)} messages: ${top.label} (${usd(cost(top))}). Cheapest: ${low.label} (${usd(cost(low))}).`,
-    });
-  } else if (reading.length >= 2) {
-    const least = reading.reduce((best, a) => (a.startup < best.startup ? a : best));
-    lines.push({
-      level: 'info',
-      text: `Reads the least: ${least.label} (${tok(least)} tokens). No price is known, so no cost is shown.`,
-    });
-  } else if (priced.length === 1 && priced[0]) {
-    lines.push({
-      level: 'info',
-      text: `Over ${num(input.messages)} messages ${priced[0].label} costs about ${usd(priced[0].cost ?? 0)}.`,
-    });
-  }
-  return lines;
+/** How one agent is doing, from the same problem list as everything else. */
+export interface AgentStatus {
+  level: 'bad' | 'warn' | 'ok';
+  /** Things cut off or left out. */
+  bad: number;
+  /** Other things worth fixing. */
+  warn: number;
+  /** Optional tips (they do not change the level). */
+  tips: number;
 }
 
-// ---------------------------------------------------------------- Building the input from a report
+export interface Insights {
+  /** Agents the numbers are about. */
+  agents: SummaryAgent[];
+  /** The problems that concern those agents, worst first. */
+  problems: Problem[];
+  /** The agent that reads the most; null when none reads anything. */
+  mostReads: SummaryAgent | null;
+  /** Things cut off or left out. */
+  cutOff: number;
+  /** "file" when every one of them is a cut-off file, else "thing". */
+  cutNoun: 'file' | 'thing';
+  /** Everything worth fixing: cut off plus at risk. One number, used everywhere. */
+  toFix: number;
+  tips: number;
+  /** The worst few things to fix, for the first screen. */
+  fixFirst: Problem[];
+  verdict: SummaryLine;
+  /** The cost sentence, or null when it would say nothing. */
+  cost: SummaryLine | null;
+}
+
+/** How many fixes the first screen shows. */
+export const FIX_FIRST = 3;
+
+export function createSummary(f: Fmt) {
+  const { num, pct, usd, plural } = f;
+  const tok = (a: SummaryAgent) => `${a.est ? '~' : ''}${num(a.startup)}`;
+  const names = (list: SummaryAgent[]) =>
+    list.length <= 2
+      ? list.map((a) => a.label).join(' and ')
+      : `${list
+          .slice(0, -1)
+          .map((a) => a.label)
+          .join(', ')} and ${list[list.length - 1]?.label}`;
+
+  /** Problems that concern at least one of the agents (or no agent at all). */
+  function forAgents(problems: Problem[], ids: string[]): Problem[] {
+    return problems.filter((p) => p.tools.length === 0 || p.tools.some((t) => ids.includes(t)));
+  }
+
+  function statusOf(problems: Problem[], id: string): AgentStatus {
+    const mine = problems.filter((p) => p.tools.includes(id));
+    const bad = mine.filter((p) => p.level === 'bad').length;
+    const warn = mine.filter((p) => p.level === 'warn').length;
+    const tips = mine.filter((p) => p.level === 'info').length;
+    return { level: bad > 0 ? 'bad' : warn > 0 ? 'warn' : 'ok', bad, warn, tips };
+  }
+
+  function costLine(agents: SummaryAgent[], messages: number): SummaryLine | null {
+    const readers = agents.filter((a) => a.startup > 0 && a.cost !== null);
+    const cost = (a: SummaryAgent) => a.cost ?? 0;
+    if (readers.length >= 2) {
+      const top = readers.reduce((best, a) => (cost(a) > cost(best) ? a : best));
+      const low = readers.reduce((best, a) => (cost(a) < cost(best) ? a : best));
+      // Say what is left out, so "cheapest" never silently skips an agent that is $0.
+      const left = agents.filter((a) => !readers.includes(a));
+      const empty = left.filter((a) => a.startup === 0);
+      const unpriced = left.filter((a) => a.startup > 0);
+      const why: string[] = [];
+      if (empty.length > 0) {
+        why.push(
+          `${names(empty)} ${plural(empty.length, 'is', 'are')} left out because ${plural(empty.length, 'it reads', 'they read')} nothing from this repo`,
+        );
+      }
+      if (unpriced.length > 0) why.push(`${names(unpriced)}: no price known`);
+      return {
+        level: 'info',
+        text: `Most expensive over ${num(messages)} messages: ${top.label} (${usd(cost(top))}). Cheapest: ${low.label} (${usd(cost(low))}).${why.length > 0 ? ` ${why.join('; ')}.` : ''}`,
+      };
+    }
+    const reading = agents.filter((a) => a.startup > 0);
+    if (reading.length >= 2) {
+      const least = reading.reduce((best, a) => (a.startup < best.startup ? a : best));
+      return {
+        level: 'info',
+        text: `Reads the least: ${least.label} (${tok(least)} tokens). No price is known, so no cost is shown.`,
+      };
+    }
+    const only = readers[0];
+    if (only) {
+      return {
+        level: 'info',
+        text: `Over ${num(messages)} messages ${only.label} costs about ${usd(only.cost)}.`,
+      };
+    }
+    return null;
+  }
+
+  function insights(input: SummaryInput): Insights {
+    const { agents } = input;
+    const problems = forAgents(
+      input.problems,
+      agents.map((a) => a.id),
+    );
+    const bad = problems.filter((p) => p.level === 'bad');
+    const toFix = problems.filter((p) => p.level !== 'info');
+    const cutNoun = bad.every((p) => p.code === 'file-truncated') ? 'file' : 'thing';
+    const reading = agents.filter((a) => a.startup > 0);
+    const mostReads = reading.length
+      ? reading.reduce((best, a) => (a.startup > best.startup ? a : best))
+      : null;
+
+    const lead = bad.length < 3 ? 'Mostly fine' : 'Needs attention';
+    const cutText = `${bad.length} ${plural(bad.length, cutNoun, `${cutNoun}s`)} ${plural(bad.length, 'is', 'are')} ${cutNoun === 'file' ? 'cut off' : 'cut off or left out'}`;
+    const worth = `${toFix.length} ${plural(toFix.length, 'thing is', 'things are')} worth fixing`;
+    let verdict: SummaryLine;
+    if (agents.length === 0) {
+      verdict = { level: 'info', text: 'No agent files found in this repo.' };
+    } else if (toFix.length === 0) {
+      verdict = { level: 'ok', text: 'All good — nothing is cut off and nothing needs fixing.' };
+    } else if (bad.length === 0) {
+      verdict = { level: 'warn', text: `Mostly fine — nothing is cut off, but ${worth}.` };
+    } else if (bad.length === toFix.length) {
+      verdict = { level: 'bad', text: `${lead} — ${cutText}. That is all that needs fixing.` };
+    } else {
+      verdict = { level: 'bad', text: `${lead} — ${cutText}, and ${worth} in all.` };
+    }
+    return {
+      agents,
+      problems,
+      mostReads,
+      cutOff: bad.length,
+      cutNoun,
+      toFix: toFix.length,
+      tips: problems.length - toFix.length,
+      fixFirst: toFix.slice(0, 3),
+      verdict,
+      cost: agents.length > 0 ? costLine(agents, input.messages) : null,
+    };
+  }
+
+  /** The terminal's summary, from the same insights the page shows. */
+  function summarize(input: SummaryInput): SummaryLine[] {
+    const i = insights(input);
+    if (i.agents.length === 0) {
+      return [{ level: 'info', text: 'No agent reads any instruction files from this repo.' }];
+    }
+    const lines: SummaryLine[] = [i.verdict];
+    const most = i.mostReads;
+    lines.push({
+      level: 'info',
+      text: most
+        ? `${most.label} reads the most before your first message: ${tok(most)} tokens (${pct(most.pct)} of its memory).`
+        : 'No agent reads anything from this repo before your first message.',
+    });
+    if (i.cost) lines.push(i.cost);
+    if (i.tips > 0) {
+      lines.push({
+        level: 'info',
+        text: `Plus ${i.tips} optional ${plural(i.tips, 'tip', 'tips')} to save tokens.`,
+      });
+    }
+    return lines;
+  }
+
+  return { insights, summarize, statusOf, forAgents };
+}
+
+const S = createSummary(createFmt());
+export const insights = S.insights;
+export const statusOf = S.statusOf;
+export const forAgents = S.forAgents;
+
+export function summarize(input: SummaryInput): SummaryLine[] {
+  return S.summarize(input);
+}
+
+// ---------------------------------------------------------------- Building the problems from a report
 
 const num = (n: number) => n.toLocaleString('en-US');
 const list = (items: string[]) =>
@@ -277,9 +366,23 @@ const CHECK_TEXT: Record<string, { short: (c: Check) => string; fix: string }> =
 
 const skillName = (c: Check) => /^skills? (\S+)/.exec(c.message)?.[1] ?? 'a skill';
 
-function checkProblem(c: Check, label: Map<string, string>): Problem {
+/**
+ * The agents a finding is about. A check that names no tool (a skill without a description, a
+ * big section) concerns every agent that loads one of its files: otherwise that agent would be
+ * marked "Fine" while the page lists a problem in its own files.
+ */
+function checkTools(c: Check, report: Report): string[] {
+  if (c.tool) return [c.tool];
+  const loading = (a: AgentReport) =>
+    a.items.some((i) => c.paths.includes(i.path) && i.load !== 'ignored');
+  return report.agents.filter(loading).map((a) => a.agent);
+}
+
+function checkProblem(c: Check, report: Report): Problem {
   const text = CHECK_TEXT[c.code];
-  const who = c.tool ? `${label.get(c.tool) ?? c.tool}: ` : '';
+  const tools = checkTools(c, report);
+  const only = tools.length === 1 ? report.agents.find((a) => a.agent === tools[0]) : undefined;
+  const who = c.tool && only ? `${only.label}: ` : '';
   const message = c.message.charAt(0).toUpperCase() + c.message.slice(1);
   return {
     level: c.severity === 'warn' ? 'warn' : 'info',
@@ -289,15 +392,56 @@ function checkProblem(c: Check, label: Map<string, string>): Problem {
     fix:
       text?.fix ??
       'Open the file and tidy it up, or run ctxsize --json for the details of this check.',
-    tools: c.tool ? [c.tool] : [],
+    tools,
     paths: c.paths,
   };
 }
 
-/** Every drop and check as a problem, worst first. Several at-risk skills of one tool are one problem. */
+// ---------------------------------------------------------------- Warnings: a problem or a note
+
+/** What a loader warning is: something to fix, something a check or a drop already reports, or a note. */
+function warningKind(w: Warning): 'problem' | 'covered' | 'note' {
+  const m = w.message;
+  if (m === 'skill has no description') return 'covered'; // the skill-no-description check
+  if (m.startsWith('import too deep')) return 'covered'; // the import-too-deep drop
+  if (m.startsWith('docs do not say') || m.startsWith('import outside the repo')) return 'note';
+  return 'problem';
+}
+
+/** The warnings that stay in the fine print: notes only. Anything to fix is in the problem list. */
+export function noteWarnings(agent: AgentReport): Warning[] {
+  return agent.warnings.filter((w) => warningKind(w) === 'note');
+}
+
+/** A warning about a file the user can fix (bad YAML, a missing import) is a problem like any other. */
+function warningProblems(report: Report): Problem[] {
+  const merged = new Map<string, Problem>();
+  for (const agent of report.agents) {
+    for (const w of agent.warnings) {
+      if (warningKind(w) !== 'problem') continue;
+      const key = `${w.path ?? ''}\n${w.message}`;
+      const known = merged.get(key);
+      if (known) {
+        known.tools.push(agent.agent);
+        continue;
+      }
+      merged.set(key, {
+        level: 'warn',
+        code: 'file-problem',
+        title: `${w.path ? `${w.path}: ` : ''}${w.message}`,
+        short: w.path ? `a problem in ${w.path}` : w.message,
+        fix: 'Open the file and correct it, then run ctxsize again to check.',
+        tools: [agent.agent],
+        paths: w.path ? [w.path] : [],
+      });
+    }
+  }
+  return [...merged.values()];
+}
+
+/** Every drop, check and file warning as a problem, worst first. Several at-risk skills of one tool are one problem. */
 export function buildProblems(report: Report): Problem[] {
   const out: Problem[] = [];
-  const label = new Map(report.agents.map((a) => [a.agent, a.label]));
   for (const agent of report.agents) {
     const risk = agent.drops.filter(
       (d) => d.certainty !== 'will' && d.kind === 'skill-description-dropped',
@@ -320,7 +464,8 @@ export function buildProblems(report: Report): Problem[] {
       });
     }
   }
-  for (const c of report.checks) out.push(checkProblem(c, label));
+  for (const c of report.checks) out.push(checkProblem(c, report));
+  out.push(...warningProblems(report));
   const rank = { bad: 0, warn: 1, info: 2 } as const;
   return out
     .map((p, i) => ({ p, i }))

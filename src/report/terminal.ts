@@ -1,6 +1,7 @@
 import type { AgentReport, Drop, DropKind, Report } from '../core/types.ts';
 import { formatUsd, TOP_FILES } from '../core/usage.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
+import { fmt } from './format.ts';
 import { buildProblems, type Problem, reportSummary } from './summary.ts';
 
 export type SortKey = 'startup' | 'name' | 'cost';
@@ -104,8 +105,6 @@ export function renderTerminal(report: Report, opts: TerminalOptions): string {
   return `${out.join('\n')}\n`;
 }
 
-const MAX_PROBLEMS = 6;
-
 /** The plain-language summary and the problems with a fix each; the tables come after. */
 function summaryLines(report: Report, c: Colors): string[] {
   const mark = { bad: c.red('✗'), warn: c.yellow('!'), ok: c.green('✓'), info: c.dim('-') };
@@ -114,12 +113,15 @@ function summaryLines(report: Report, c: Colors): string[] {
     ...reportSummary(report).map((l) => `  ${mark[l.level]} ${l.text}`),
   ];
   const problems = buildProblems(report);
-  if (problems.length > 0) {
-    out.push('', c.bold('Problems and how to fix'));
-    out.push(...problems.slice(0, MAX_PROBLEMS).flatMap((p) => problemLines(p, c)));
-    if (problems.length > MAX_PROBLEMS) {
-      out.push(c.dim(`  … ${problems.length - MAX_PROBLEMS} more below`));
-    }
+  const toFix = problems.filter((p) => p.level !== 'info');
+  const tips = problems.filter((p) => p.level === 'info');
+  if (toFix.length > 0) {
+    out.push('', c.bold(`${toFix.length} ${fmt.plural(toFix.length, 'thing', 'things')} to fix`));
+    out.push(...toFix.flatMap((p) => problemLines(p, c)));
+  }
+  if (tips.length > 0) {
+    out.push('', c.bold(`${tips.length} optional ${fmt.plural(tips.length, 'tip', 'tips')}`));
+    out.push(...tips.flatMap((p) => problemLines(p, c)));
   }
   return [...out, ''];
 }
@@ -232,7 +234,7 @@ function colors(enabled: boolean) {
   };
 }
 
-const pct = (n: number) => (n === 0 ? '0%' : n < 0.1 ? '<0.1%' : `${n.toFixed(n < 10 ? 1 : 0)}%`);
+const pct = fmt.pct;
 
 /** 1000000 -> "1M", 400000 -> "400k". */
 function windowLabel(tokens: number): string {

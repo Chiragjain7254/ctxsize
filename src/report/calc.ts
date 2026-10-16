@@ -143,15 +143,7 @@ export function createCalc() {
     return out;
   }
 
-  /** "$0.0123", "$1.20", "<$0.0001" or "n/a", same wording as the terminal report. */
-  function usd(v: number | null): string {
-    if (v === null) return 'n/a';
-    if (v === 0) return '$0';
-    if (v < 0.0001) return '<$0.0001';
-    return `$${v.toFixed(v < 1 ? 4 : 2)}`;
-  }
-
-  return { tokensOf, agentTotals, sortRows, move, usd };
+  return { tokensOf, agentTotals, sortRows, move };
 }
 
 export const calc = createCalc();

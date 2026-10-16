@@ -14,6 +14,7 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Fixed
+- The report no longer contradicts itself. Problems, each agent's status, the summary and the fine print now come from one list: an agent is marked "Fine" only when nothing is wrong with its files (a skill without a description is now attributed to every agent that loads it), a problem in a file you can fix (bad YAML, a missing `@import`) is a problem and not fine print, "Cheapest" says which agents it leaves out (those that read nothing), the counts are one total ("5 things to fix") instead of "4 more … and 1 more", and a percentage is written the same way everywhere (`<0.1%`, `0.4%`, `12%`).
 - Removed the internal progress log and other leftover files from the repository.
 - An output file that cannot be written (`--html --out`, `--card`, `--badge`, `--markdown` in a missing or non-file path) now exits 2 with `ctxsize: cannot write <file>: <reason>` instead of printing a stack trace.
 - `--history 1` (and a shallow clone with one commit) says "at the last commit" instead of "over the last 1 commits".

@@ -3,10 +3,11 @@ import type { AgentReport, Category, LoadedItem, ModelInfo, Report } from '../co
 import { allModels, type Model } from '../models.ts';
 import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './calc.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
+import { createFmt } from './format.ts';
 import { glossaryHtml, helpDefs, helpIcon } from './glossary.ts';
 import { pageMain } from './page-client.ts';
 import { renderCardSvg, renderMarkdown } from './share.ts';
-import { buildProblems, type Problem, summarize } from './summary.ts';
+import { buildProblems, createSummary, noteWarnings, type Problem } from './summary.ts';
 import { squarify } from './treemap.ts';
 
 // One self-contained interactive file: inline CSS, inline JS, the data embedded as JSON, no
@@ -143,7 +144,7 @@ function pageAgent(agent: AgentReport): PageAgent {
     items,
     cuts,
     notes: agent.notes,
-    warnings: agent.warnings.map((w) => `${w.path ? `${w.path}: ` : ''}${w.message}`),
+    warnings: noteWarnings(agent).map((w) => `${w.path ? `${w.path}: ` : ''}${w.message}`),
   };
 }
 
@@ -177,10 +178,12 @@ export function pageScript(): string {
   return `(function(){
 var createCalc=${createCalc.toString()};
 var squarify=${squarify.toString()};
-var summarize=${summarize.toString()};
+var createFmt=${createFmt.toString()};
+var createSummary=${createSummary.toString()};
 var helpIcon=${helpIcon.toString()};
 var pageMain=${pageMain.toString()};
-pageMain(createCalc(), squarify, summarize, helpIcon, document, window);
+var fmt=createFmt();
+pageMain(createCalc(), squarify, createSummary(fmt), fmt, helpIcon, document, window);
 })();`;
 }
 
