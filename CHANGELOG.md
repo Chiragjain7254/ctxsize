@@ -12,6 +12,9 @@ All notable changes are documented here. This project follows
 - **`--badge` with no file** prints a ready-to-paste Markdown badge with the grade and the startup tokens (`B · 8.8k tokens`, colored by grade, linking to ctxsize). `--badge file.svg` still writes the SVG.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): copy-paste setups for an npm script, a plain git pre-commit hook, Husky, a VS Code task and the GitHub Action (the hook is tested in the docs test).
 - A small logo (three bars filling up, like a token meter) at the top of `--help` and `--version`, only on a color terminal at least 40 columns wide. Never in normal output, when piped, in CI, with `NO_COLOR`, `--no-color`, `--json`, `--quiet` or `--markdown`.
+- A logo (an icon and a wordmark, light and dark, as SVG and PNG in `docs/img`), used in the README, the report header and the social preview. `scripts/logo-svg.mjs` and `scripts/logo-png.mjs` regenerate them.
+- Community files: a "support a new tool" issue form, a fuller pull request template, [ROADMAP.md](ROADMAP.md), [docs/ADD-AGENT.md](docs/ADD-AGENT.md) (add an agent in about 15 minutes) and five more good first issues.
+- `docs/launch/`: a press kit and a reviewed list of awesome lists (drafts for the maintainer; nothing is submitted).
 
 ### Changed
 - **Breaking change from 0.1.0: ctxsize no longer has built-in prices.** Prices change often and depend on your plan, so ctxsize never shows a price it chose itself. Cost appears only when you give a price: `--price <amount>`, with `--per <tokens>` (default `1m`; accepts `1000`, `1k`, `1m`) and `--currency <symbol or code>` (default `# Changelog
@@ -33,6 +36,9 @@ All notable changes are documented here. This project follows
   array of their ids. `--agents` always shows the tools it lists.
 
 ### Fixed
+- The 50-repo study read a `CLAUDE.md` that is a symlink to `AGENTS.md` as a 9-byte text file, so it counted the `AGENTS.md` as ignored by Claude Code when Claude Code reads it through the link. `scripts/study.mjs` now resolves such symlinks and does not count their targets as ignored, and the study was re-run (see [docs/STUDY.md](docs/STUDY.md)).
+- Codex skill descriptions are reported as "at risk" instead of "cut off" when ctxsize does not know the context window (no `--context`): Codex's listing budget is 2% of the window, or 8,000 characters when the window is unknown, so without a window the 8,000-character figure is only a guess. With `--context` it is still reported as cut off. This removes a false "cut off" (and a worse grade) for repos with many skills.
+- The security policy said ctxsize never starts servers; it now says that `--serve` listens on 127.0.0.1 and `--mcp` starts your local MCP servers, only when you ask.
 - The report no longer contradicts itself. Problems, each agent's status, the summary and the fine print now come from one list: an agent is marked "Fine" only when nothing is wrong with its files (a skill without a description is now attributed to every agent that loads it), a problem in a file you can fix (bad YAML, a missing `@import`) is a problem and not fine print, "Cheapest" says which agents it leaves out (those that read nothing), the counts are one total ("5 things to fix") instead of "4 more … and 1 more", and a percentage is written the same way everywhere (`<0.1%`, `0.4%`, `12%`).
 - Removed the internal progress log and other leftover files from the repository.
 - An output file that cannot be written (`--html --out`, `--card`, `--badge`, `--markdown` in a missing or non-file path) now exits 2 with `ctxsize: cannot write <file>: <reason>` instead of printing a stack trace.
