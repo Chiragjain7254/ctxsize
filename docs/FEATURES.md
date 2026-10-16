@@ -45,6 +45,10 @@ The page has six tabs: **Overview** (the answer on one screen), **Agents** (what
 
 ![ctxsize terminal output: a summary, the things to fix and the tokens each coding agent loads at startup](img/terminal.png)
 
+**The Cost calculator.** Type your own price (the numbers here are an example, not a price list). Two prices side by side show which is cheaper for your repo.
+
+![The Cost calculator with two example prices: cost per message, per day and per month for each agent](img/calculator.png)
+
 **The page in dark mode.** Light and dark follow your system, with a switch on the page.
 
 ![ctxsize Overview in dark mode](img/report-dark.png)
