@@ -122,7 +122,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
       if (saved && Array.isArray(saved.rows) && saved.rows.length > 0) {
         c.rows = saved.rows.slice(0, MAX_PRICES).map((r) => {
           const row = newRow('');
-          for (const k of Object.keys(row)) row[k] = str(r && r[k], row[k]);
+          for (const k of Object.keys(row)) row[k] = str(r?.[k], row[k]);
           return row;
         });
         c.msgsDay = str(saved.msgsDay, c.msgsDay);
