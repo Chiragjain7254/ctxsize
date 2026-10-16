@@ -412,4 +412,21 @@ td{padding:6px 10px;border-bottom:1px solid #eaeef2}.n{font-family:Consolas,mono
   shot(writePage('study.html', html), path.join(IMG, 'study.png'), 1000, 150 + heavy.length * 38);
 }
 
+// 7. card.png (the share card for the example repo) and social-preview.png (1280x640, built from
+// the logo and the Overview screenshot above, so run it after step 2)
+{
+  const cardFile = path.join(IMG, 'card');
+  run(['--card', cardFile, '--title', 'Example repo', '--quiet'], EXAMPLE);
+  rmSync(`${cardFile}.svg`, { force: true });
+  const href = (f) => pathToFileURL(path.join(IMG, f)).href;
+  const html = `<!doctype html><meta charset="utf-8">
+<body style="margin:0;width:1280px;height:640px;overflow:hidden;position:relative;background:linear-gradient(135deg,#16202e,#1f1b33);font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;color:#fff">
+<img src="${href('logo-wordmark-dark.svg')}" style="position:absolute;left:64px;top:70px;height:112px">
+<div style="position:absolute;left:64px;top:230px;width:540px;font-size:40px;line-height:1.3;color:#e3e6ef">See what your AI coding agent reads before you type, what it costs, and what it silently drops.</div>
+<div style="position:absolute;left:64px;bottom:44px;font:600 26px Consolas,'Cascadia Mono',monospace;background:#0b1220;color:#9fe8c0;padding:12px 20px;border-radius:12px">npx @chiragjain7254/ctxsize --serve</div>
+<img src="${href('report-light.png')}" style="position:absolute;left:668px;top:96px;width:880px;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2)">
+</body>`;
+  shot(writePage('social.html', html), path.join(IMG, 'social-preview.png'), 1280, 640);
+}
+
 rmSync(tmp, { recursive: true, force: true });

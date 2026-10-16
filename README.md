@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/Chiragjain7254/ctxsize/main/docs/img/banner.png" alt="ctxsize: a suitcase on a luggage scale. See what your AI coding agent reads before you type, what it costs, and what it silently drops." width="100%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Chiragjain7254/ctxsize/main/docs/img/logo-wordmark-dark.svg">
+  <img src="https://raw.githubusercontent.com/Chiragjain7254/ctxsize/main/docs/img/logo-wordmark.svg" alt="ctxsize" height="64">
+</picture>
 
 <p><b>See what your AI coding agent reads before you type, what it costs, and what it silently drops.</b></p>
 

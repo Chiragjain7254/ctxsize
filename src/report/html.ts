@@ -206,7 +206,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <body>
 <main>
 <header class="top">
-<div class="brand"><h1>ctxsize</h1><span class="tag">What your AI coding agents read before you type</span></div>
+<div class="brand"><span class="logo"><svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#2f6fed"/><rect x="13" y="36" width="10" height="14" rx="2.5" fill="#fff"/><rect x="27" y="24" width="10" height="26" rx="2.5" fill="#fff"/><rect x="41" y="12" width="10" height="38" rx="2.5" fill="#fff"/></svg><h1>ctxsize</h1></span><span class="tag">What your AI coding agents read before you type</span></div>
 <span id="live" class="live" hidden><span class="dot" aria-hidden="true"></span><span id="live-text"></span></span>
 <span class="hw"><button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false">Light / dark</button>${helpIcon('theme')}</span>
 </header>
@@ -340,6 +340,7 @@ h1{font-size:20px;line-height:1.2;margin:0}
 h2{font-size:17px;margin:0 0 6px}h3{font-size:16px;margin:0 0 4px}h4{font-size:15px;margin:22px 0 6px}
 code{font:13px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--chip);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
 .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.logo{display:inline-flex;gap:10px;align-items:center}.logo svg{flex:none}
 .brand{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;flex:1 1 auto}.tag{color:var(--ink2);font-size:14px}
 .sub{color:var(--ink2);margin:2px 0 12px;font-size:14px}
 .live{color:var(--ok);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
@@ -368,8 +369,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .chip:hover{border-color:var(--ink2)}
 .verdict{display:flex;gap:10px;align-items:center;margin:0 0 10px;padding:8px 14px;border-radius:10px;font-size:18px;font-weight:600;line-height:1.35;background:var(--chip)}
 .verdict .mk{font-weight:700;flex:none;width:1.3em;text-align:center}
-.verdict .grade{margin-left:auto;flex:none;font-size:14px;font-weight:600;padding:2px 10px;border-radius:999px;border:2px solid currentColor;white-space:nowrap}
-.verdict .grade b{font-size:20px;margin-left:2px}
+.verdict .grade{margin-left:auto;flex:none;font-size:15px;font-weight:600;padding:2px 10px;border-radius:999px;border:2px solid currentColor;white-space:nowrap}
+.verdict .grade b{font-size:28px;line-height:1;margin-left:4px}
 .g-A{color:var(--ok,#1a7f4b)}.g-B,.g-C{color:var(--warn,#a15c00)}.g-D,.g-F{color:var(--bad,#c0392b)}
 .v-ok{background:var(--okbg)}.v-ok .mk{color:var(--ok)}
 .v-warn{background:var(--warnbg)}.v-warn .mk{color:var(--warn)}
