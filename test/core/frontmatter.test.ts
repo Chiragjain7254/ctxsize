@@ -54,3 +54,9 @@ test('stringField joins arrays and boolField accepts "true"', () => {
   expect(boolField({ alwaysApply: 'true' }, 'alwaysApply')).toBe(true);
   expect(boolField({ alwaysApply: 'false' }, 'alwaysApply')).toBe(false);
 });
+
+test('stringField turns numbers and booleans into strings and ignores other values', () => {
+  expect(stringField({ version: 2 }, 'version')).toBe('2');
+  expect(stringField({ alwaysApply: false }, 'alwaysApply')).toBe('false');
+  expect(stringField({ meta: { a: 1 } }, 'meta')).toBeUndefined();
+});
