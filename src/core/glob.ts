@@ -4,6 +4,7 @@
 
 const SPECIAL = /[.+^$()|[\]\\]/g;
 
+/** Compiles a glob pattern to an anchored, case-sensitive RegExp. */
 export function globToRegExp(pattern: string): RegExp {
   let out = '';
   let braces = 0;
@@ -38,10 +39,12 @@ export function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${out}$`, 'u');
 }
 
+/** True when the whole POSIX-style relative path matches the glob. */
 export function matchGlob(pattern: string, posixPath: string): boolean {
   return globToRegExp(pattern).test(posixPath);
 }
 
+/** True when the pattern has any of `*`, `?` or `{`, so it is not a plain file name. */
 export function hasGlobChars(pattern: string): boolean {
   return /[*?{]/.test(pattern);
 }
