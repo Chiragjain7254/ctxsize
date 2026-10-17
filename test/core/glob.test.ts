@@ -29,3 +29,16 @@ describe('matchGlob', () => {
     expect(hasGlobChars('rules/*.md')).toBe(true);
   });
 });
+
+describe('matchGlob with ** in the middle of a pattern', () => {
+  test('a/**/b matches zero or more directories between a and b', () => {
+    expect(matchGlob('a/**/b', 'a/b')).toBe(true);
+    expect(matchGlob('a/**/b', 'a/x/y/b')).toBe(true);
+    expect(matchGlob('a/**/b', 'ab')).toBe(false);
+  });
+
+  test('** not followed by a slash crosses directories inside a name', () => {
+    expect(matchGlob('src/**.ts', 'src/a/b.ts')).toBe(true);
+    expect(matchGlob('src/**.ts', 'src/a.md')).toBe(false);
+  });
+});
