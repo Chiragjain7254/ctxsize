@@ -116,9 +116,6 @@ export interface Insights {
 /** An agent whose startup load takes this share of its window or more has a problem (docs/GRADE.md). */
 export const HEAVY_STARTUP_PCT = 20;
 
-/** How many fixes the first screen shows. */
-export const FIX_FIRST = 3;
-
 export function createSummary(f: Fmt) {
   const { num, pct, money, plural } = f;
   const tok = (a: SummaryAgent) => `${a.est ? '~' : ''}${num(a.startup)}`;
