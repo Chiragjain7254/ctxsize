@@ -60,3 +60,12 @@ test('stringField turns numbers and booleans into strings and ignores other valu
   expect(stringField({ alwaysApply: false }, 'alwaysApply')).toBe('false');
   expect(stringField({ meta: { a: 1 } }, 'meta')).toBeUndefined();
 });
+
+test('frontmatter that is a list or a scalar is reported, not read as data', () => {
+  for (const block of ['- a\n- b', 'just text']) {
+    const fm = parseFrontmatter(`---\n${block}\n---\nBody`);
+    expect(fm.data).toEqual({});
+    expect(fm.error).toBe('frontmatter is not a YAML mapping');
+    expect(fm.body).toBe('Body');
+  }
+});
