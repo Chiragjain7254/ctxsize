@@ -51,6 +51,7 @@ export const tokenCache = {
   },
 };
 
+/** Tokens in text: exact for a named tokenizer (cached), an estimate for { charsPerToken }. */
 export function countTokens(text: string, tokenizer: Tokenizer = 'o200k_base'): number {
   if (text === '') return 0;
   if (typeof tokenizer === 'object') {
