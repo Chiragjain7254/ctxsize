@@ -89,6 +89,7 @@ function encodeText(text: string, tokenizer: TokenizerName): number {
   return total;
 }
 
+/** How a tokenizer is named in reports, e.g. "o200k_base" or "~3.5 chars per token". */
 export function tokenizerLabel(tokenizer: Tokenizer): string {
   return typeof tokenizer === 'object' ? `~${tokenizer.charsPerToken} chars per token` : tokenizer;
 }
