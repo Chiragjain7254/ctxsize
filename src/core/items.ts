@@ -49,6 +49,7 @@ export function makeItem(
   return item;
 }
 
+/** A loader warning for a file, with its path shown the way reports show paths. */
 export function warn(ctx: LoaderContext, agent: ToolId, abs: string, message: string): Warning {
   return { agent, path: displayPath(abs, ctx), message };
 }
