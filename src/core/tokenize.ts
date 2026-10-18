@@ -94,6 +94,7 @@ export function tokenizerLabel(tokenizer: Tokenizer): string {
   return typeof tokenizer === 'object' ? `~${tokenizer.charsPerToken} chars per token` : tokenizer;
 }
 
+/** Size of the text in UTF-8 bytes, not characters. */
 export function byteLength(text: string): number {
   return Buffer.byteLength(text, 'utf8');
 }
