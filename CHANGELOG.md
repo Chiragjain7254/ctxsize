@@ -3,6 +3,11 @@
 All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- GitHub Action writes the Markdown report to $GITHUB_STEP_SUMMARY by default, including on a failed budget gate; step-summary: false opts out.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added
