@@ -307,7 +307,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   function gradeBadge(g) {
     if (!g) return '';
     const tip = `Context health ${g.letter}, ${g.score} out of 100: ${g.bad} cut off, ${g.warn} other things to fix. Same list as the Fix list.`;
-    return `<span class="grade g-${g.letter}" title="${esc(tip)}" aria-label="${esc(tip)}">Grade <b>${g.letter}</b></span>`;
+    return `<span class="grade g-${g.letter}" title="${esc(tip)}" aria-label="${esc(tip)}">Grade <b>${g.letter}</b> ${helpIcon('grade')}</span>`;
   }
 
   function tile(label, help, big, sub, cls) {

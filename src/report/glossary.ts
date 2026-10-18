@@ -319,6 +319,13 @@ export const GLOSSARY: GlossaryEntry[] = [
 
   // ---- Marks and labels
   {
+    id: 'grade',
+    term: 'Context health grade',
+    group: 'marks',
+    text: 'A simple A to F score for how much of the agent context is healthy and how much needs fixing. See docs/GRADE.md for the scoring rules.',
+    example: 'A: nothing is cut off and no problem was found.',
+  },
+  {
     id: 'ok',
     term: '✓ Fine (green)',
     group: 'marks',

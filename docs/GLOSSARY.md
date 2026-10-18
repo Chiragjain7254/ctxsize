@@ -209,6 +209,12 @@ Example: A GitHub server adds tools like "create issue".
 
 ## Marks and labels
 
+### Context health grade
+
+A simple A to F score for how much of the agent context is healthy and how much needs fixing. See docs/GRADE.md for the scoring rules.
+
+Example: A: nothing is cut off and no problem was found.
+
 ### ✓ Fine (green)
 
 Nothing is cut off for this agent and no problem was found.
