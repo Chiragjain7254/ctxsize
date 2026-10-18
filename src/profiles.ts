@@ -239,16 +239,15 @@ export const specProfiles: Record<string, ToolSpec> = {
     limits: { skillListingMaxBytes: 50 * 1024, skillDescriptionMaxChars: 1024 },
     sources: [
       {
-        url: 'https://zed.dev/docs/preview/ai/instructions.html',
-        checked: CHECKED,
-        note: 'First match wins in the listed order; no size cap documented (preview docs)',
+        url: 'https://zed.dev/docs/ai/instructions',
+        checked: '2026-10-18',
+        note: 'First match wins in the listed order; no size cap documented',
       },
       {
-        url: 'https://zed.dev/docs/preview/ai/skills.html',
-        checked: CHECKED,
-        note: 'Skill catalog (names + descriptions) is capped at 50KB; overflow is dropped',
+        url: 'https://zed.dev/docs/ai/skills',
+        checked: '2026-10-18',
+        note: 'Skill catalog (names + descriptions) is capped at 50KB; overflow is dropped; descriptions over 1,024 characters warn',
       },
     ],
-    notes: ['Based on the preview docs: the stable rules page could not be fetched.'],
   },
 };
