@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { byteLength, countTokens } from '../../src/core/tokenize.ts';
+import { byteLength, countTokens, tokenizerLabel } from '../../src/core/tokenize.ts';
 
 describe('countTokens', () => {
   test('empty string is 0', () => {
@@ -39,4 +39,9 @@ describe('long input', () => {
     expect(countTokens('The quick brown fox jumps over the lazy dog.\n'.repeat(2000))).toBe(20_000);
     expect(performance.now() - start).toBeLessThan(2000);
   });
+});
+
+test('tokenizerLabel names named tokenizers and estimates', () => {
+  expect(tokenizerLabel('o200k_base')).toBe('o200k_base');
+  expect(tokenizerLabel({ charsPerToken: 3.5 })).toBe('~3.5 chars per token');
 });
