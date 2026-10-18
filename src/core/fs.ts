@@ -71,6 +71,7 @@ export function fileExists(dir: string, name: string): boolean {
   }
 }
 
+/** True when dir exists and is a directory; false for files and unreadable paths. */
 export function dirExists(dir: string): boolean {
   try {
     return statSync(dir).isDirectory();
