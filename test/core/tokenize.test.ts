@@ -45,3 +45,9 @@ test('tokenizerLabel names named tokenizers and estimates', () => {
   expect(tokenizerLabel('o200k_base')).toBe('o200k_base');
   expect(tokenizerLabel({ charsPerToken: 3.5 })).toBe('~3.5 chars per token');
 });
+
+test('an estimated tokenizer counts characters, not UTF-16 units, and rounds up', () => {
+  expect(countTokens('😀😀😀😀', { charsPerToken: 2 })).toBe(2);
+  expect(countTokens('abc', { charsPerToken: 2 })).toBe(2);
+  expect(countTokens('', { charsPerToken: 2 })).toBe(0);
+});
