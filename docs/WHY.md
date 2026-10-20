@@ -48,8 +48,9 @@ for an `AGENTS.md` next to a `CLAUDE.md` in Claude Code). The terminal table sho
   Tian Pan, 2026-02-14. Reports that files beyond 1,000 words showed negative correlation with agent performance.
   > "past a certain size, adding more instructions causes the model to follow fewer of them."
 
-**How ctxsize helps:** `npx @chiragjain7254/ctxsize --agents claude` prints the startup tokens and
-the cost over 50 messages, and its Checks section flags duplicate instructions.
+**How ctxsize helps:** `npx @chiragjain7254/ctxsize --agents claude` prints the startup tokens (add
+`--price 3 --per 1m` with your own price to see the cost over 50 messages), and its Checks section flags
+duplicate instructions.
 `npx @chiragjain7254/ctxsize --max-tokens 8000` fails CI when an agent's startup load grows past a budget.
 
 ## Agents silently drop or ignore files

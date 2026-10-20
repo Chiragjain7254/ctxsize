@@ -1,5 +1,5 @@
-import { formatUsd } from '../core/usage.ts';
 import type { DiffResult, HistoryResult } from '../history.ts';
+import { fmt } from './format.ts';
 
 // Terminal output for --diff and --history. Kept apart from terminal.ts, which renders the
 // plain report.
@@ -12,8 +12,12 @@ const num = (n: number) => n.toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${num(n)}` : n < 0 ? `-${num(-n)}` : '0');
 const signedPct = (n: number | null) =>
   n === null ? 'n/a' : `${n > 0 ? '+' : n < 0 ? '-' : ''}${Math.abs(n).toFixed(1)}%`;
-const signedUsd = (n: number | null) =>
-  n === null ? 'n/a' : n === 0 ? '$0' : `${n > 0 ? '+' : '-'}${formatUsd(Math.abs(n))}`;
+const signedMoney = (n: number | null, currency: string) =>
+  n === null
+    ? 'n/a'
+    : n === 0
+      ? fmt.money(0, currency)
+      : `${n > 0 ? '+' : '-'}${fmt.money(Math.abs(n), currency)}`;
 
 function paint(enabled: boolean) {
   const wrap = (open: number, close: number) => (s: string) =>
@@ -53,18 +57,26 @@ export function renderDiff(diff: DiffResult, opts: { color: boolean }): string {
   const c = paint(opts.color);
   const tint = (n: number, s: string) => (n > 0 ? c.red(s) : n < 0 ? c.green(s) : s);
   const messages = diff.tools[0]?.overhead.messages ?? 0;
+  const price = diff.price;
   const out: string[] = [
     '',
     `${c.bold(`Change since ${diff.base.ref}`)} ${c.dim(`(${diff.base.commit.slice(0, 7)} -> working tree)`)}`,
     ...columns(
-      ['Agent', 'Before', 'After', 'Delta', 'Delta %', `Cost over ${num(messages)} msgs`],
+      [
+        'Agent',
+        'Before',
+        'After',
+        'Delta',
+        'Delta %',
+        ...(price ? [`Cost over ${num(messages)} msgs`] : []),
+      ],
       diff.tools.map((t) => [
         t.label,
         num(t.before),
         num(t.after),
         signed(t.delta),
         signedPct(t.deltaPct),
-        signedUsd(t.overhead.deltaCostUsd),
+        ...(price ? [signedMoney(t.overhead.deltaCost, price.currency)] : []),
       ]),
       c.dim,
     ),
@@ -85,7 +97,11 @@ export function renderDiff(diff: DiffResult, opts: { color: boolean }): string {
   }
   out.push(
     '',
-    c.dim('  Tokens are estimates; cost is startup tokens x messages at the uncached input price.'),
+    c.dim(
+      price
+        ? '  Tokens are estimates; cost is startup tokens x messages at the price you gave (uncached).'
+        : '  Tokens are estimates. Add --price 3 --per 1m to see cost.',
+    ),
   );
   return `${out.join('\n')}\n`;
 }

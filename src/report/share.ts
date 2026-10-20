@@ -1,14 +1,16 @@
+import { describePrice } from '../core/price.ts';
 import type { AgentReport, Report } from '../core/types.ts';
-import { formatUsd } from '../core/usage.ts';
+import { gradeColor } from './card.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
 import { fmt } from './format.ts';
+import { reportGrades } from './summary.ts';
 
 // Ways to share a result: a markdown summary for a pull request comment, an SVG summary card
 // and an SVG README badge. All plain strings, no network, no dependencies.
 
 const num = (n: number) => n.toLocaleString('en-US');
 const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-const pct = fmt.pct;
+const pct = (n: number | null) => (n === null ? 'unknown' : fmt.pct(n));
 
 /** 8819 -> "8.8k", 950 -> "950". */
 export function compactTokens(n: number): string {
@@ -26,13 +28,20 @@ function willDrops(a: AgentReport): number {
 /** A summary for a pull request comment. File contents are never included. */
 export function renderMarkdown(report: Report): string {
   const lines: string[] = ['### ctxsize: what each agent loads before the first prompt', ''];
+  const grades = reportGrades(report);
+  if (grades.overall) {
+    lines.push(`**Context health: ${grades.overall.letter}** (${grades.overall.score}/100)`, '');
+  }
+  // The cost column exists only when the user gave a price (--price): ctxsize has none of its own.
+  const price = report.price;
   lines.push(
-    '| Tool | Model | Startup tokens | % of window | Overhead cost | Dropped |',
-    '| --- | --- | ---: | ---: | ---: | ---: |',
+    `| Tool | Model | Startup tokens | % of window |${price ? ' Overhead cost |' : ''} Dropped | Grade |`,
+    `| --- | --- | ---: | ---: |${price ? ' ---: |' : ''} ---: | :---: |`,
   );
   for (const a of report.agents) {
+    const cost = price ? ` ${fmt.money(a.usage.overheadCost, price.currency)} |` : '';
     lines.push(
-      `| ${cell(a.label)} | ${cell(a.model.label)}${a.model.isDefault ? '*' : ''} | ${num(a.startup.total)} | ${pct(a.usage.startupPctOfContext)} | ${formatUsd(a.usage.overheadCostUsd)} | ${willDrops(a) || '-'} |`,
+      `| ${cell(a.label)} | ${cell(a.model.label)}${a.model.isDefault ? '*' : ''} | ${num(a.startup.total)} | ${pct(a.usage.startupPctOfContext)} |${cost} ${willDrops(a) || '-'} | ${grades.agents[a.agent]?.letter ?? '-'} |`,
     );
   }
   lines.push('');
@@ -73,7 +82,11 @@ export function renderMarkdown(report: Report): string {
 
   const anyDefault = report.agents.some((a) => a.model.isDefault);
   lines.push(
-    `<sub>Overhead = startup tokens x ${report.messages} messages at the uncached input price. ` +
+    `<sub>${
+      report.price
+        ? `Overhead cost = startup tokens x ${report.messages} messages at ${describePrice(report.price, fmt.withCurrency)} (uncached). `
+        : 'Add --price 3 --per 1m to see cost. '
+    }` +
       `${tokenizerSentence(report)}${anyDefault ? ' * assumed default model.' : ''} ` +
       `ctxsize v${report.tool.version}</sub>`,
     '',
@@ -86,65 +99,25 @@ function cell(text: string): string {
   return text.replaceAll('|', '\\|').replace(/\s+/g, ' ');
 }
 
-// ---------------------------------------------------------------- Card
-
-export interface CardOptions {
-  /** Shown in the card header; default "ctxsize report". */
-  title?: string;
-}
-
-const CARD_W = 1200;
-const ROW = 44;
-
-/** A 1200px-wide SVG summary: one bar per tool, scaled to the largest startup load. */
-export function renderCardSvg(report: Report, opts: CardOptions = {}): string {
-  const title = opts.title ?? 'ctxsize report';
-  const agents = report.agents;
-  const max = Math.max(1, ...agents.map((a) => a.startup.total));
-  const top = 150;
-  const height = top + agents.length * ROW + 80;
-  const labelW = 190;
-  const barX = 40 + labelW;
-  const barMax = CARD_W - barX - 330;
-  const rows = agents
-    .map((a, i) => {
-      const y = top + i * ROW;
-      const w = Math.max(2, Math.round((a.startup.total / max) * barMax));
-      const cost =
-        a.usage.overheadCostUsd === null ? '' : `  ${formatUsd(a.usage.overheadCostUsd)}`;
-      return `<text x="40" y="${y + 24}" class="l">${esc(a.label)}</text>
-<rect x="${barX}" y="${y + 6}" width="${w}" height="26" rx="5" class="bar"/>
-<text x="${barX + w + 12}" y="${y + 25}" class="v">${num(a.startup.total)}</text>
-<text x="${CARD_W - 40}" y="${y + 25}" class="s" text-anchor="end">${esc(pct(a.usage.startupPctOfContext))} of window${esc(cost)}</text>`;
-    })
-    .join('\n');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${height}" viewBox="0 0 ${CARD_W} ${height}" role="img" aria-label="${esc(title)}: startup tokens per coding agent">
-<style>
-text{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;fill:#1a1918}
-.t{font-size:34px;font-weight:700}.sub{font-size:18px;fill:#5e5d59}
-.l{font-size:20px}.v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}.s{font-size:16px;fill:#5e5d59}
-.bar{fill:#2f6fed}
-</style>
-<rect width="${CARD_W}" height="${height}" fill="#fbfaf7"/>
-<text x="40" y="64" class="t">${esc(title)}</text>
-<text x="40" y="100" class="sub">Tokens each coding agent loads before the first prompt (${esc(tokenizerSentence(report).replace(/\.$/, ''))})</text>
-${rows}
-<text x="40" y="${height - 28}" class="s">Overhead cost = startup tokens x ${report.messages} messages at the uncached input price. Generated by ctxsize v${esc(report.tool.version)}</text>
-</svg>
-`;
-}
+export { type CardOptions, renderCardPng, renderCardSvg } from './card.ts';
 
 // ---------------------------------------------------------------- Badge
 
-/** The text on the badge: the heaviest startup load of any tool, e.g. "8.8k tokens". */
-export function badgeText(report: Report): { label: string; value: string } {
+/** The text on the badge: the overall grade and the heaviest startup load, e.g. "B · 8.8k tokens". */
+export function badgeText(report: Report): { label: string; value: string; color: string } {
   const worst = Math.max(0, ...report.agents.map((a) => a.startup.total));
-  return { label: 'ctxsize', value: `${compactTokens(worst)} tokens` };
+  const grade = reportGrades(report).overall?.letter;
+  const tokens = `${compactTokens(worst)} tokens`;
+  return {
+    label: 'ctxsize',
+    value: grade ? `${grade} · ${tokens}` : tokens,
+    color: gradeColor(grade ?? '-').replace('#', ''),
+  };
 }
 
 /** A flat two-part README badge as SVG. */
 export function renderBadgeSvg(report: Report): string {
-  const { label, value } = badgeText(report);
+  const { label, value, color } = badgeText(report);
   const width = (s: string) => Math.round(s.length * 6.6) + 20;
   const lw = width(label);
   const vw = width(value);
@@ -152,7 +125,7 @@ export function renderBadgeSvg(report: Report): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="20" role="img" aria-label="${esc(label)}: ${esc(value)}">
 <title>${esc(label)}: ${esc(value)}</title>
 <rect width="${lw}" height="20" fill="#555"/>
-<rect x="${lw}" width="${vw}" height="20" fill="#2f6fed"/>
+<rect x="${lw}" width="${vw}" height="20" fill="#${color}"/>
 <g fill="#fff" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle">
 <text x="${lw / 2}" y="14">${esc(label)}</text>
 <text x="${lw + vw / 2}" y="14">${esc(value)}</text>
@@ -161,9 +134,13 @@ export function renderBadgeSvg(report: Report): string {
 `;
 }
 
-/** Markdown for a badge hosted by shields.io (a static badge: shields.io never sees your repo). */
+/**
+ * Markdown for a badge hosted by shields.io (a static badge: shields.io never sees your repo),
+ * linking back to ctxsize so a reader can try it on their own repo.
+ */
 export function badgeMarkdown(report: Report): string {
-  const { label, value } = badgeText(report);
+  const { label, value, color } = badgeText(report);
   const enc = (s: string) => encodeURIComponent(s).replaceAll('-', '--').replaceAll('_', '__');
-  return `![${label}](https://img.shields.io/badge/${enc(label)}-${enc(value)}-2f6fed)`;
+  const alt = `${label}: ${value}`;
+  return `[![${alt}](https://img.shields.io/badge/${enc(label)}-${enc(value)}-${color})](https://github.com/Chiragjain7254/ctxsize)`;
 }

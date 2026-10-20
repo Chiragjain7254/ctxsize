@@ -86,15 +86,6 @@ export const MCP_LOCATIONS: Record<ToolId, McpLocation> = {
   },
 };
 
-/** Tools whose MCP servers only live in user settings (not read without --include-user). */
-export const MCP_USER_ONLY: Record<ToolId, Source> = {
-  zed: {
-    url: 'https://zed.dev/docs/ai/mcp',
-    checked: CHECKED,
-    note: 'context_servers in the user settings file',
-  },
-};
-
 export interface McpFound {
   servers: McpServerConfig[];
   /** Problems reading a config file, e.g. invalid JSON. */

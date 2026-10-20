@@ -181,13 +181,7 @@
               "additionalProperties": false
             }
           ]
-        },
-        "pricePer1MInput": {
-          "type": "number",
-          "minimum": 0,
-          "description": "USD per 1M uncached input tokens."
-        },
-        "sources": { "$ref": "#/$defs/sources" }
+        }
       },
       "additionalProperties": false
     }

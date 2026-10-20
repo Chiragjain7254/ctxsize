@@ -2,6 +2,7 @@ import path from 'node:path';
 import { computeChecks, skillDescriptionLimits } from '../checks.ts';
 import { loadConfig } from '../config.ts';
 import { genericModel, type Model, type ModelChoice, modelForTool, modelInfo } from '../models.ts';
+import { DEFAULT_CONTEXT_TOKENS } from '../profiles.ts';
 import { simulate } from '../simulate.ts';
 import { buildTools, type Tool } from '../tools.ts';
 import { VERSION } from '../version.ts';
@@ -12,6 +13,7 @@ import {
   CATEGORIES,
   type Category,
   type LoadedItem,
+  type Price,
   type Report,
   type ToolId,
 } from './types.ts';
@@ -32,6 +34,8 @@ export interface AnalyzeOptions {
   contextTokens?: number;
   /** Messages for the overhead figure (default 50). */
   messages?: number;
+  /** The user's price (--price). Without one no cost is computed: ctxsize has no prices of its own. */
+  price?: Price | null;
   /** Which model each tool is measured with; omit to use a generic 200k-window model. */
   models?: ModelSelection;
   /** Globs (relative to the repo root) of files to leave out, as if they did not exist. */
@@ -45,8 +49,6 @@ export interface AnalyzeOptions {
 export interface ModelSelection {
   models: Map<string, Model>;
   choice: ModelChoice;
-  /** USD per 1M input tokens, replacing every model's own price. */
-  price?: number;
 }
 
 export async function analyze(opts: AnalyzeOptions): Promise<Report> {
@@ -76,13 +78,16 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
     const loaded: LoadedItem[] = result.items
       .map((item) => ({ ...item, tokens: countTokens(item.text, model.tokenizer) }))
       .sort((a, b) => a.order - b.order);
+    // null: the official docs do not state this model's window. Limits that scale with the window
+    // are then worked out with the generic one, and the report says the window is unknown.
     const contextTokens = opts.contextTokens ?? model.contextTokens;
     const sim = simulate({
       agent,
       items: loaded,
-      contextTokens,
-      // The window is known when the user gave one or picked the model themselves.
-      contextGiven: opts.contextTokens !== undefined || !picked.isDefault,
+      contextTokens: contextTokens ?? DEFAULT_CONTEXT_TOKENS,
+      // The window is known when the user gave one or picked a model whose window is known.
+      contextGiven:
+        opts.contextTokens !== undefined || (!picked.isDefault && contextTokens !== null),
       count: (text: string) => countTokens(text, model.tokenizer),
       env,
       ...(tool.spec ? { spec: tool.spec } : {}),
@@ -91,9 +96,10 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
       summarize(
         agent,
         tool.label,
-        modelInfo(model, picked.isDefault, opts.models?.price),
+        modelInfo(model, picked.isDefault),
         contextTokens,
         opts.messages ?? DEFAULT_MESSAGES,
+        opts.price ?? null,
         sim.items,
         sim,
         result.warnings,
@@ -107,6 +113,7 @@ export async function analyze(opts: AnalyzeOptions): Promise<Report> {
     tool: { name: 'ctxsize', version: VERSION },
     root: '.',
     messages: opts.messages ?? DEFAULT_MESSAGES,
+    price: opts.price ?? null,
     agents,
     checks:
       opts.checks === false
@@ -119,8 +126,9 @@ function summarize(
   agent: ToolId,
   label: string,
   model: AgentReport['model'],
-  contextTokens: number,
+  contextTokens: number | null,
   messages: number,
+  price: Price | null,
   items: LoadedItem[],
   sim: { drops: AgentReport['drops']; notes: string[] },
   warnings: AgentReport['warnings'],
@@ -146,7 +154,7 @@ function summarize(
     contextTokens,
     notes: sim.notes,
     startup: { total, byCategory },
-    usage: usageFor(total, contextTokens, messages, model.pricePer1MInput),
+    usage: usageFor(total, contextTokens, messages, price),
     topFiles: topFiles(items, top),
     onDemand: { total: onDemandTotal, count: onDemandCount },
     items,

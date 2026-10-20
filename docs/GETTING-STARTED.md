@@ -18,13 +18,14 @@ All numbers are estimates.
 
 ## 2. See the cost (30 seconds)
 
-Look at the "Cost of carrying it" table. The startup text is sent with every message. So the cost is startup tokens times the number of messages. The default is 50. Change it:
+The startup text is sent with every message, so its cost is startup tokens times the number of messages (default 50, change it with `--messages 200`). ctxsize has no prices of its own: give yours and it shows the cost.
 
 ```sh
-npx @chiragjain7254/ctxsize --messages 200
+npx @chiragjain7254/ctxsize --price 3 --per 1m             # $3 per 1M tokens
+npx @chiragjain7254/ctxsize --price 250 --currency ₹       # ₹250 per 1M tokens
 ```
 
-Prices are for uncached input. Prompt caching makes real costs lower.
+Look at the "Cost of carrying it" table. The price is for uncached input; prompt caching and subscription plans make real costs lower or flat.
 
 ## 3. See what gets cut (1 minute)
 
@@ -43,7 +44,7 @@ npx @chiragjain7254/ctxsize --html
 
 Open `ctxsize-report.html`. You can:
 
-- pick a model for each tool and change the window, price and message count,
+- pick a model for each tool and change the window and message count, work out cost with your own price in the Cost calculator tab,
 - untick a file to see what you would save,
 - drag tools to reorder them, click headers to sort, and search files,
 - switch between light and dark.

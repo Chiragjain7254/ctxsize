@@ -148,7 +148,7 @@ const color = { FORCE_COLOR: '1' };
 }
 
 // ---- Chrome DevTools: a real viewport (phones included), a colour scheme and a page height ----
-async function pageShot(url, out, { width, height, theme, mobile = false }) {
+async function pageShot(url, out, { width, height, theme, mobile = false, js }) {
   const port = 9400 + Math.floor(Math.random() * 400);
   const profile = path.join(tmp, `cdp-${port}`);
   const child = spawn(
@@ -206,6 +206,11 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
     });
     await send('Page.navigate', { url });
     await sleep(2500);
+    // Optional: put the page in a state first (open a tab, type an example price).
+    if (js) {
+      await send('Runtime.evaluate', { expression: js, awaitPromise: true });
+      await sleep(600);
+    }
     const shot = await send('Page.captureScreenshot', {
       format: 'png',
       captureBeyondViewport: true,
@@ -237,11 +242,33 @@ async function pageShot(url, out, { width, height, theme, mobile = false }) {
       theme,
     });
   }
-  await pageShot(url, path.join(IMG, 'report-mobile.png'), {
-    width: 390,
-    height: 844,
+  for (const theme of ['light', 'dark']) {
+    await pageShot(
+      url,
+      path.join(IMG, theme === 'light' ? 'report-mobile.png' : 'report-mobile-dark.png'),
+      {
+        width: 390,
+        height: 844,
+        theme,
+        mobile: true,
+      },
+    );
+  }
+  // The Cost calculator with an example price (the numbers are an example, not anyone's price list).
+  const typeInto = (sel, value) =>
+    `(()=>{const el=document.querySelector('${sel}');el.value='${value}';el.dispatchEvent(new Event('input',{bubbles:true}))})();`;
+  const calculator = `(()=>{
+    document.querySelector('[data-act=view][data-id=cost]').click();
+    ${typeInto('[data-calc=amount][data-row="0"]', '250')}
+    const s=document.querySelector('[data-calc=currencyKind][data-row="0"]');s.value='₹';s.dispatchEvent(new Event('change',{bubbles:true}));
+    document.querySelector('[data-act=calc-add]').click();
+    ${typeInto('[data-calc=amount][data-row="1"]', '100')}
+  })()`;
+  await pageShot(url, path.join(IMG, 'calculator.png'), {
+    width: 1180,
+    height: 1120,
     theme: 'light',
-    mobile: true,
+    js: calculator,
   });
 }
 
@@ -383,6 +410,23 @@ td{padding:6px 10px;border-bottom:1px solid #eaeef2}.n{font-family:Consolas,mono
 <p>Estimated tokens an agent loads before the first prompt, highest agent per repo. ctxsize ${esc(results.ctxsizeVersion)}, ${esc(results.date)}.</p>
 <table>${bars}</table>`;
   shot(writePage('study.html', html), path.join(IMG, 'study.png'), 1000, 150 + heavy.length * 38);
+}
+
+// 7. card.png (the share card for the example repo) and social-preview.png (1280x640, built from
+// the logo and the Overview screenshot above, so run it after step 2)
+{
+  const cardFile = path.join(IMG, 'card');
+  run(['--card', cardFile, '--title', 'Example repo', '--quiet'], EXAMPLE);
+  rmSync(`${cardFile}.svg`, { force: true });
+  const href = (f) => pathToFileURL(path.join(IMG, f)).href;
+  const html = `<!doctype html><meta charset="utf-8">
+<body style="margin:0;width:1280px;height:640px;overflow:hidden;position:relative;background:linear-gradient(135deg,#16202e,#1f1b33);font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;color:#fff">
+<img src="${href('logo-wordmark-dark.svg')}" style="position:absolute;left:64px;top:70px;height:112px">
+<div style="position:absolute;left:64px;top:230px;width:540px;font-size:40px;line-height:1.3;color:#e3e6ef">See what your AI coding agent reads before you type, what it costs, and what it silently drops.</div>
+<div style="position:absolute;left:64px;bottom:44px;font:600 26px Consolas,'Cascadia Mono',monospace;background:#0b1220;color:#9fe8c0;padding:12px 20px;border-radius:12px">npx @chiragjain7254/ctxsize --serve</div>
+<img src="${href('report-light.png')}" style="position:absolute;left:668px;top:96px;width:880px;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2)">
+</body>`;
+  shot(writePage('social.html', html), path.join(IMG, 'social-preview.png'), 1280, 640);
 }
 
 rmSync(tmp, { recursive: true, force: true });

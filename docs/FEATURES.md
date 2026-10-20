@@ -7,11 +7,12 @@
 | Tools with no files are hidden by default | `--all` shows them |
 | 10 built-in tools: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Cline, Windsurf, Aider, Zed | `--agents claude,codex` |
 | Your own tools | `ctxsize.json` ([CONFIG](CONFIG.md)) |
-| Model, context window, tokenizer and price per tool | `--model`, `--context`, `--price` |
-| Share of the window, cost over N messages | `--messages 80` |
+| Model, context window and tokenizer per tool | `--model`, `--context` |
+| Share of the window, tokens over N messages | `--messages 80` |
+| Cost, with your own price (ctxsize has none) | `--price 3 --per 1m --currency $` |
 | Biggest files | in every report |
 | What each agent drops or may drop (with the docs link) | in every report |
-| Duplicate instructions and skill health checks | on by default, `--no-checks` to skip |
+| Duplicate instructions and skill health checks, with the tokens each fix saves per message | on by default, `--no-checks` to skip |
 | List every documented agent limit with its source and checked date | `--check-profiles` |
 | Interactive HTML report | `--html` |
 | Compare with another commit | `--diff main` |
@@ -34,7 +35,7 @@ npx @chiragjain7254/ctxsize --html --open        # an interactive page (writes c
 npx @chiragjain7254/ctxsize --serve              # the same page, live: http://localhost:4321
 ```
 
-The page has five tabs: **Overview** (the answer on one screen), **Agents** (what each one reads and how to read less), **Fix list**, **Settings** (what if: another model, price or number of messages) and **Help**. Click the agents you use at the top of the Overview and everything counts only those.
+The page has six tabs: **Overview** (the answer on one screen), **Agents** (what each one reads and how to read less), **Fix list**, **Cost calculator** (type your own price and see the cost per message, per day and per month, or compare two prices), **Settings** (what if: another model or window) and **Help**. Click the agents you use at the top of the Overview and everything counts only those.
 
 `--serve` listens on `127.0.0.1` only. `http://localhost:<port>/api/report` returns the same JSON as `--json`. Press Ctrl+C to stop.
 
@@ -43,6 +44,10 @@ The page has five tabs: **Overview** (the answer on one screen), **Agents** (wha
 **The terminal.** The summary first, then the fixes, then the tables.
 
 ![ctxsize terminal output: a summary, the things to fix and the tokens each coding agent loads at startup](img/terminal.png)
+
+**The Cost calculator.** Type your own price (the numbers here are an example, not a price list). Two prices side by side show which is cheaper for your repo.
+
+![The Cost calculator with two example prices: cost per message, per day and per month for each agent](img/calculator.png)
 
 **The page in dark mode.** Light and dark follow your system, with a switch on the page.
 

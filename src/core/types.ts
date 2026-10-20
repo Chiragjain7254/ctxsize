@@ -168,26 +168,25 @@ export interface Drop {
 export interface ModelInfo {
   id: string;
   label: string;
-  contextTokens: number;
+  /** Tokens; null when the official docs do not state the window (reports say "unknown"). */
+  contextTokens: number | null;
   /** "o200k_base", "cl100k_base" or "~3.5 chars per token". */
   tokenizer: string;
   /** True when the tokenizer is the model's own, so counts are exact; false: an estimate. */
   exactTokenizer: boolean;
-  /** USD per 1M uncached input tokens; null when no price is known. */
-  pricePer1MInput: number | null;
   /** True when ctxsize picked the model; pass --model or set it in ctxsize.json to choose. */
   isDefault: boolean;
 }
 
 /** What the startup load costs relative to the context window, and over a session. */
 export interface Usage {
-  /** Startup tokens as a percentage of the context window. */
-  startupPctOfContext: number;
+  /** Startup tokens as a percentage of the context window; null when the window is unknown. */
+  startupPctOfContext: number | null;
   messages: number;
   /** Startup tokens x messages: how much input the startup load adds over a session. */
   overheadTokens: number;
-  /** USD at the model's uncached input price; null when no price is known. */
-  overheadCostUsd: number | null;
+  /** In the user's currency at the price they gave (--price); null when they gave none. */
+  overheadCost: number | null;
 }
 
 export interface TopFile {
@@ -220,7 +219,8 @@ export interface AgentReport {
   agent: ToolId;
   label: string;
   model: ModelInfo;
-  contextTokens: number;
+  /** Null when the official docs do not state the model's window and none was given. */
+  contextTokens: number | null;
   notes: string[];
   /** Startup tokens after drops. */
   startup: { total: number; byCategory: Record<Category, number> };
@@ -256,6 +256,15 @@ export interface Check {
   tokens?: number;
 }
 
+/** A price the user gave: `amount` (in `currency`) for every `per` input tokens. ctxsize has no prices of its own. */
+export interface Price {
+  amount: number;
+  /** Tokens the amount is for, 1000000 by default. */
+  per: number;
+  /** A symbol ("$", "₹") or a code ("EUR"). */
+  currency: string;
+}
+
 export interface Report {
   schemaVersion: 2;
   tool: { name: 'ctxsize'; version: string };
@@ -263,6 +272,8 @@ export interface Report {
   root: '.';
   /** Messages used for every tool's overhead figure. */
   messages: number;
+  /** The price from --price; null when none was given, and then no cost is shown anywhere. */
+  price: Price | null;
   agents: AgentReport[];
   /** Set by --tree: startup load per starting folder. */
   tree?: TreeRow[];

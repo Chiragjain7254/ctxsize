@@ -102,9 +102,11 @@ The comment looks like this:
 ```text
 ### ctxsize: what each agent loads before the first prompt
 
-| Tool | Model | Startup tokens | % of window | Overhead cost | Dropped |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Claude Code | Claude Sonnet 5.5* | 399 | <0.1% | $0.0399 | - |
+| Tool | Model | Startup tokens | % of window | Dropped |
+| --- | --- | ---: | ---: | ---: |
+| Claude Code | Claude Sonnet 5.5* | 399 | <0.1% | - |
+
+Add `--price 3 --per 1m` to the command and the table gets an "Overhead cost" column.
 ```
 
 Pull requests from forks get a read-only token, so the comment step cannot post there. Add

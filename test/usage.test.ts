@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { analyze } from '../src/core/analyze.ts';
 import type { LoadedItem } from '../src/core/types.ts';
-import { formatUsd, topFiles, usageFor } from '../src/core/usage.ts';
+import { topFiles, usageFor } from '../src/core/usage.ts';
 import { allModels } from '../src/models.ts';
 import { EXIT, run } from '../src/run.ts';
 import { tmpRepo } from './helpers.ts';
@@ -24,38 +24,38 @@ async function cli(argv: string[], cwd: string) {
 }
 
 describe('usageFor', () => {
-  test('percent of window, overhead and cost', () => {
-    expect(usageFor(10_000, 200_000, 50, 3)).toEqual({
+  const dollars = { amount: 3, per: 1_000_000, currency: '$' };
+
+  test('percent of window, overhead and cost at the price the user gave', () => {
+    expect(usageFor(10_000, 200_000, 50, dollars)).toEqual({
       startupPctOfContext: 5,
       messages: 50,
       overheadTokens: 500_000,
-      overheadCostUsd: 1.5,
+      overheadCost: 1.5,
     });
+  });
+
+  test('the price can be per any number of tokens, in any currency', () => {
+    const rupees = { amount: 250, per: 1_000_000, currency: '₹' };
+    expect(usageFor(1634, 200_000, 1, rupees).overheadCost).toBeCloseTo(0.4085, 4);
+    const per1k = { amount: 0.5, per: 1000, currency: 'EUR' };
+    expect(usageFor(2000, 200_000, 10, per1k).overheadCost).toBe(10);
   });
 
   test('no price means no cost, not zero', () => {
-    expect(usageFor(10_000, 200_000, 50, null).overheadCostUsd).toBeNull();
+    expect(usageFor(10_000, 200_000, 50, null).overheadCost).toBeNull();
+  });
+
+  test('an unknown window means an unknown share, not 0%', () => {
+    expect(usageFor(10_000, null, 50, null).startupPctOfContext).toBeNull();
   });
 
   test('an empty startup load and a zero window do not divide by zero', () => {
-    expect(usageFor(0, 200_000, 50, 3)).toMatchObject({
+    expect(usageFor(0, 200_000, 50, dollars)).toMatchObject({
       startupPctOfContext: 0,
       overheadTokens: 0,
     });
-    expect(usageFor(10, 0, 50, 3).startupPctOfContext).toBe(0);
-  });
-});
-
-describe('formatUsd', () => {
-  test.each([
-    [null, 'n/a'],
-    [0, '$0'],
-    [0.00001, '<$0.0001'],
-    [0.0288, '$0.0288'],
-    [1.5, '$1.50'],
-    [12, '$12.00'],
-  ])('%s -> %s', (n, text) => {
-    expect(formatUsd(n)).toBe(text);
+    expect(usageFor(10, 0, 50, dollars).startupPctOfContext).toBe(0);
   });
 });
 
@@ -83,7 +83,7 @@ describe('topFiles', () => {
 describe('usage in reports', () => {
   const repo = () => tmpRepo({ '.git/': '', 'AGENTS.md': 'Use small commits. '.repeat(500) });
 
-  test('each tool gets its share of its own model window, overhead and cost', async () => {
+  test('each tool gets its share of its own model window and its overhead tokens', async () => {
     const report = await analyze({
       cwd: repo(),
       agents: ['codex', 'zed'],
@@ -100,11 +100,10 @@ describe('usage in reports', () => {
       ((codex?.startup.total ?? 0) / 400_000) * 100,
       2,
     );
-    expect(codex?.usage.overheadCostUsd).toBeCloseTo(
-      (((codex?.startup.total ?? 0) * 10) / 1e6) * 1.75,
-      5,
-    );
-    expect(zed?.usage.overheadCostUsd).toBeLessThan(codex?.usage.overheadCostUsd ?? 0);
+    // No price was given, so there is no cost anywhere.
+    expect(report.price).toBeNull();
+    expect(codex?.usage.overheadCost).toBeNull();
+    expect(zed?.usage.overheadCost).toBeNull();
     expect(codex?.topFiles.map((f) => f.path)).toEqual(['AGENTS.md']);
   });
 
@@ -126,11 +125,14 @@ describe('usage in reports', () => {
     expect(JSON.parse((await cli(['--json', '--messages', '3'], dir)).stdout).messages).toBe(3);
   });
 
-  test('the terminal and HTML show window share, model, overhead and cost', async () => {
+  test('the terminal and HTML show window share, model and overhead, and no cost without a price', async () => {
     const dir = repo();
     const term = (await cli(['--agents', 'codex,claude'], dir)).stdout;
     expect(term).toContain('% ctx');
-    expect(term).toContain('Cost of carrying it');
+    expect(term).toContain('What each agent carries');
+    expect(term).not.toContain('Cost of carrying it');
+    expect(term).not.toMatch(/$d/);
+    expect(term).toContain('Add --price 3 --per 1m to see cost.');
     expect(term).toContain('50 messages');
     expect(term).toContain('GPT-5.3-Codex*');
     expect(term).toContain('Biggest files at startup');
@@ -140,7 +142,6 @@ describe('usage in reports', () => {
     const out = `${html}/r.html`;
     expect((await cli(['--html', '--out', out, '--agents', 'codex'], dir)).code).toBe(EXIT.ok);
     const text = (await import('node:fs')).readFileSync(out, 'utf8');
-    expect(text).toContain('Price, USD per 1M tokens');
     expect(text).toContain('"messages":50');
     expect(text).toContain('GPT-5.3-Codex');
   });

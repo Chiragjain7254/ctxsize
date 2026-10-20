@@ -31,9 +31,13 @@ export function gateFailures(report: Report, gates: Gates): string[] {
       );
     }
     const pct = agent.usage.startupPctOfContext;
-    if (gates.maxPercent !== undefined && pct > gates.maxPercent) {
+    if (gates.maxPercent !== undefined && pct === null) {
       failures.push(
-        `${agent.label} uses ${pct}% of its ${n(agent.contextTokens)}-token context window at startup, over --max-percent ${gates.maxPercent}`,
+        `${agent.label}: its context window is unknown, so --max-percent cannot be checked (pass --context <tokens>)`,
+      );
+    } else if (gates.maxPercent !== undefined && pct !== null && pct > gates.maxPercent) {
+      failures.push(
+        `${agent.label} uses ${pct}% of its ${n(agent.contextTokens ?? 0)}-token context window at startup, over --max-percent ${gates.maxPercent}`,
       );
     }
   }

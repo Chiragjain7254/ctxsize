@@ -8,9 +8,8 @@ export interface CalcModel {
   /** Which count to use: one of the two BPE tokenizers, or chars / ratio. */
   tok: 'o200k_base' | 'cl100k_base' | 'ratio';
   ratio?: number;
-  window: number;
-  /** USD per 1M input tokens; null when unknown. */
-  price: number | null;
+  /** Tokens; null when the official docs do not state it. */
+  window: number | null;
 }
 
 export interface CalcItem {
@@ -29,9 +28,8 @@ export interface CalcItem {
 export interface CalcAgent {
   /** Model the CLI measured this tool with. */
   model: string;
-  /** Window and price as the CLI ran (they may come from --context / --price). */
-  window: number;
-  price: number | null;
+  /** Window as the CLI ran (it may come from --context); null when unknown. */
+  window: number | null;
   items: CalcItem[];
 }
 
@@ -45,23 +43,49 @@ export interface CalcGlobal {
   /** Window override in tokens; null for none. */
   ctx: number | null;
   messages: number;
-  /** Price override in USD per 1M tokens; null for none. */
-  price: number | null;
 }
 
 export interface CalcResult {
   startup: number;
   byCategory: Record<string, number>;
   onDemand: number;
-  window: number;
-  windowPct: number;
+  /** null when unknown. */
+  window: number | null;
+  /** null when the window is unknown. */
+  windowPct: number | null;
   overheadTokens: number;
-  /** null when no (or a zero) price is known. */
-  costUsd: number | null;
-  price: number | null;
   model: string;
   /** True when the model or window differs from what the CLI simulated. */
   rechecked: boolean;
+}
+
+/** One price row of the calculator, as typed: every field is text, so half-typed input is kept. */
+export interface CalcPriceRow {
+  label: string;
+  amount: string;
+  /** A symbol ("$", "₹") or a code the person typed. */
+  currency: string;
+  /** "1k", "1m" or "custom". */
+  perKind: string;
+  perCustom: string;
+  /** Optional: the cheaper price of a cached input token, per the same number of tokens. */
+  cachedAmount: string;
+}
+
+/** A price row that is complete enough to use. */
+export interface CalcPrice {
+  label: string;
+  amount: number;
+  per: number;
+  currency: string;
+  /** null when no cached price was given. */
+  cachedAmount: number | null;
+}
+
+export interface CalcCost {
+  message: number;
+  day: number;
+  month: number;
 }
 
 export function createCalc() {
@@ -98,19 +122,14 @@ export function createCalc() {
       byCategory[item.category] = (byCategory[item.category] ?? 0) + t;
     }
     const window = g.ctx !== null && g.ctx > 0 ? g.ctx : run || !m ? agent.window : m.window;
-    const basePrice = run || !m ? agent.price : m.price;
-    const rawPrice = g.price !== null ? g.price : basePrice;
-    const price = rawPrice !== null && rawPrice > 0 ? rawPrice : null;
     const overheadTokens = startup * g.messages;
     return {
       startup,
       byCategory,
       onDemand,
       window,
-      windowPct: window > 0 ? (startup / window) * 100 : 0,
+      windowPct: window === null ? null : window > 0 ? (startup / window) * 100 : 0,
       overheadTokens,
-      costUsd: price === null ? null : (overheadTokens / 1e6) * price,
-      price,
       model: st.model,
       rechecked: !run || (g.ctx !== null && g.ctx !== agent.window),
     };
@@ -143,7 +162,71 @@ export function createCalc() {
     return out;
   }
 
-  return { tokensOf, agentTotals, sortRows, move };
+  /** "1k", "1m", "2.5M", "1,000,000": a token count the way people write it; null when it is not one. */
+  function parseCount(text: string): number | null {
+    const m = /^(\d+(?:\.\d+)?)([km]?)$/i.exec(
+      String(text)
+        .trim()
+        .replace(/[,_\s]/g, ''),
+    );
+    if (!m) return null;
+    const unit = (m[2] ?? '').toLowerCase();
+    const n = Number(m[1]) * (unit === 'k' ? 1e3 : unit === 'm' ? 1e6 : 1);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+
+  /** A plain number, 0 or more, from text such as "250" or "0.5"; null when it is not one. */
+  function parseAmount(text: string): number | null {
+    const t = String(text).trim().replace(/,/g, '');
+    return /^\d+(?:\.\d+)?$/.test(t) ? Number(t) : null;
+  }
+
+  /** The row as a usable price, or null while the amount (or a custom "per") is missing or wrong. */
+  function priceOf(row: CalcPriceRow, fallbackLabel: string): CalcPrice | null {
+    const amount = parseAmount(row.amount);
+    if (amount === null) return null;
+    const per = row.perKind === 'custom' ? parseCount(row.perCustom) : parseCount(row.perKind);
+    if (per === null) return null;
+    const cached = row.cachedAmount.trim() === '' ? null : parseAmount(row.cachedAmount);
+    return {
+      label: row.label.trim() === '' ? fallbackLabel : row.label.trim(),
+      amount,
+      per,
+      currency: row.currency.trim(),
+      cachedAmount: cached,
+    };
+  }
+
+  /** The price per `per` tokens once a share of the messages is cached (0 to 100). */
+  function blendedAmount(price: CalcPrice, cachedPct: number): number {
+    const share = price.cachedAmount === null ? 0 : Math.min(100, Math.max(0, cachedPct)) / 100;
+    return price.amount * (1 - share) + (price.cachedAmount ?? 0) * share;
+  }
+
+  /** What `tokens` of startup text cost per message, per day and per month at this price. */
+  function costOf(
+    tokens: number,
+    price: CalcPrice,
+    cachedPct: number,
+    msgsPerDay: number,
+    daysPerMonth: number,
+  ): CalcCost {
+    const message = (tokens / price.per) * blendedAmount(price, cachedPct);
+    const day = message * msgsPerDay;
+    return { message, day, month: day * daysPerMonth };
+  }
+
+  return {
+    tokensOf,
+    agentTotals,
+    sortRows,
+    move,
+    parseCount,
+    parseAmount,
+    priceOf,
+    blendedAmount,
+    costOf,
+  };
 }
 
 export const calc = createCalc();

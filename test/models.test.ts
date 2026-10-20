@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { parseConfig } from '../src/config.ts';
 import { analyze } from '../src/core/analyze.ts';
@@ -42,17 +44,29 @@ describe('tokenizers', () => {
 });
 
 describe('presets', () => {
-  test('every preset has an https source with a checked date and a sane price', () => {
+  test('every model with a context window has the official page that states it and a checked date', () => {
     expect(presets.length).toBeGreaterThanOrEqual(10);
     for (const m of presets) {
-      expect(m.sources.length, m.id).toBeGreaterThan(0);
-      for (const s of m.sources) {
-        expect(s.url).toMatch(/^https:\/\//);
-        expect(s.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      }
+      if (m.contextTokens === null) continue;
       expect(m.contextTokens, m.id).toBeGreaterThan(1000);
-      expect(m.pricePer1MInput ?? 0, m.id).toBeGreaterThanOrEqual(0);
+      expect(m.sourceUrl, m.id).toMatch(/^https:\/\//);
+      expect(m.checkedDate, m.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+
+  test('a model whose window could not be confirmed is null, with a note saying so', () => {
+    const unknown = presets.filter((m) => m.contextTokens === null);
+    expect(unknown.map((m) => m.id)).toEqual(['qwen3.8-max']);
+    for (const m of unknown) {
+      expect(m.sourceUrl).toBeNull();
+      expect(m.note, m.id).toMatch(/do not state a context window/);
+    }
+  });
+
+  test('ctxsize carries no price: no model has one, and none is in the source', () => {
+    for (const m of presets) expect(Object.keys(m), m.id).not.toContain('pricePer1MInput');
+    const src = readFileSync(path.join(import.meta.dirname, '..', 'src', 'models.ts'), 'utf8');
+    expect(src).not.toMatch(/pricePer1M|price:/i);
   });
 
   test('a ratio-mode preset is never marked exact', () => {
@@ -79,7 +93,7 @@ describe('choosing models', () => {
       {
         models: {
           'my-llama': { label: 'My Llama', contextTokens: 128000, tokenizer: { charsPerToken: 4 } },
-          'claude-sonnet-5-5': { pricePer1MInput: 9 },
+          'claude-sonnet-5-5': { contextTokens: 500_000 },
         },
       },
       'cfg',
@@ -90,10 +104,17 @@ describe('choosing models', () => {
       exactTokenizer: false,
       origin: 'config',
     });
-    expect(all.get('my-llama')?.pricePer1MInput).toBeUndefined();
     const sonnet = all.get('claude-sonnet-5-5');
-    expect(sonnet?.pricePer1MInput).toBe(9);
-    expect(sonnet?.contextTokens).toBe(1_000_000);
+    // Your own window replaces the official one, and then has no official page.
+    expect(sonnet?.contextTokens).toBe(500_000);
+    expect(sonnet?.sourceUrl).toBeNull();
+    expect(all.get('claude-opus-5-5')?.sourceUrl).toMatch(/^https:/);
+  });
+
+  test('a price in ctxsize.json is refused with a pointer to --price', () => {
+    expect(() => parseConfig({ models: { x: { pricePer1MInput: 3 } } }, 'cfg')).toThrow(
+      /no prices of its own.*--price/,
+    );
   });
 
   test('a new model needs label, window and tokenizer; bad tokenizers are rejected', () => {
@@ -109,7 +130,7 @@ describe('choosing models', () => {
 describe('analysis with models', () => {
   const files = { '.git/': '', 'AGENTS.md': `# Rules\n\n${'Use small commits. '.repeat(200)}\n` };
 
-  test('the model sets context window, tokenizer and price in the report', async () => {
+  test('the model sets context window and tokenizer in the report', async () => {
     const repo = tmpRepo(files);
     const models = allModels();
     const report = await analyze({
@@ -122,22 +143,20 @@ describe('analysis with models', () => {
       id: 'gpt-5.3-codex',
       contextTokens: 400_000,
       tokenizer: 'o200k_base',
-      pricePer1MInput: 1.75,
       isDefault: false,
     });
     expect(claude?.contextTokens).toBe(400_000);
   });
 
-  test('--context beats the model window, and a price override beats the preset price', async () => {
+  test('--context beats the model window', async () => {
     const repo = tmpRepo(files);
     const report = await analyze({
       cwd: repo,
       agents: ['claude'],
       contextTokens: 50_000,
-      models: { models: allModels(), choice: { perTool: {} }, price: 7 },
+      models: { models: allModels(), choice: { perTool: {} } },
     });
     expect(report.agents[0]?.contextTokens).toBe(50_000);
-    expect(report.agents[0]?.model.pricePer1MInput).toBe(7);
   });
 
   test('a ratio model counts tokens from characters', async () => {
@@ -171,7 +190,7 @@ describe('analysis with models', () => {
   });
 });
 
-describe('--model and --price', () => {
+describe('--model', () => {
   const repo = () => tmpRepo({ '.git/': '', 'AGENTS.md': 'Use npm.\n' });
 
   test('one id applies to every tool; tool=id pairs apply to one', async () => {
@@ -187,16 +206,9 @@ describe('--model and --price', () => {
     expect(byAgent.zed).toBe('claude-haiku-5-5');
   });
 
-  test('--price replaces every model price', async () => {
-    const r = await cli(['--json', '--price', '3.5'], repo());
-    for (const a of JSON.parse(r.stdout).agents) expect(a.model.pricePer1MInput).toBe(3.5);
-  });
-
   test.each([
     [['--model', 'nope'], /unknown model "nope"/],
     [['--model', 'nope=claude-haiku-5-5'], /unknown tool "nope"/],
-    [['--price', 'abc'], /--price must be/],
-    [['--price=-1'], /--price must be/],
   ])('%j exits 2', async (argv, message) => {
     const r = await cli(argv, repo());
     expect(r.code).toBe(EXIT.usage);

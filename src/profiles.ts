@@ -102,8 +102,6 @@ export const profiles = {
   },
 } as const satisfies Record<AgentId, BaseProfile>;
 
-export type Profiles = typeof profiles;
-
 // Tools described as data (ToolSpec). Where a tool's docs are silent we say so in `notes`
 // instead of guessing, and no limit is set. None of these tools documents a default
 // context window, so they use ctxsize's general default.

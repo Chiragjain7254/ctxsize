@@ -46,7 +46,7 @@ only folder that is published to npm.
 | `run.ts` | Parses flags with `node:util` `parseArgs`, validates combinations, runs the analysis and writes the outputs. Holds the `--help` text and the exit codes (0 ok, 1 over budget, 2 usage). |
 | `config.ts` | Reads and strictly validates `ctxsize.json` (or the `"ctxsize"` key in `package.json`). A typo is an error. |
 | `profiles.ts` | Every documented limit, each with its source URL and checked date. Also the data-driven tools (`specProfiles`). |
-| `models.ts` | Model presets (context window, tokenizer, price, sources), the default model per tool, and how `--model` and the config pick one. |
+| `models.ts` | Model presets (context window and tokenizer, with the official page and date for each window; no prices), the default model per tool, and how `--model` and the config pick one. |
 | `tools.ts` | Builds the list of tools: hand-written loaders, data-driven specs, and tools from the config. |
 | `simulate.ts` | Applies each tool's limits to the loaded files and reports what is dropped or may be dropped. |
 | `checks.ts` | Smart checks over the report: duplicate instructions, ways to cut tokens, skill health. Pure functions, no file access. |
@@ -123,7 +123,7 @@ not the whole body).
 - Each tool is counted with its own model's tokenizer. The count is exact only when the model's own
   tokenizer is used (OpenAI models, and even then the docs do not name it). Claude and Gemini counts use
   `o200k_base`. **Every count is an estimate** and is labelled that way in all outputs.
-- Cost is startup tokens times the number of messages (default 50), at the model's uncached input price.
+- ctxsize carries no prices. Cost exists only when the user gives `--price` (with `--per`, `--currency`): startup tokens times the number of messages (default 50), at that price, uncached.
 
 ## Agent profiles and limits
 

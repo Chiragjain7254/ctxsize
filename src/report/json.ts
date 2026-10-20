@@ -1,4 +1,5 @@
 import type { Report } from '../core/types.ts';
+import { reportGrades } from './summary.ts';
 
 /**
  * Stable JSON for diffing and CI. File contents are left out: they can be large, and a
@@ -18,6 +19,7 @@ export function toJson(
     ...rest,
     hidden: (report.hidden ?? []).map((h) => h.agent),
     tokensAreEstimates: report.agents.some((a) => !a.model.exactTokenizer),
+    grade: reportGrades(report),
     agents: report.agents.map((agent) => ({
       ...agent,
       // "exact" only for OpenAI models counted with their own tokenizer; all others are estimates.

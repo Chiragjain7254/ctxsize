@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { type AnalyzeOptions, analyze } from './core/analyze.ts';
 import { globToRegExp } from './core/glob.ts';
-import type { Report, ToolId } from './core/types.ts';
+import type { Price, Report, ToolId } from './core/types.ts';
 import type { Tool } from './tools.ts';
 
 // Analyzing the past without touching the working tree: the files a commit holds that any
@@ -48,10 +48,10 @@ export interface ToolDiff {
     beforeTokens: number;
     afterTokens: number;
     deltaTokens: number;
-    beforeCostUsd: number | null;
-    afterCostUsd: number | null;
-    /** null when the model has no known price. */
-    deltaCostUsd: number | null;
+    beforeCost: number | null;
+    afterCost: number | null;
+    /** In the user's currency; null when no --price was given. */
+    deltaCost: number | null;
   };
   /** The files with the largest token change, biggest first (at most DIFF_FILES_SHOWN). */
   files: DiffFile[];
@@ -61,6 +61,8 @@ export interface ToolDiff {
 
 export interface DiffResult {
   base: { ref: string; commit: string };
+  /** The price from --price, for the cost column; null shows no cost. */
+  price: Price | null;
   tools: ToolDiff[];
 }
 
@@ -515,8 +517,8 @@ export function diffReports(
 
     const beforeTokens = b?.startup.total ?? 0;
     const afterTokens = a.startup.total;
-    const beforeCost = b?.usage.overheadCostUsd ?? null;
-    const afterCost = a.usage.overheadCostUsd;
+    const beforeCost = b?.usage.overheadCost ?? null;
+    const afterCost = a.usage.overheadCost;
     tools.push({
       agent: a.agent,
       label: a.label,
@@ -532,9 +534,9 @@ export function diffReports(
         beforeTokens: b?.usage.overheadTokens ?? 0,
         afterTokens: a.usage.overheadTokens,
         deltaTokens: a.usage.overheadTokens - (b?.usage.overheadTokens ?? 0),
-        beforeCostUsd: beforeCost,
-        afterCostUsd: afterCost,
-        deltaCostUsd:
+        beforeCost,
+        afterCost,
+        deltaCost:
           beforeCost === null || afterCost === null
             ? null
             : Math.round((afterCost - beforeCost) * 1e6) / 1e6,
@@ -543,7 +545,7 @@ export function diffReports(
       fileCounts,
     });
   }
-  return { base: baseInfo, tools };
+  return { base: baseInfo, price: after.price, tools };
 }
 
 // ---------------------------------------------------------------- --history

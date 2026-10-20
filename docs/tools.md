@@ -30,7 +30,7 @@ Add your own tool, or change one of these, in [`ctxsize.json`](CONFIG.md).
   They appear as notes under the tool.
 - **Linked folders count once.** If `.claude/skills` is a symlink to `.agents/skills`, the skills are
   not counted twice.
-- **Models.** Each tool is measured with a model (context window, tokenizer, price). Reports mark a
+- **Models.** Each tool is measured with a model (context window and tokenizer; ctxsize has no prices, you give yours with `--price`). Reports mark a
   model ctxsize picked itself with `*`; see [CONFIG.md](CONFIG.md#models).
 
 ## MCP servers

@@ -10,6 +10,19 @@ nearest parent folder with a `.git`. Pass at most one directory.
 The examples use `npx @chiragjain7254/ctxsize`. If you installed it globally, type `ctxsize` instead.
 Run `ctxsize --help` to print the same list in your terminal. All token counts are estimates.
 
+## `ctxsize init`
+
+```text
+ctxsize init [dir] [--workflow] [--no-workflow] [--max-tokens <n>] [--force] [--yes]
+```
+
+Creates a starter `ctxsize.json` (with `$schema`, so your editor completes it) and, if you want, `.github/workflows/ctxsize.yml`, which runs the [GitHub Action](CI.md) on pull requests with a token budget. The budget is 25% above what the heaviest agent loads today, rounded up to 500 and never below 2,000; `--max-tokens` sets your own.
+
+- On a terminal it asks before each file. In CI or a pipe it never asks: it creates `ctxsize.json`, and the workflow only with `--workflow`. `--yes` skips the questions on a terminal too.
+- It never overwrites a file that exists, unless you pass `--force`. A `"ctxsize"` key in `package.json` counts as an existing config.
+- Files go in the repo root (the nearest parent with a `.git`).
+- It makes no network calls. Exit code `2` for a bad flag or folder, otherwise `0`.
+
 ## Exit codes
 
 | Code | Meaning | Examples |
@@ -99,14 +112,29 @@ number; `_` is allowed, as in `1_000_000`.
 npx @chiragjain7254/ctxsize --context 200000
 ```
 
-### `--price <usd>`
+### `--price <amount>`
 
-USD per 1 million input tokens, replacing every model's price. Default: each model's own price. A
-number, 0 or more.
+Your price for input tokens. **ctxsize has no prices of its own** (prices change often and depend on your plan), so cost is shown only when you give one. Without `--price` the terminal, Markdown and JSON show tokens only, with one hint line: `Add --price 3 --per 1m to see cost.` A plain number, 0 or more; put the symbol in `--currency`.
 
 ```sh
-npx @chiragjain7254/ctxsize --price 3
+npx @chiragjain7254/ctxsize --price 3 --per 1m
 ```
+
+The cost is startup tokens × messages ÷ `--per` × the price, uncached; prompt caching and subscription plans make real bills lower or flat.
+
+### `--per <tokens>`
+
+The number of tokens `--price` is for. Price lists say per 1M or per 1K tokens. Accepts `1000`, `1k`, `1m`, `2.5m` and `1,000,000`. Default: `1m`. Needs `--price`.
+
+### `--currency <symbol or code>`
+
+What to print next to the money: a symbol (`$`, `₹`, `€`, `£`) goes in front, a code (`EUR`, `INR`) goes after. Up to 8 characters. Default: `$`. Needs `--price`.
+
+```sh
+npx @chiragjain7254/ctxsize --price 250 --per 1m --currency ₹
+```
+
+In the HTML report, the **Cost calculator** tab does the same with more options (messages per day, cached price, several prices side by side) and remembers what you type in your browser.
 
 ### `--messages <n>`
 
@@ -129,7 +157,7 @@ npx @chiragjain7254/ctxsize --json > report.json
 
 ### `--html`
 
-Write an interactive report with five tabs: **Overview** (the default: one verdict line, three tiles, a bar chart and the first things to fix, all on one screen), **Agents** (what each agent reads and how to reduce it), **Fix list** (every problem and optional tip, grouped by file), **Settings** (model, messages, price, sort, which agents to show, order, search, reset) and **Help** (how to read the page, the glossary, the fine print). Chips at the top of the Overview pick the agents you use; the choice is remembered in your browser. Every term has a hover help; the words are listed in [GLOSSARY.md](GLOSSARY.md). Default file: `ctxsize-report.html` in the current folder (change it
+Write an interactive report with six tabs: **Overview** (the default: one verdict line, three tiles, a bar chart and the first things to fix, all on one screen), **Agents** (what each agent reads and how to reduce it), **Fix list** (every problem and optional tip, grouped by file), **Cost calculator** (your own price → cost per message, day and month, with optional cached price and side-by-side prices), **Settings** (model, messages, price, sort, which agents to show, order, search, reset) and **Help** (how to read the page, the glossary, the fine print). Chips at the top of the Overview pick the agents you use; the choice is remembered in your browser. Every term has a hover help; the words are listed in [GLOSSARY.md](GLOSSARY.md). Default file: `ctxsize-report.html` in the current folder (change it
 with `--out`). With `--history`, it writes the trend chart instead.
 
 ```sh
@@ -173,7 +201,7 @@ default browser opens automatically; add `--no-open` to skip that.
   dot turns green again.
 - When files change and the report refreshes, a short notice ("Files changed. The report was updated.") appears in
   the bottom right corner for three seconds.
-- The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--messages`,
+- The usual flags work with it: `--agents`, `--all`, `--model`, `--context`, `--price`, `--per`, `--currency`, `--messages`,
   `--include-user`, `--tree`, `--no-checks`.
 - It cannot be combined with `--html`, `--json`, `--markdown`, `--card`, `--badge`, `--diff`,
   `--history`, `--mcp`, `--quiet` or a gate (`--max-tokens`, `--max-percent`, `--fail-on-warnings`); that is a
@@ -210,29 +238,36 @@ normal table. Default: off.
 npx @chiragjain7254/ctxsize --markdown summary.md
 ```
 
-### `--card <file.svg>`
+### `--card <file>`
 
-Write an SVG summary card. Default: off.
+Write a share card: a 1200×630 picture with your **grade**, the **top 3 fixes** and what each agent reads, sized to stay readable when a social site shrinks it. Default: off.
+
+- `--card card.png` writes a PNG, `--card card.svg` an SVG, and `--card card` (no extension) writes both.
+- It is drawn on your machine: no browser, no image library, no network. The PNG uses a built-in pixel font; the SVG uses your system's monospace font.
 
 ```sh
-npx @chiragjain7254/ctxsize --card card.svg --title "My repo"
+npx @chiragjain7254/ctxsize --card card --title "My repo"
 ```
 
 ### `--title <text>`
 
-The heading of the `--card` image. Default: `ctxsize report`.
+The heading of the `--card` image (cut at 36 characters). Default: `Context health report`.
 
 ```sh
-npx @chiragjain7254/ctxsize --card card.svg --title "Agent load"
+npx @chiragjain7254/ctxsize --card card.png --title "Agent load"
 ```
 
-### `--badge <file.svg>`
+### `--badge [file.svg]`
 
-Write an SVG README badge and print a shields.io snippet you can paste into the README. Default: off.
+Print a ready-to-paste Markdown badge with your grade and startup tokens, for your own README. Default: off.
 
 ```sh
-npx @chiragjain7254/ctxsize --badge badge.svg
+npx @chiragjain7254/ctxsize --badge
+# [![ctxsize: B · 8.8k tokens](https://img.shields.io/badge/ctxsize-B%20%C2%B7%208.8k%20tokens-4d8a1f)](https://github.com/Chiragjain7254/ctxsize)
 ```
+
+- With no file, it prints just that line, so you can pipe it. With a file (`--badge badge.svg`) it also writes the badge as an SVG and prints the line on stderr.
+- The badge is a static shields.io image: the text is in the URL, so shields.io never sees your repo. The badge links to ctxsize; delete the link part if you prefer. It does not update by itself: run the command again when you want a new grade.
 
 ### `--quiet`
 
@@ -379,3 +414,5 @@ Print the help text.
 ```sh
 npx @chiragjain7254/ctxsize --help
 ```
+
+On a color terminal, `--help` and `--version` start with a small logo (three bars filling up, like a token meter). It is never shown anywhere else: not in a normal run, not when the output is piped, in CI (`CI` is set), with `NO_COLOR`, `--no-color`, `--json`, `--quiet` or `--markdown`, or when the terminal is narrower than 40 columns. Piped, `--version` prints just the version number.

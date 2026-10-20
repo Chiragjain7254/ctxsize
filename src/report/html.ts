@@ -1,5 +1,5 @@
 import { countTokens, type Tokenizer, tokenizerLabel } from '../core/tokenize.ts';
-import type { AgentReport, Category, LoadedItem, ModelInfo, Report } from '../core/types.ts';
+import type { AgentReport, Category, LoadedItem, ModelInfo, Price, Report } from '../core/types.ts';
 import { allModels, type Model } from '../models.ts';
 import { type CalcAgent, type CalcItem, type CalcModel, createCalc } from './calc.ts';
 import { hiddenSentence, tokenizerSentence } from './common.ts';
@@ -55,6 +55,8 @@ interface PageAgent extends CalcAgent {
 export interface PageData {
   version: string;
   messages: number;
+  /** The price from --price; null when there is none. The page never invents one. */
+  price: Price | null;
   generated: string | null;
   watch: { file: string; every: number } | null;
   stream: string | null;
@@ -76,11 +78,10 @@ function pageModel(m: Model): PageModel {
     tokLabel: tokenizerLabel(m.tokenizer as Tokenizer),
     exact: m.exactTokenizer,
     window: m.contextTokens,
-    price: m.pricePer1MInput ?? null,
   };
 }
 
-/** A model the report used that is not in the list (a CLI --price changes only the price). */
+/** A model the report used that is not in the list. */
 function fromInfo(info: ModelInfo): PageModel {
   const ratio = /^~([\d.]+) chars per token$/.exec(info.tokenizer)?.[1];
   return {
@@ -91,7 +92,6 @@ function fromInfo(info: ModelInfo): PageModel {
     tokLabel: info.tokenizer,
     exact: info.exactTokenizer,
     window: info.contextTokens,
-    price: info.pricePer1MInput,
   };
 }
 
@@ -138,7 +138,6 @@ function pageAgent(agent: AgentReport): PageAgent {
     label: agent.label,
     model: agent.model.id,
     window: agent.contextTokens,
-    price: agent.model.pricePer1MInput,
     hasDrops: agent.drops.some((d) => d.certainty === 'will'),
     modelDefault: agent.model.isDefault,
     items,
@@ -156,6 +155,7 @@ export function buildPageData(report: Report, opts: HtmlOptions = {}): PageData 
   return {
     version: report.tool.version,
     messages: report.messages,
+    price: report.price,
     generated: opts.generated ?? null,
     watch: opts.watch ? { file: opts.watch.file, every: opts.watch.everyMs ?? 2000 } : null,
     stream: opts.stream ?? null,
@@ -192,7 +192,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
   const noscript = report.agents
     .map(
       (a) =>
-        `<li>${esc(a.label)}: ${a.model.exactTokenizer ? '' : '~'}${a.startup.total.toLocaleString('en-US')} tokens at startup (${fmt.pct(a.usage.startupPctOfContext)} of the window)</li>`,
+        `<li>${esc(a.label)}: ${a.model.exactTokenizer ? '' : '~'}${a.startup.total.toLocaleString('en-US')} tokens at startup ${a.usage.startupPctOfContext === null ? '' : `(${fmt.pct(a.usage.startupPctOfContext)} of the window)`}</li>`,
     )
     .join('');
   return `<!doctype html>
@@ -206,7 +206,7 @@ export function renderHtml(report: Report, opts: HtmlOptions = {}): string {
 <body>
 <main>
 <header class="top">
-<div class="brand"><h1>ctxsize</h1><span class="tag">What your AI coding agents read before you type</span></div>
+<div class="brand"><span class="logo"><svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#2f6fed"/><rect x="13" y="36" width="10" height="14" rx="2.5" fill="#fff"/><rect x="27" y="24" width="10" height="26" rx="2.5" fill="#fff"/><rect x="41" y="12" width="10" height="38" rx="2.5" fill="#fff"/></svg><h1>ctxsize</h1></span><span class="tag">What your AI coding agents read before you type</span></div>
 <span id="live" class="live" hidden><span class="dot" aria-hidden="true"></span><span id="live-text"></span></span>
 <span class="hw"><button type="button" id="theme" class="btn" data-act="theme" aria-pressed="false">Light / dark</button>${helpIcon('theme')}</span>
 </header>
@@ -240,6 +240,15 @@ ${emptyState()}${hiddenNote(report)}</section>
 <div id="fixes" aria-live="polite"></div>
 </section>
 
+<section id="view-cost" role="tabpanel" aria-labelledby="nav-cost" hidden>
+<h2>Cost calculator ${helpIcon('cost')}</h2>
+<p class="disclaimer">Rough estimate from your price and ctxsize's token count. Real cost depends on caching and your plan. On a monthly subscription (Claude Pro, Cursor Pro…) you don't pay per token, so watch tokens instead.</p>
+<div id="calc" class="calc">
+<div id="calc-inputs" class="calc-in"></div>
+<div id="calc-results" class="calc-out" aria-live="polite"></div>
+</div>
+</section>
+
 <section id="view-settings" role="tabpanel" aria-labelledby="nav-settings" hidden>
 <h2>Settings<span id="set-state" class="changed"></span></h2>
 <p class="sub">Ask &ldquo;what if&rdquo;. These controls only change this page, never your files.</p>
@@ -249,7 +258,6 @@ ${emptyState()}${hiddenNote(report)}</section>
 <div class="grp fields">
 <label><span>Context window ${helpIcon('window')}</span> <input id="in-ctx" inputmode="numeric" placeholder="model's own" aria-invalid="false"></label>
 <label><span>Messages ${helpIcon('messages')}</span> <input id="in-msgs" inputmode="numeric" aria-invalid="false"></label>
-<label><span>Price, USD per 1M tokens ${helpIcon('price')}</span> <input id="in-price" inputmode="decimal" placeholder="model's own" aria-invalid="false"></label>
 <label><span>Sort bars by ${helpIcon('sort')}</span> <select id="in-sort" data-act="sort"><option value="tokens">Most tokens first</option><option value="cost">Highest cost first</option><option value="name">Name, A to Z</option><option value="mine">My order</option></select></label>
 <label><span>Search files ${helpIcon('search')}</span> <input id="in-q" type="search" placeholder="path contains..."></label>
 <span class="hw"><button type="button" class="btn" data-act="reset">Reset everything</button>${helpIcon('reset')}</span>
@@ -266,7 +274,7 @@ ${shareHtml()}
 <li>The longer the bar on the Overview, the more text that agent reads. That text is sent again with every message, so it also adds to the cost.</li>
 <li><b>&#10003;</b> means fine, <b>!</b> means worth fixing, <b>&#10007;</b> means part of a file is cut off and the agent never sees it.</li>
 <li>Click the agents you use at the top of the Overview: everything on the page then counts only those. Your choice is remembered in this browser.</li>
-<li>The <b>Fix list</b> has every problem with a &ldquo;How to fix&rdquo; line, <b>Agents</b> shows what each one reads, and a <b>~</b> means an estimate. Nothing leaves your computer.</li>
+<li>The <b>Fix list</b> has every problem with a &ldquo;How to fix&rdquo; line, <b>Agents</b> shows what each one reads, the <b>Cost calculator</b> turns tokens into money with your own price, and a <b>~</b> means an estimate. Nothing leaves your computer.</li>
 </ol>
 <h3>What do these words mean?</h3>
 <div id="glossary">${glossaryHtml()}</div>
@@ -332,6 +340,7 @@ h1{font-size:20px;line-height:1.2;margin:0}
 h2{font-size:17px;margin:0 0 6px}h3{font-size:16px;margin:0 0 4px}h4{font-size:15px;margin:22px 0 6px}
 code{font:13px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--chip);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
 .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.logo{display:inline-flex;gap:10px;align-items:center}.logo svg{flex:none}
 .brand{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;flex:1 1 auto}.tag{color:var(--ink2);font-size:14px}
 .sub{color:var(--ink2);margin:2px 0 12px;font-size:14px}
 .live{color:var(--ok);font-size:13px;display:inline-flex;align-items:center;gap:6px}.live[hidden]{display:none}
@@ -360,6 +369,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .chip:hover{border-color:var(--ink2)}
 .verdict{display:flex;gap:10px;align-items:center;margin:0 0 10px;padding:8px 14px;border-radius:10px;font-size:18px;font-weight:600;line-height:1.35;background:var(--chip)}
 .verdict .mk{font-weight:700;flex:none;width:1.3em;text-align:center}
+.verdict .grade{margin-left:auto;flex:none;font-size:15px;font-weight:600;padding:2px 10px;border-radius:999px;border:2px solid currentColor;white-space:nowrap}
+.verdict .grade b{font-size:28px;line-height:1;margin-left:4px}
+.g-A{color:var(--ok,#1a7f4b)}.g-B,.g-C{color:var(--warn,#a15c00)}.g-D,.g-F{color:var(--bad,#c0392b)}
 .v-ok{background:var(--okbg)}.v-ok .mk{color:var(--ok)}
 .v-warn{background:var(--warnbg)}.v-warn .mk{color:var(--warn)}
 .v-bad{background:var(--badbg)}.v-bad .mk{color:var(--bad)}
@@ -400,6 +412,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,.tile:focus-visibl
 .fx .si{margin-top:1px}
 .ptitle{margin:0;font-weight:600;font-size:14px}.pfix{margin:2px 0 0;color:var(--ink2);font-size:13px}.pfile{margin:1px 0 0;color:var(--ink2);font-size:13px}.pwho{margin:3px 0 0;color:var(--ink3);font-size:12px}
 .seeall{font-weight:600}
+.psave{margin:3px 0 0;font-size:13px;font-weight:600;color:var(--ok)}
+.saves{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--okbg);font-size:14px}
 .allgood{color:var(--ok);font-weight:600;margin:6px 0}.allgood .mk{margin-right:4px}
 .emptybox{border:1px dashed var(--line);border-radius:12px;padding:20px 24px;max-width:640px;margin:20px auto;background:var(--card)}.emptybox h2{font-size:20px}.emptybox li{margin:6px 0}
 .empty{padding:24px;text-align:center;color:var(--ink2);border:1px dashed var(--line);border-radius:8px}
@@ -457,6 +471,28 @@ details.adv>summary,details.extra>summary{font-size:15px}.changed{color:var(--wa
 .recheck{margin:0 0 12px;padding:8px 12px 8px 28px;border:1px solid var(--warn);border-radius:8px;color:var(--ink2);font-size:13px}
 .extra{margin-top:14px}.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--ink2)}#share-status{color:var(--ink2);font-size:13px}
 
+/* Cost calculator */
+.chart-tools{display:inline-flex;align-items:center;gap:12px}
+.disclaimer{margin:0 0 14px;padding:10px 14px;border-left:4px solid var(--warn);background:var(--warnbg);border-radius:6px;font-size:14px;max-width:80ch}
+.calc>*{min-width:0}
+.calc{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:20px;align-items:start}
+.prow{border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;margin:0 0 10px;background:var(--card)}
+.prow legend{font-weight:600;font-size:14px;padding:0 6px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.cf{display:grid;gap:2px;font-size:13px;color:var(--ink2);min-width:0}
+.cf input,.cf select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 6px;min-width:0;width:100%}
+.cf .inline{display:flex;gap:4px;min-width:0}.cf .inline input{width:6em}.cf .inline select{flex:1 1 auto}
+.cf input[aria-invalid=true]{border-color:var(--bad)}
+.opt{margin-top:8px;padding:0;border:0;background:none}.opt summary{font-weight:400;font-size:13px;color:var(--ink2)}
+.calc-out .empty{padding:28px}
+.ctable td,.ctable th{padding:4px 6px}.ctable td:first-child{white-space:nowrap}.ctable th.grp{text-align:center;border-bottom:1px solid var(--line)}
+.ctable tr.cheapest td{background:var(--okbg)}
+.badge.ok{color:var(--ok)}
+.versus{margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--chip)}
+.worked{margin:12px 0 0;font-size:14px;color:var(--ink2)}
+@media (max-width:900px){.calc{grid-template-columns:1fr}}
+.calc.wide{grid-template-columns:1fr}.calc.wide .calc-in>.btn{justify-self:start;align-self:start}.calc.wide .calc-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 10px;align-items:start}
+
 /* Help */
 .howto{margin:6px 0 18px;padding-left:22px}.howto li{margin:5px 0}
 #fine-body h4{margin:14px 0 4px}#fine-body ul{margin:0;padding-left:20px;color:var(--ink2);font-size:14px}
@@ -488,6 +524,7 @@ footer{margin-top:28px;color:var(--ink3);font-size:13px}
 }
 @media (max-width:640px){
 main{padding:8px 12px 32px}
+.chart-head{flex-wrap:wrap;gap:6px}.chart-tools{gap:8px}.chart-tools .btn,.switch{white-space:nowrap}
 .tag{display:none}
 .verdict{font-size:16px;padding:8px 10px}
 .chipbar{flex-direction:column;align-items:flex-start;gap:4px}

@@ -27,12 +27,18 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     ['overview', 'Overview'],
     ['agents', 'Agents'],
     ['fixes', 'Fix list'],
+    ['cost', 'Cost calculator'],
     ['settings', 'Settings'],
     ['help', 'Help'],
   ];
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-  const { num, pct, usd, plural } = fmt;
+  const { num, plural } = fmt;
+  // A share of the window; the window is null (unknown) for a model whose official docs do not state it.
+  const pct = (v) => (v === null ? 'unknown' : fmt.pct(v));
+  // Cost exists only when the person gave a price (--price). ctxsize has no prices of its own.
+  // Money is always in the person's own currency (their first price row); there is no default price.
+  const money = (v) => fmt.money(v, primary() ? primary().currency : '$');
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
   // Browser storage can be blocked (private window, file:// policies): every use is guarded and
@@ -68,7 +74,6 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     off: {},
     ctx: null,
     msgs: null,
-    price: null,
     sort: 'tokens',
     fsort: { k: 'tokens', d: -1 },
     tab: null,
@@ -89,6 +94,94 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   } catch (_err) {
     // No address bar to read (a stub or an odd embed): start on the Overview.
   }
+
+  // ---- the cost calculator: your own price, never one of ours ----
+  // ctxsize has no prices. The price rows are what the person types; they are remembered in this
+  // browser (if storage works), and a price given on the command line (--price) fills the first row.
+  const CALC_KEY = 'ctxsize-calc';
+  const CURRENCIES = [
+    ['$', 'USD $'],
+    ['₹', 'INR ₹'],
+    ['€', 'EUR €'],
+    ['£', 'GBP £'],
+  ];
+  const MAX_PRICES = 4;
+  const newRow = (label) => ({
+    label,
+    amount: '',
+    currency: '$',
+    perKind: '1m',
+    perCustom: '',
+    cachedAmount: '',
+  });
+  const str = (v, fallback) => (typeof v === 'string' ? v : fallback);
+  function loadCalc() {
+    const c = { rows: [newRow('')], msgsDay: '50', days: '22', cachedPct: '' };
+    try {
+      const saved = JSON.parse(store.get(CALC_KEY) || 'null');
+      if (saved && Array.isArray(saved.rows) && saved.rows.length > 0) {
+        c.rows = saved.rows.slice(0, MAX_PRICES).map((r) => {
+          const row = newRow('');
+          for (const k of Object.keys(row)) row[k] = str(r?.[k], row[k]);
+          return row;
+        });
+        c.msgsDay = str(saved.msgsDay, c.msgsDay);
+        c.days = str(saved.days, c.days);
+        c.cachedPct = str(saved.cachedPct, c.cachedPct);
+      }
+    } catch (_err) {
+      // A damaged value: start empty.
+    }
+    if (DATA.price) {
+      const first = c.rows[0];
+      first.amount = String(DATA.price.amount);
+      first.currency = DATA.price.currency;
+      first.perKind = DATA.price.per === 1000 ? '1k' : DATA.price.per === 1000000 ? '1m' : 'custom';
+      first.perCustom = String(DATA.price.per);
+    }
+    return c;
+  }
+  S.calc = loadCalc();
+  const saveCalc = () => store.set(CALC_KEY, JSON.stringify(S.calc));
+  const priceRows = () =>
+    S.calc.rows.map((r, i) => calc.priceOf(r, i === 0 ? 'Your price' : `Price ${i + 1}`));
+  /** The first price, or null while it is not filled in. */
+  const primary = () => priceRows()[0] || null;
+  const countIn = (value, fallback, max) => {
+    const n = calc.parseCount(value);
+    return n === null || (max && n > max) ? fallback : n;
+  };
+  const msgsPerDay = () => countIn(S.calc.msgsDay, 50, 5000);
+  const daysPerMonth = () => countIn(S.calc.days, 22, 31);
+  const cachedPct = () => {
+    const n = calc.parseAmount(S.calc.cachedPct);
+    return n === null ? 0 : Math.min(100, n);
+  };
+  function setCalc(t) {
+    const f = t.getAttribute('data-calc');
+    const i = Number(t.getAttribute('data-row'));
+    const row = S.calc.rows[i];
+    const v = String(t.value);
+    if (
+      row &&
+      ['label', 'amount', 'currency', 'perCustom', 'cachedAmount', 'perKind'].includes(f)
+    ) {
+      row[f] = v;
+    } else if (row && f === 'currencyKind') {
+      row.currency = v === 'custom' ? '' : v;
+    } else if (['msgsDay', 'days', 'cachedPct'].includes(f)) {
+      S.calc[f] = v;
+    }
+    saveCalc();
+  }
+  const priceCost = (tokens, price) =>
+    calc.costOf(tokens, price, cachedPct(), msgsPerDay(), daysPerMonth());
+  const moneyIn = (v, price) => fmt.money(v, price.currency);
+  /** Cost per month for an agent's startup tokens at the first price; null without a price. */
+  const monthCost = (tokens) => {
+    const p = primary();
+    return p ? priceCost(tokens, p).month : null;
+  };
 
   function saveAgents() {
     for (const a of DATA.agents) {
@@ -118,7 +211,6 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   const globals = () => ({
     ctx: S.ctx,
     messages: S.msgs === null ? DATA.messages : S.msgs,
-    price: S.price,
   });
   const result = (a) => calc.agentTotals(a, MODELS, astate(a), globals());
   const tokSpec = (a) => MODELS[astate(a).model] || MODELS[a.model] || { tok: 'o200k_base' };
@@ -138,13 +230,14 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
         startup: r.startup,
         est: !tokSpec(a).exact,
         pct: r.windowPct,
-        cost: r.costUsd,
+        cost: monthCost(r.startup),
       };
     });
   }
   function insights() {
     return summary.insights({
       messages: globals().messages,
+      currency: primary() ? primary().currency : '$',
       agents: summaryAgents(),
       problems: DATA.problems,
     });
@@ -209,7 +302,12 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     $('verdict').innerHTML =
       ins.agents.length === 0 && DATA.agents.length > 0
         ? '<p class="verdict v-info"><span class="mk" aria-hidden="true">•</span><span>No agent is picked. Click one above to see its numbers.</span></p>'
-        : `<p class="verdict v-${ins.verdict.level}"><span class="mk" aria-hidden="true">${MARK[ins.verdict.level]}</span><span>${esc(ins.verdict.text)}</span></p>`;
+        : `<p class="verdict v-${ins.verdict.level}"><span class="mk" aria-hidden="true">${MARK[ins.verdict.level]}</span><span>${esc(ins.verdict.text)}</span>${gradeBadge(ins.grade)}</p>`;
+  }
+  function gradeBadge(g) {
+    if (!g) return '';
+    const tip = `Context health ${g.letter}, ${g.score} out of 100: ${g.bad} cut off, ${g.warn} other things to fix. Same list as the Fix list.`;
+    return `<span class="grade g-${g.letter}" title="${esc(tip)}" aria-label="${esc(tip)}">Grade <b>${g.letter}</b></span>`;
   }
 
   function tile(label, help, big, sub, cls) {
@@ -250,10 +348,9 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
       return { a, r: result(a) };
     });
     if (S.sort === 'tokens') rows = calc.sortRows(rows, (x) => x.r.startup, -1);
-    else if (S.sort === 'cost') rows = calc.sortRows(rows, (x) => x.r.costUsd, -1);
+    else if (S.sort === 'cost') rows = calc.sortRows(rows, (x) => x.r.overheadTokens, -1);
     else if (S.sort === 'name') rows = calc.sortRows(rows, (x) => x.a.label, 1);
-    const msgs = globals().messages;
-    const head = `<div class="chart-head"><h2 id="h-compare">Who reads the most? ${helpIcon('startup')}</h2><label class="switch"><input type="checkbox" id="in-cost" data-act="cost"${S.cost ? ' checked' : ''}> Show cost ${helpIcon('show-cost')}</label></div>`;
+    const head = `<div class="chart-head"><h2 id="h-compare">Who reads the most? ${helpIcon('startup')}</h2><span class="chart-tools"><button type="button" class="btn" data-act="view" data-id="cost" data-f="see-cost">See cost</button><label class="switch"><input type="checkbox" id="in-cost" data-act="cost"${S.cost ? ' checked' : ''}> Show cost ${helpIcon('show-cost')}</label></span></div>`;
     if (rows.length === 0) {
       $('compare').innerHTML =
         `${head}<p class="empty">No agent is shown. Click one of the agents above.</p>`;
@@ -268,8 +365,9 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
         const tip = [
           `${a.label} uses ${model}`,
           `${est(a)}${num(r.startup)} tokens · ${pct(r.windowPct)} of its memory`,
-          `${usd(r.costUsd)} over ${num(msgs)} messages`,
+          ...(primary() ? [`${money(monthCost(r.startup))} per month at your price`] : []),
           `${STATUS_WORD[s.level]}${s.level === 'ok' ? '' : `: ${statusText(s)}`}`,
+          ...(r.startup > 0 ? [`Grade ${summary.gradeOf(DATA.problems, [a.id]).letter}`] : []),
           'Click for details',
         ].join('\n');
         return `<li><button type="button" class="row st-${s.level}" data-act="open" data-id="${esc(a.id)}" data-f="open-${esc(a.id)}" data-tip="${esc(tip)}" aria-label="${esc(a.label)}: ${est(a)}${num(r.startup)} tokens, ${esc(statusText(s))}. Open details.">
@@ -277,21 +375,33 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
 <span class="bar"><span class="fill" style="width:${width.toFixed(1)}%"></span></span>
 <span class="tv2">${est(a)}${num(r.startup)}</span>
 <span class="si ${s.level}" role="img" aria-label="${esc(statusText(s))}" title="${esc(statusText(s))}">${MARK[s.level]}</span>
-<span class="pc">${pct(r.windowPct)}</span><span class="co">${usd(r.costUsd)}</span></button></li>`;
+<span class="pc">${pct(r.windowPct)}</span><span class="co">${primary() ? money(monthCost(r.startup)) : ''}</span></button></li>`;
       })
       .join('');
     const anyEst = rows.some(({ a }) => est(a));
     $('compare').className = `col-main${S.cost ? ' cost-on' : ''}`;
     $('compare').innerHTML = `${head}
-<div class="bars-head" aria-hidden="true"><span>Agent</span><span></span><span>Tokens</span><span></span><span>Memory</span><span>${num(msgs)} messages</span></div>
+<div class="bars-head" aria-hidden="true"><span>Agent</span><span></span><span>Tokens</span><span></span><span>Memory</span><span>${primary() ? 'Per month' : ''}</span></div>
 <ol class="bars">${body}</ol>
 <p class="legend"><span class="key"><i class="si ok" aria-hidden="true">✓</i>Fine ${helpIcon('ok')}</span><span class="key"><i class="si warn" aria-hidden="true">!</i>Worth fixing ${helpIcon('risk')}</span><span class="key"><i class="si bad" aria-hidden="true">✗</i>Cut off ${helpIcon('dropped')}</span>${anyEst ? `<span class="key"><b>~</b> estimate ${helpIcon('estimate')}</span>` : ''}</p>`;
   }
 
+  // What a fix saves, from real data only: nothing is shown for a fix ctxsize cannot count.
+  function savesText(tokens) {
+    const base = `saves ~${num(tokens)} tokens per message`;
+    const price = primary();
+    if (!price) return base;
+    const c = priceCost(tokens, price);
+    return `${base} (${moneyIn(c.day, price)} per day, ${moneyIn(c.month, price)} per month)`;
+  }
+  const savesLine = (p, each) =>
+    p.saves
+      ? `<p class="psave">${cap(savesText(p.saves))}${each && p.tools.filter((t) => S.on[t]).length > 1 ? ' for each of those agents' : ''}${helpIcon('saves')}</p>`
+      : '';
   function fixItem(p) {
     const file = p.paths[0];
     const showFile = file && !p.short.includes(file) && !p.title.includes(file);
-    return `<li class="fx ${p.level}"><span class="si ${p.level}" aria-hidden="true">${MARK[p.level]}</span><div><p class="ptitle">${esc(cap(p.short))}</p>${showFile ? `<p class="pfile">File: <code>${esc(file)}</code></p>` : ''}<p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p></div></li>`;
+    return `<li class="fx ${p.level}"><span class="si ${p.level}" aria-hidden="true">${MARK[p.level]}</span><div><p class="ptitle">${esc(cap(p.short))}</p>${showFile ? `<p class="pfile">File: <code>${esc(file)}</code></p>` : ''}<p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${savesLine(p, false)}</div></li>`;
   }
   function renderFirst(ins) {
     const head = `<h2 id="h-first">Fix these first ${helpIcon('fix-first')}</h2>`;
@@ -311,8 +421,12 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
       ins.toFix > ins.fixFirst.length
         ? `See all ${ins.toFix}`
         : `Open the Fix list${ins.tips ? ` (${ins.tips} optional ${plural(ins.tips, 'tip', 'tips')} too)` : ''}`;
+    const n = ins.fixFirst.length;
+    const saved = ins.saves
+      ? `<p class="saves">${helpIcon('saves')} Fixing ${n === 1 ? 'the top item' : `the top ${n} items`} ${savesText(ins.saves.tokens)}${ins.saves.agent ? ` for ${esc(ins.saves.agent)}` : ''}.</p>`
+      : '';
     $('first').innerHTML =
-      `${head}<ol class="fxl">${ins.fixFirst.map(fixItem).join('')}</ol><button type="button" class="btn seeall" data-act="view" data-id="fixes" data-f="seeall">${more} &rarr;</button>`;
+      `${head}${saved}<ol class="fxl">${ins.fixFirst.map(fixItem).join('')}</ol><button type="button" class="btn seeall" data-act="view" data-id="fixes" data-f="seeall">${more} &rarr;</button>`;
   }
 
   function renderOverview(ins) {
@@ -325,6 +439,144 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     renderTiles(ins);
     renderCompare();
     renderFirst(ins);
+  }
+
+  // ---- Cost calculator ----
+  const rowTitle = (i) => (i === 0 ? 'Your price' : `Compare: price ${i + 1}`);
+  const field = (label, help, control) =>
+    `<label class="cf"><span>${label} ${helpIcon(help)}</span>${control}</label>`;
+  function priceRowHtml(r, i) {
+    const known = CURRENCIES.some((c) => c[0] === r.currency);
+    const cur = `<select data-calc="currencyKind" data-row="${i}" data-f="calc-cur-${i}" aria-label="Currency">${CURRENCIES.map(
+      (c) =>
+        `<option value="${esc(c[0])}"${r.currency === c[0] ? ' selected' : ''}>${esc(c[1])}</option>`,
+    ).join('')}<option value="custom"${known ? '' : ' selected'}>Custom</option></select>${
+      known
+        ? ''
+        : `<input data-calc="currency" data-row="${i}" data-f="calc-curtext-${i}" value="${esc(r.currency)}" maxlength="8" size="6" placeholder="kr" aria-label="Your currency symbol or letters">`
+    }`;
+    const per = `<select data-calc="perKind" data-row="${i}" data-f="calc-per-${i}" aria-label="Per how many tokens"><option value="1k"${r.perKind === '1k' ? ' selected' : ''}>1K tokens</option><option value="1m"${r.perKind === '1m' ? ' selected' : ''}>1M tokens</option><option value="custom"${r.perKind === 'custom' ? ' selected' : ''}>Custom</option></select>${
+      r.perKind === 'custom'
+        ? `<input data-calc="perCustom" data-row="${i}" data-f="calc-percustom-${i}" value="${esc(r.perCustom)}" inputmode="numeric" size="9" placeholder="500k" aria-label="Number of tokens">`
+        : ''
+    }`;
+    return `<fieldset class="prow"><legend>${rowTitle(i)}${
+      i > 0
+        ? ` <button type="button" class="link" data-act="calc-del" data-id="${i}" data-f="calc-del-${i}">Remove</button>`
+        : ''
+    }</legend>
+<div class="cgrid">
+${field('Name', 'price-label', `<input data-calc="label" data-row="${i}" data-f="calc-label-${i}" value="${esc(r.label)}" maxlength="24" placeholder="${i === 0 ? 'e.g. Model A' : `Model ${String.fromCharCode(65 + i)}`}">`)}
+${field('Price', 'price', `<input data-calc="amount" data-row="${i}" data-f="calc-amount-${i}" value="${esc(r.amount)}" inputmode="decimal" placeholder="e.g. 3" aria-invalid="${r.amount.trim() !== '' && calc.parseAmount(r.amount) === null}">`)}
+${field('Currency', 'currency', `<span class="inline">${cur}</span>`)}
+${field('Per', 'per', `<span class="inline">${per}</span>`)}
+</div>
+<details class="opt"><summary>Cheaper cached price (optional) ${helpIcon('cached-price')}</summary>
+<label class="cf"><span>Cached price, per the same tokens</span><input data-calc="cachedAmount" data-row="${i}" data-f="calc-cached-${i}" value="${esc(r.cachedAmount)}" inputmode="decimal" placeholder="optional"></label></details>
+</fieldset>`;
+  }
+  function renderCostInputs() {
+    const c = S.calc;
+    $('calc-inputs').innerHTML = `${c.rows.map(priceRowHtml).join('')}
+${c.rows.length < MAX_PRICES ? `<button type="button" class="btn" data-act="calc-add" data-f="calc-add">+ Compare another price ${helpIcon('compare-price')}</button>` : ''}
+<fieldset class="prow"><legend>How you work</legend><div class="cgrid">
+${field('Messages per day', 'msgs-day', `<input data-calc="msgsDay" data-f="calc-msgs" value="${esc(c.msgsDay)}" inputmode="numeric">`)}
+${field('Working days per month', 'work-days', `<input data-calc="days" data-f="calc-days" value="${esc(c.days)}" inputmode="numeric">`)}
+${field('% of messages cached (optional)', 'cached-share', `<input data-calc="cachedPct" data-f="calc-cachedpct" value="${esc(c.cachedPct)}" inputmode="decimal" placeholder="optional">`)}
+</div></fieldset>`;
+  }
+
+  function workedExample(top, price) {
+    const cost = priceCost(top.r.startup, price);
+    const blended = calc.blendedAmount(price, cachedPct());
+    const priceText =
+      price.cachedAmount !== null && cachedPct() > 0
+        ? `${fmt.withCurrency(String(+blended.toFixed(6)), price.currency)} (your price blended with your cached price)`
+        : fmt.withCurrency(String(+price.amount.toFixed(6)), price.currency);
+    return `<p class="worked"><b>Worked example</b> for ${esc(top.a.label)}: ${est(top.a)}${num(top.r.startup)} tokens × ${esc(priceText)} / ${num(price.per)} = ${moneyIn(cost.message, price)} per message; × ${num(msgsPerDay())} messages = ${moneyIn(cost.day, price)} per day; × ${num(daysPerMonth())} days = ${moneyIn(cost.month, price)} per month.</p>`;
+  }
+
+  function renderCostResults() {
+    const out = $('calc-results');
+    const rows = priceRows();
+    const prices = rows.filter(Boolean);
+    // Several prices side by side need the full width.
+    $('calc').className = prices.length > 1 ? 'calc wide' : 'calc';
+    if (prices.length === 0) {
+      out.innerHTML =
+        '<p class="empty">Enter your price to see cost.<br><span class="sub">ctxsize has no prices of its own: use the price from your provider.</span></p>';
+      return;
+    }
+    const list = shown().map((id) => {
+      const a = agentById(id);
+      return { a, r: result(a) };
+    });
+    if (list.length === 0) {
+      out.innerHTML =
+        '<p class="empty">No agent is picked. Click the agents you use on the Overview.</p>';
+      return;
+    }
+    const first = prices[0];
+    // Cheapest first at the first price; agents that read nothing sort last and are never "cheapest".
+    const sorted = calc.sortRows(
+      list,
+      (x) => (x.r.startup === 0 ? Number.POSITIVE_INFINITY : x.r.startup),
+      1,
+    );
+    const cheapest = sorted.find((x) => x.r.startup > 0);
+    const empties = list.filter((x) => x.r.startup === 0);
+    const head1 = prices
+      .map(
+        (p) =>
+          `<th colspan="3" class="r grp">${esc(p.label)} <span class="mdl">(${esc(p.currency)})</span></th>`,
+      )
+      .join('');
+    const head2 = prices
+      .map(
+        () =>
+          `<th class="r">Per message ${helpIcon('cost-message')}</th><th class="r">Per day ${helpIcon('cost-day')}</th><th class="r">Per month ${helpIcon('cost-month')}</th>`,
+      )
+      .join('');
+    const body = sorted
+      .map((x) => {
+        const mine = x === cheapest;
+        const cells = prices
+          .map((p) => {
+            const c = priceCost(x.r.startup, p);
+            return `<td class="r">${moneyIn(c.message, p)}</td><td class="r">${moneyIn(c.day, p)}</td><td class="r">${moneyIn(c.month, p)}</td>`;
+          })
+          .join('');
+        return `<tr class="${mine ? 'cheapest' : ''}"><td>${esc(x.a.label)}${mine ? ` <span class="badge ok">Cheapest</span>${helpIcon('cheapest')}` : ''}</td><td class="r">${est(x.a)}${num(x.r.startup)}</td>${cells}</tr>`;
+      })
+      .join('');
+    // Two or more prices: which is cheaper for the whole repo, when they share a currency.
+    let versus = '';
+    if (prices.length >= 2) {
+      const tokens = list.reduce((s, x) => s + x.r.startup, 0);
+      const totals = prices.map((p) => ({ p, month: priceCost(tokens, p).month }));
+      const sameCurrency = totals.every((t) => t.p.currency === totals[0].p.currency);
+      if (tokens === 0) {
+        versus = '';
+      } else if (!sameCurrency) {
+        versus =
+          '<p class="versus">These prices are in different currencies, so they are not compared. Use one currency to see which is cheaper.</p>';
+      } else {
+        const order = totals.slice().sort((x, y) => x.month - y.month);
+        const best = order[0];
+        const next = order[1];
+        const line =
+          next.month > best.month
+            ? `<b>${esc(best.p.label)}</b> is the cheaper price for your repo: ${moneyIn(best.month, best.p)} a month for the ${list.length} ${plural(list.length, 'agent', 'agents')} you picked together, against ${moneyIn(next.month, next.p)} for ${esc(next.p.label)} (${Math.round((1 - best.month / next.month) * 100)}% less).`
+            : 'These prices cost the same for your repo.';
+        versus = `<p class="versus">${line}</p>`;
+      }
+    }
+    const top = list.reduce((b, x) => (x.r.startup > b.r.startup ? x : b));
+    const leftOut =
+      empties.length > 0
+        ? `<p class="sub">${esc(empties.map((x) => x.a.label).join(', '))} ${plural(empties.length, 'reads', 'read')} nothing from your repo, so ${plural(empties.length, 'it is', 'they are')} left out of "Cheapest".</p>`
+        : '';
+    out.innerHTML = `${versus}<div class="tw"><table class="ctable"><thead><tr><th rowspan="2">Agent</th><th rowspan="2" class="r">Tokens per message ${helpIcon('startup')}</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}</tbody></table></div>${leftOut}${top.r.startup > 0 ? workedExample(top, first) : ''}`;
   }
 
   // ---- Fix list: everything, grouped by file, most important first ----
@@ -343,7 +595,7 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
   }
   function problemCard(p) {
     const who = affects(p);
-    return `<li class="${p.level}"><span class="bw"><span class="badge ${p.level}">${GROUP_LEVEL[p.level]}</span>${helpIcon(GROUP_HELP[p.level])}</span><div><p class="ptitle">${esc(p.title)}${CODEHELP[p.code] ? ` ${helpIcon(CODEHELP[p.code])}` : ''}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${who ? `<p class="pwho">Affects: ${esc(who)}</p>` : ''}</div></li>`;
+    return `<li class="${p.level}"><span class="bw"><span class="badge ${p.level}">${GROUP_LEVEL[p.level]}</span>${helpIcon(GROUP_HELP[p.level])}</span><div><p class="ptitle">${esc(p.title)}${CODEHELP[p.code] ? ` ${helpIcon(CODEHELP[p.code])}` : ''}</p><p class="pfix"><b>How to fix:</b> ${esc(p.fix)}</p>${savesLine(p, true)}${who ? `<p class="pwho">Affects: ${esc(who)}</p>` : ''}</div></li>`;
   }
   function groupByFile(ps) {
     const groups = [];
@@ -573,17 +825,22 @@ export function pageMain(calc, squarify, summary, fmt, helpIcon, document, windo
     const msgs = globals().messages;
     const s = statusOf(a);
     const ps = DATA.problems.filter((p) => p.tools.includes(a.id));
+    const agentSave = summary.savingFor(ps, a.id);
+    const agentSaves =
+      agentSave > 0
+        ? `<p class="saves">${helpIcon('saves')} Doing the fixes below ${savesText(agentSave)} for ${esc(a.label)}${r.startup > 0 ? `, about ${Math.round((agentSave / r.startup) * 100)}% of what it reads` : ''}.</p>`
+        : '';
     const tips = reduceTips(a, r);
     const modelNote = `${esc(modelLabel(r.model))}${r.model !== a.model ? ' (changed)' : a.modelDefault ? '*' : ''}`;
     panel.innerHTML = `<h3 class="ptop">${esc(a.label)} <span class="mdl">&rarr; ${modelNote} ${helpIcon('model')}</span> <span class="si ${s.level}" role="img" aria-label="${esc(statusText(s))}">${MARK[s.level]}</span> <span class="mdl">${esc(statusText(s))}</span></h3>
 <div class="big">
 <div><b>${est(a)}${num(r.startup)}</b><span>tokens read at startup ${helpIcon('startup')}</span></div>
-<div><b>${pct(r.windowPct)}</b><span>of its ${num(r.window)}-token memory ${helpIcon('pct')}</span></div>
-<div><b>${usd(r.costUsd)}</b><span>over ${num(msgs)} messages ${helpIcon('cost')}</span></div>
+<div><b>${pct(r.windowPct)}</b><span>${r.window === null ? 'its memory size is not stated by the docs' : `of its ${num(r.window)}-token memory`} ${helpIcon('pct')}</span></div>
+<div><b>${primary() ? money(monthCost(r.startup)) : num(r.overheadTokens)}</b><span>${primary() ? 'per month at your price' : `tokens over ${num(msgs)} messages`} ${helpIcon('cost')}</span></div>
 <div><b>${num(r.onDemand)}</b><span>more, only when needed ${helpIcon('ondemand')}</span></div>
 </div>
 <h4>Problems for ${esc(a.label)}</h4>
-${ps.length ? `<ul class="plist">${ps.map(problemCard).join('')}</ul>` : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix for this agent.</p>'}
+${agentSaves}${ps.length ? `<ul class="plist">${ps.map(problemCard).join('')}</ul>` : '<p class="allgood"><span class="mk" aria-hidden="true">✓</span> Nothing to fix for this agent.</p>'}
 <h4>What it reads</h4>
 <p class="sub">These are the files ${esc(a.label)} reads before your first message. The bigger the box, the more tokens it takes.</p>
 ${legendHtml(tiles)}
@@ -659,7 +916,6 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
       Object.keys(S.model).length > 0 ||
       S.ctx !== null ||
       S.msgs !== null ||
-      S.price !== null ||
       Object.values(S.off).some((o) => Object.keys(o).length > 0) ||
       DATA.agents.some((a) => !S.on[a.id]);
     $('set-state').textContent = changed ? ' (changed from how the report opened)' : '';
@@ -693,6 +949,7 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     renderOverview(ins);
     renderAgents();
     renderFixes(ins);
+    renderCostResults();
     renderNotes();
     renderFine();
     renderSettingsState();
@@ -705,6 +962,7 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     const active = document.activeElement;
     const f = active?.getAttribute ? active.getAttribute('data-f') : null;
     renderTools();
+    renderCostInputs();
     renderResults();
     if (f) {
       const el = document.querySelector(`[data-f="${f}"]`);
@@ -771,14 +1029,22 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     const id = e.target?.id;
     if (id === 'in-ctx') readInput(id, 'ctx', true);
     else if (id === 'in-msgs') readInput(id, 'msgs', true);
-    else if (id === 'in-price') readInput(id, 'price', false);
     else if (id === 'in-q') S.q = e.target.value.trim();
+    else if (e.target?.getAttribute?.('data-calc')) setCalc(e.target);
     else return;
     renderResults();
   });
 
   document.addEventListener('change', (e) => {
     const t = e.target;
+    const calcField = t.getAttribute?.('data-calc');
+    if (calcField) {
+      setCalc(t);
+      // Only a menu changes which fields are shown; typing must not rebuild the inputs.
+      if (calcField === 'currencyKind' || calcField === 'perKind') renderAll();
+      else renderResults();
+      return;
+    }
     const act = t.getAttribute?.('data-act');
     if (!act) return;
     const id = t.getAttribute('data-id');
@@ -836,6 +1102,22 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     } else if (act === 'tab') {
       S.tab = id;
       renderResults();
+    } else if (act === 'calc-add') {
+      const rows = S.calc.rows;
+      if (rows.length < MAX_PRICES) {
+        if (rows.length === 1 && rows[0].label.trim() === '') rows[0].label = 'Model A';
+        const next = newRow(`Model ${String.fromCharCode(65 + rows.length)}`);
+        next.currency = rows[0].currency;
+        next.perKind = rows[0].perKind;
+        next.perCustom = rows[0].perCustom;
+        rows.push(next);
+        saveCalc();
+        renderAll();
+      }
+    } else if (act === 'calc-del') {
+      if (S.calc.rows.length > 1) S.calc.rows.splice(Number(id), 1);
+      saveCalc();
+      renderAll();
     } else if (act === 'reset') {
       reset();
     } else if (act === 'theme') {
@@ -850,16 +1132,17 @@ ${tips.length ? `<ul class="tips">${tips.map((t) => `<li>${t}</li>`).join('')}</
     S.off = {};
     S.ctx = null;
     S.msgs = null;
-    S.price = null;
     S.sort = 'tokens';
     S.fsort = { k: 'tokens', d: -1 };
     S.q = '';
     S.cost = false;
     store.set(AGENTS_KEY, '[]');
     store.set(COST_KEY, '0');
+    store.set(CALC_KEY, '');
+    S.calc = loadCalc();
     S.order = DATA.agents.map((a) => a.id);
     $('in-sort').value = 'tokens';
-    for (const id of ['in-ctx', 'in-msgs', 'in-price', 'in-q']) {
+    for (const id of ['in-ctx', 'in-msgs', 'in-q']) {
       $(id).value = '';
       $(id).setAttribute('aria-invalid', 'false');
     }

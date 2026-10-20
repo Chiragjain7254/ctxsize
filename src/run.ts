@@ -5,7 +5,8 @@ import { parseArgs } from 'node:util';
 import { ConfigError, loadConfig } from './config.ts';
 import { analyze } from './core/analyze.ts';
 import { dirExists, findRoot } from './core/fs.ts';
-import type { AgentReport, Report, ToolId } from './core/types.ts';
+import { PriceError, parsePrice } from './core/price.ts';
+import type { AgentReport, Price, Report, ToolId } from './core/types.ts';
 import { DEFAULT_MESSAGES } from './core/usage.ts';
 import { gateFailures } from './gates.ts';
 import {
@@ -18,6 +19,7 @@ import {
   type SnapshotOptions,
   validateRef,
 } from './history.ts';
+import { renderLogo, shouldShowLogo } from './logo.ts';
 import { allModels, type ModelChoice, modelForTool, presets } from './models.ts';
 import { openInBrowser } from './open.ts';
 import { renderDiff, renderHistory } from './report/diff.ts';
@@ -40,6 +42,10 @@ export interface Io {
   signal?: AbortSignal | undefined;
   /** Opens a file or URL in the default browser for --open and --serve; returns an error message on failure. */
   open?: ((target: string) => Promise<string | undefined>) | undefined;
+  /** Asks a question on the terminal (`ctxsize init`); set only when stdin and stdout are a terminal. */
+  ask?: ((question: string) => Promise<string>) | undefined;
+  /** Terminal width; the logo in --help and --version is drawn only when it is known and wide enough. */
+  columns?: number | undefined;
 }
 
 const presetIds = () => presets.map((m) => m.id).join(', ');
@@ -50,6 +56,7 @@ See what your AI coding agent reads before you type, what it costs,
 and what it silently drops.
 
 Usage: ctxsize [dir] [options]
+       ctxsize init [dir] [--workflow]   Create a starter ctxsize.json (ctxsize init --help)
 
 Options:
   --agents <list>      Comma-separated tool ids (default: all). Built in: ${BUILT_IN.join(',')}
@@ -57,8 +64,10 @@ Options:
   --all                Show every tool, including those that load nothing (hidden by default)
   --context <tokens>   Context window to model (default: the model's own)
   --model <choice>     Model: an id for every tool, or tool=id pairs (see MODELS below)
-  --price <usd>        USD per 1M input tokens, replacing every model's price
-  --messages <n>       Messages assumed for the overhead cost (default: ${DEFAULT_MESSAGES})
+  --price <amount>     Your price for input tokens; cost is shown only when you give one
+  --per <tokens>       The price is for this many tokens: 1000, 1k, 1m (default: 1m)
+  --currency <c>       A symbol or code for the price: $, ₹, EUR (default: $)
+  --messages <n>       Messages assumed for the overhead (default: ${DEFAULT_MESSAGES})
   --include-user       Also read files from your home directory (not reproducible)
   --json               Print the report as JSON
   --html               Write a treemap to ctxsize-report.html (or --out <file>)
@@ -72,8 +81,10 @@ Options:
   --port <n>           First port for --serve (default 4321; the next 9 are tried if it is taken)
   --no-open            With --serve, do not open the browser
   --markdown <file>    Write a pull-request comment summary ("-" prints it instead of the table)
-  --card <file.svg>    Write an SVG summary card (--title sets its heading)
-  --badge <file.svg>   Write an SVG README badge and print the shields.io snippet
+  --card <file>        Write a summary card: .png, .svg, or no extension for both (--title sets its
+                       heading). It shows the grade, the top 3 fixes and each agent
+  --badge [file.svg]   Print a Markdown badge (grade and startup tokens) to paste into your README;
+                       with a file, also write the badge as SVG
   --title <text>       Heading for --card
   --watch              Re-run when files in the repo change (Ctrl+C to stop). With --html, the
                        open page updates itself from a .data.js file written next to it
@@ -109,7 +120,7 @@ const WRITE_REASONS: Record<string, string> = {
 };
 
 /** Write an output file; a bad path is a usage error with a plain message, not a stack trace. */
-function writeOutput(file: string, content: string): void {
+function writeOutput(file: string, content: string | Uint8Array): void {
   try {
     writeFileSync(file, content);
   } catch (err) {
@@ -134,6 +145,10 @@ async function announceHtml(file: string, open: boolean, quiet: boolean, io: Io)
 const dataFileFor = (html: string) => `${html.replace(/.html?$/i, '')}.data.js`;
 
 export async function run(argv: string[], io: Io): Promise<number> {
+  if (argv[0] === 'init') {
+    const { runInit } = await import('./init.ts');
+    return runInit(argv.slice(1), io);
+  }
   let parsed: ReturnType<typeof parse>;
   try {
     parsed = parse(argv, io);
@@ -142,8 +157,16 @@ export async function run(argv: string[], io: Io): Promise<number> {
     io.stderr(`ctxsize: ${message}\nRun ctxsize --help for usage.\n`);
     return EXIT.usage;
   }
+  // The logo appears in --help and --version only, and only for a person at a color terminal.
+  const logo = shouldShowLogo({
+    isTTY: io.isTTY,
+    color: parsed.color,
+    env: io.env,
+    columns: io.columns,
+    plain: parsed.json || parsed.quiet || Boolean(parsed.markdown),
+  });
   if (parsed.help) {
-    io.stdout(HELP);
+    io.stdout(logo ? `${renderLogo(VERSION)}\n${HELP.slice(HELP.indexOf('\n') + 1)}` : HELP);
     return EXIT.ok;
   }
   if (parsed.checkProfiles) {
@@ -152,7 +175,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
     return EXIT.ok;
   }
   if (parsed.version) {
-    io.stdout(`${VERSION}\n`);
+    io.stdout(logo ? renderLogo(VERSION) : `${VERSION}\n`);
     return EXIT.ok;
   }
 
@@ -208,7 +231,8 @@ Run ctxsize --help for usage.
     agents,
     tools,
     messages: parsed.messages ?? messagesFromConfig ?? DEFAULT_MESSAGES,
-    models: { models, choice, ...(parsed.price !== undefined ? { price: parsed.price } : {}) },
+    models: { models, choice },
+    price: parsed.price,
     env: io.env,
     checks: !parsed.noChecks,
     exclude: [...excludeFromConfig, ...parsed.exclude],
@@ -293,6 +317,9 @@ Run ctxsize --help for usage.
       io.stdout(toJson(report, diff ? { diff } : {}, generatedAt(io.env)));
     } else if (parsed.markdown === '-' && share) {
       io.stdout(share.renderMarkdown(report));
+    } else if (parsed.badge === '-' && share) {
+      io.stdout(`${share.badgeMarkdown(report)}
+`);
     } else {
       if (parsed.quiet) {
         io.stdout(renderSummary(report));
@@ -325,11 +352,26 @@ Run ctxsize --help for usage.
   `);
       }
       if (parsed.card) {
-        writeOutput(parsed.card, share.renderCardSvg(report, { title: parsed.title }));
-        info(`Wrote ${parsed.card}
-  `);
+        const ext = path.extname(parsed.card).toLowerCase();
+        const files = ext === '' ? [`${parsed.card}.svg`, `${parsed.card}.png`] : [parsed.card];
+        for (const file of files) {
+          const png = path.extname(file).toLowerCase() === '.png';
+          writeOutput(
+            file,
+            png
+              ? share.renderCardPng(report, { title: parsed.title })
+              : share.renderCardSvg(report, { title: parsed.title }),
+          );
+          info(`Wrote ${file}
+`);
+        }
       }
-      if (parsed.badge) {
+      if (parsed.badge === '-') {
+        // The snippet already went to stdout, unless --json or --markdown - took it.
+        if (parsed.json || parsed.markdown === '-')
+          info(`${share.badgeMarkdown(report)}
+`);
+      } else if (parsed.badge) {
         writeOutput(parsed.badge, share.renderBadgeSvg(report));
         info(`Wrote ${parsed.badge}
   README snippet (shields.io static badge): ${share.badgeMarkdown(report)}
@@ -453,8 +495,15 @@ async function runHistory(
 }
 
 function parse(argv: string[], io: Io) {
+  // A bare --badge (no file) prints the snippet; "-" is how parseArgs is told so.
+  const args = argv.map((a, i) => {
+    const next = argv[i + 1];
+    return a === '--badge' && (next === undefined || (next.startsWith('-') && next !== '-'))
+      ? '--badge=-'
+      : a;
+  });
   const { values, positionals } = parseArgs({
-    args: argv,
+    args,
     allowPositionals: true,
     options: {
       agents: { type: 'string' },
@@ -462,6 +511,8 @@ function parse(argv: string[], io: Io) {
       context: { type: 'string' },
       model: { type: 'string' },
       price: { type: 'string' },
+      per: { type: 'string' },
+      currency: { type: 'string' },
       messages: { type: 'string' },
       diff: { type: 'string' },
       history: { type: 'string' },
@@ -588,7 +639,7 @@ function parse(argv: string[], io: Io) {
     agentNames,
     context: positiveInt(values.context, '--context'),
     modelFlag: values.model,
-    price: nonNegativeNumber(values.price, '--price'),
+    price: priceFromFlags(values.price, values.per, values.currency),
     messages: positiveInt(values.messages, '--messages'),
     maxTokens: positiveInt(values['max-tokens'], '--max-tokens', true),
     maxPercent: percent(values['max-percent'], '--max-percent'),
@@ -616,7 +667,7 @@ function parse(argv: string[], io: Io) {
     markdown:
       values.markdown === '-' ? '-' : values.markdown && path.resolve(io.cwd, values.markdown),
     card: values.card && path.resolve(io.cwd, values.card),
-    badge: values.badge && path.resolve(io.cwd, values.badge),
+    badge: values.badge === '-' ? '-' : values.badge && path.resolve(io.cwd, values.badge),
     title: values.title,
     color,
     help: values.help,
@@ -675,13 +726,17 @@ function nonNegativeInt(value: string | undefined, flag: string, max: number): n
   return n;
 }
 
-function nonNegativeNumber(value: string | undefined, flag: string): number | undefined {
-  if (value === undefined) return undefined;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new UsageError(`${flag} must be a number of USD, 0 or more, got "${value}"`);
+function priceFromFlags(
+  price: string | undefined,
+  per: string | undefined,
+  currency: string | undefined,
+): Price | null {
+  try {
+    return parsePrice({ price, per, currency });
+  } catch (err) {
+    if (err instanceof PriceError) throw new UsageError(err.message);
+    throw err;
   }
-  return n;
 }
 
 /** Combines the config's per-tool models with --model (which wins). */

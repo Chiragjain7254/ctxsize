@@ -51,6 +51,7 @@ export const tokenCache = {
   },
 };
 
+/** Tokens in text: exact for a named tokenizer (cached), an estimate for { charsPerToken }. */
 export function countTokens(text: string, tokenizer: Tokenizer = 'o200k_base'): number {
   if (text === '') return 0;
   if (typeof tokenizer === 'object') {
@@ -88,10 +89,12 @@ function encodeText(text: string, tokenizer: TokenizerName): number {
   return total;
 }
 
+/** How a tokenizer is named in reports, e.g. "o200k_base" or "~3.5 chars per token". */
 export function tokenizerLabel(tokenizer: Tokenizer): string {
   return typeof tokenizer === 'object' ? `~${tokenizer.charsPerToken} chars per token` : tokenizer;
 }
 
+/** Size of the text in UTF-8 bytes, not characters. */
 export function byteLength(text: string): number {
   return Buffer.byteLength(text, 'utf8');
 }

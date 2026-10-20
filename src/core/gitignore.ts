@@ -18,6 +18,7 @@ export interface Ignore {
   ignores(rel: string, isDir: boolean): boolean | undefined;
 }
 
+/** Parses the text of a .gitignore (LF or CRLF) into an `Ignore` that answers per path. */
 export function parseGitignore(text: string): Ignore {
   const rules: Rule[] = [];
   for (const raw of text.split(/\r?\n/)) {

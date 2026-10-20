@@ -40,6 +40,10 @@ export interface Page {
   click(act: string, id?: string): void;
   /** Dispatches a change event (a checkbox or select). */
   change(act: string, id: string, extra?: Record<string, unknown>): void;
+  /** Types into a calculator field (an input event). */
+  type(field: string, row: number, value: string): void;
+  /** Picks an option in a calculator menu (a change event). */
+  pick(field: string, row: number, value: string): void;
   /** What the page stored in localStorage. */
   storage: Map<string, string>;
   /** The address hash the page set. */
@@ -147,6 +151,14 @@ export function runPage(
     fire('click', { target: attr({ 'data-act': act, 'data-id': id }) });
   read.change = (act, id, extra = {}) =>
     fire('change', { target: { ...attr({ 'data-act': act, 'data-id': id }), ...extra } });
+  read.type = (field, row, value) =>
+    fire('input', {
+      target: { ...attr({ 'data-calc': field, 'data-row': String(row) }), value },
+    });
+  read.pick = (field, row, value) =>
+    fire('change', {
+      target: { ...attr({ 'data-calc': field, 'data-row': String(row) }), value },
+    });
   read.storage = storage;
   read.hash = () => hash;
   read.push = (next) => source.onmessage?.({ data: JSON.stringify(next) });

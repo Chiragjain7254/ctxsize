@@ -12,19 +12,20 @@ const SKILL_REPO = {
   '.claude/skills/nodesc/SKILL.md': '---\nname: nodesc\n---\nBody\n',
 };
 
-// ---------------------------------------------------------------- the five tabs
+// ---------------------------------------------------------------- the tabs
 
-test('the page has five tabs, in order, and the Overview is the default', async () => {
+test('the page has six tabs, in order, and the Overview is the default', async () => {
   const out = await html({ 'AGENTS.md': 'Use npm.\n' });
   const nav = runPage(out)('nav');
   const ids = [...nav.matchAll(/data-act="view" data-id="(\w+)"/g)].map((m) => m[1]);
-  expect(ids).toEqual(['overview', 'agents', 'fixes', 'settings', 'help']);
+  expect(ids).toEqual(['overview', 'agents', 'fixes', 'cost', 'settings', 'help']);
   expect(nav).toMatch(/aria-selected="true"[^>]*data-id="overview"/);
   const at = (s: string) => out.indexOf(s);
   const order = [
     'id="view-overview"',
     'id="view-agents"',
     'id="view-fixes"',
+    'id="view-cost"',
     'id="view-settings"',
     'id="view-help"',
   ];

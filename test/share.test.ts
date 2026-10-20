@@ -63,9 +63,25 @@ describe('markdown summary', () => {
     const md = renderMarkdown(await sample());
     expect(md).toContain('| Claude Code |');
     expect(md).toContain('| Codex |');
-    expect(md).toContain('x 20 messages');
     expect(md).toContain('`AGENTS.md`');
+    // No price was given: no cost column, only a hint.
+    expect(md).not.toContain('Overhead cost');
+    expect(md).toContain('Add --price 3 --per 1m to see cost.');
     expect(md).not.toContain('Secret-ish');
+  });
+
+  test('with a price the table gets a cost column in your currency', async () => {
+    const report = await analyze({
+      cwd: tmpRepo({ '.git/': '', 'AGENTS.md': 'Use npm. '.repeat(300) }),
+      agents: ['codex'],
+      messages: 20,
+      price: { amount: 250, per: 1_000_000, currency: '₹' },
+    });
+    const md = renderMarkdown(report);
+    expect(md).toContain('| Overhead cost |');
+    expect(md).toMatch(/₹\d/);
+    expect(md).not.toContain('$');
+    expect(md).toContain('x 20 messages at ₹250 per 1M tokens');
   });
 
   test('a pipe in a label cannot break the table', async () => {
@@ -89,10 +105,11 @@ describe('SVG card and badge', () => {
   test('the badge shows the heaviest tool and the shields.io snippet encodes it', async () => {
     const report = await sample();
     const worst = Math.max(...report.agents.map((a) => a.startup.total));
-    expect(badgeText(report).value).toBe(`${compactTokens(worst)} tokens`);
-    expect(renderBadgeSvg(report)).toContain(`ctxsize: ${compactTokens(worst)} tokens`);
+    const value = badgeText(report).value;
+    expect(value).toBe(`A · ${compactTokens(worst)} tokens`);
+    expect(renderBadgeSvg(report)).toContain(`ctxsize: ${value}`);
     expect(badgeMarkdown(report)).toMatch(
-      /^!\[ctxsize\]\(https:\/\/img\.shields\.io\/badge\/ctxsize-[\w.%-]+-2f6fed\)$/,
+      /^\[!\[ctxsize: A · [\w.]+ tokens\]\(https:\/\/img\.shields\.io\/badge\/ctxsize-[\w.%-]+-1b7f4b\)\]\(https:\/\/github\.com\/Chiragjain7254\/ctxsize\)$/,
     );
   });
 });

@@ -64,6 +64,7 @@ export function stringField(data: Record<string, unknown>, key: string): string 
   return undefined;
 }
 
+/** Reads a frontmatter field as a boolean; only `true` and the string "true" count as true. */
 export function boolField(data: Record<string, unknown>, key: string): boolean {
   const value = data[key];
   return value === true || value === 'true';

@@ -1,23 +1,28 @@
 import { ConfigError } from './config.ts';
 import type { Tokenizer } from './core/tokenize.ts';
 import { tokenizerLabel } from './core/tokenize.ts';
-import type { ModelInfo, Source, ToolId } from './core/types.ts';
+import type { ModelInfo, ToolId } from './core/types.ts';
 import { DEFAULT_CONTEXT_TOKENS } from './profiles.ts';
 
-// Models a tool can be measured with: context window, tokenizer and input price.
-// Every preset carries the source of its numbers and the date they were checked. Prices and
-// windows change often; override them in ctxsize.json ("models") when yours differ.
+// Models a tool can be measured with: context window and tokenizer. ctxsize carries NO prices:
+// prices change often and depend on your plan, so you give yours with --price (see docs/CLI.md).
+// Every preset with a context window carries the official page that states it and the date it was
+// checked. A window that could not be confirmed is null, and reports say "unknown" for it.
 
 export interface Model {
   id: string;
   label: string;
-  contextTokens: number;
+  /** Tokens; null when the official docs do not state it (the report then says "unknown"). */
+  contextTokens: number | null;
   tokenizer: Tokenizer;
   /** True when `tokenizer` is the model's own (OpenAI), so counts are exact. */
   exactTokenizer: boolean;
-  /** USD per 1M uncached input tokens. */
-  pricePer1MInput?: number;
-  sources: Source[];
+  /** The official page that states the context window; null for a window that is unknown or your own. */
+  sourceUrl: string | null;
+  /** The day the page above was read (YYYY-MM-DD). */
+  checkedDate: string | null;
+  /** A short caveat, for example why the window is unknown. */
+  note?: string;
   origin: 'preset' | 'config';
 }
 
@@ -26,11 +31,10 @@ export interface UserModel {
   label?: string;
   contextTokens?: number;
   tokenizer?: Tokenizer;
-  pricePer1MInput?: number;
-  sources?: Source[];
 }
 
-const CHECKED = '2026-10-13';
+const CHECKED = '2026-10-16';
+const CLAUDE_DOCS = 'https://platform.claude.com/docs/en/about-claude/models/overview';
 
 // PRESETS-START
 // Claude's and Gemini's tokenizers are not public, so they are counted with o200k_base and
@@ -44,11 +48,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_000_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 10,
-    sources: [
-      { url: 'https://platform.claude.com/docs/en/about-claude/models/overview', checked: CHECKED },
-      { url: 'https://platform.claude.com/docs/en/about-claude/pricing', checked: CHECKED },
-    ],
+    sourceUrl: CLAUDE_DOCS,
+    checkedDate: CHECKED,
   },
   {
     id: 'claude-opus-5-5',
@@ -56,11 +57,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_000_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 4,
-    sources: [
-      { url: 'https://platform.claude.com/docs/en/about-claude/models/overview', checked: CHECKED },
-      { url: 'https://platform.claude.com/docs/en/about-claude/pricing', checked: CHECKED },
-    ],
+    sourceUrl: CLAUDE_DOCS,
+    checkedDate: CHECKED,
   },
   {
     id: 'claude-sonnet-5-5',
@@ -68,11 +66,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_000_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 2,
-    sources: [
-      { url: 'https://platform.claude.com/docs/en/about-claude/models/overview', checked: CHECKED },
-      { url: 'https://platform.claude.com/docs/en/about-claude/pricing', checked: CHECKED },
-    ],
+    sourceUrl: CLAUDE_DOCS,
+    checkedDate: CHECKED,
   },
   {
     id: 'claude-haiku-5-5',
@@ -80,12 +75,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_000_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    // $0.10 for prompts up to 100k tokens, $0.50 above; startup context is far below 100k.
-    pricePer1MInput: 0.1,
-    sources: [
-      { url: 'https://platform.claude.com/docs/en/about-claude/models/overview', checked: CHECKED },
-      { url: 'https://platform.claude.com/docs/en/about-claude/pricing', checked: CHECKED },
-    ],
+    sourceUrl: CLAUDE_DOCS,
+    checkedDate: CHECKED,
   },
   {
     id: 'gpt-6-astra',
@@ -93,11 +84,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_050_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 10,
-    sources: [
-      { url: 'https://developers.openai.com/api/docs/models/gpt-6-astra', checked: CHECKED },
-      { url: 'https://developers.openai.com/api/docs/pricing', checked: CHECKED },
-    ],
+    sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6-astra',
+    checkedDate: CHECKED,
   },
   {
     id: 'gpt-6-luna',
@@ -105,11 +93,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_050_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 0.1,
-    sources: [
-      { url: 'https://developers.openai.com/api/docs/models/gpt-6-luna', checked: CHECKED },
-      { url: 'https://developers.openai.com/api/docs/pricing', checked: CHECKED },
-    ],
+    sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6-luna',
+    checkedDate: CHECKED,
   },
   {
     id: 'gpt-5.3-codex',
@@ -117,11 +102,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 400_000,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    pricePer1MInput: 1.75,
-    sources: [
-      { url: 'https://developers.openai.com/api/docs/models/gpt-5.3-codex', checked: CHECKED },
-      { url: 'https://developers.openai.com/api/docs/pricing', checked: CHECKED },
-    ],
+    sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5.3-codex',
+    checkedDate: CHECKED,
   },
   {
     id: 'gemini-3.1-pro-preview',
@@ -129,15 +111,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_048_576,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    // $2 up to a 200k prompt, $4 above.
-    pricePer1MInput: 2,
-    sources: [
-      {
-        url: 'https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview',
-        checked: CHECKED,
-      },
-      { url: 'https://ai.google.dev/gemini-api/docs/pricing', checked: CHECKED },
-    ],
+    sourceUrl: 'https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview',
+    checkedDate: CHECKED,
   },
   {
     id: 'gemini-3.8-flash',
@@ -145,27 +120,18 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_048_576,
     tokenizer: 'o200k_base',
     exactTokenizer: false,
-    // $0.75 through 2026-12-31, $1.50 from 2027-01-01.
-    pricePer1MInput: 0.75,
-    sources: [
-      { url: 'https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash', checked: CHECKED },
-      { url: 'https://ai.google.dev/gemini-api/docs/pricing', checked: CHECKED },
-    ],
+    sourceUrl: 'https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash',
+    checkedDate: CHECKED,
   },
   {
     id: 'qwen3.8-max',
     label: 'Qwen3.8-Max',
-    contextTokens: 1_000_000,
+    contextTokens: null,
     tokenizer: { charsPerToken: 3.5 },
     exactTokenizer: false,
-    pricePer1MInput: 2,
-    sources: [
-      {
-        url: 'https://www.alibabacloud.com/help/en/model-studio/model-pricing',
-        checked: CHECKED,
-        note: 'First pricing tier (Singapore); the chars-per-token ratio is a rough assumption',
-      },
-    ],
+    sourceUrl: null,
+    checkedDate: null,
+    note: 'The official Model Studio pages show a 1M pricing tier but do not state a context window',
   },
   {
     id: 'deepseek-v4-pro',
@@ -173,15 +139,8 @@ export const presets: Omit<Model, 'origin'>[] = [
     contextTokens: 1_000_000,
     tokenizer: { charsPerToken: 3.5 },
     exactTokenizer: false,
-    // Peak price on a cache miss; $0.66 off-peak.
-    pricePer1MInput: 1.32,
-    sources: [
-      {
-        url: 'https://api-docs.deepseek.com/quick_start/pricing',
-        checked: CHECKED,
-        note: 'The chars-per-token ratio is a rough assumption',
-      },
-    ],
+    sourceUrl: 'https://api-docs.deepseek.com/quick_start/pricing',
+    checkedDate: CHECKED,
   },
 ];
 // PRESETS-END
@@ -193,7 +152,8 @@ export const genericModel: Model = {
   contextTokens: DEFAULT_CONTEXT_TOKENS,
   tokenizer: 'o200k_base',
   exactTokenizer: false,
-  sources: [],
+  sourceUrl: null,
+  checkedDate: null,
   origin: 'preset',
 };
 
@@ -214,6 +174,8 @@ export function allModels(user: Record<string, UserModel> = {}): Map<string, Mod
         `models.${id}: a new model needs "label", "contextTokens" and "tokenizer"`,
       );
     }
+    // A window you give is yours: it has no official page, and replaces an unknown one.
+    const ownWindow = def.contextTokens !== undefined;
     models.set(id, {
       id,
       label: def.label ?? base?.label ?? id,
@@ -221,12 +183,8 @@ export function allModels(user: Record<string, UserModel> = {}): Map<string, Mod
       tokenizer: def.tokenizer ?? base?.tokenizer ?? 'o200k_base',
       // A custom tokenizer or ratio is never the model's own.
       exactTokenizer: def.tokenizer ? false : (base?.exactTokenizer ?? false),
-      ...(def.pricePer1MInput !== undefined
-        ? { pricePer1MInput: def.pricePer1MInput }
-        : base?.pricePer1MInput !== undefined
-          ? { pricePer1MInput: base.pricePer1MInput }
-          : {}),
-      sources: def.sources ?? base?.sources ?? [],
+      sourceUrl: ownWindow ? null : (base?.sourceUrl ?? null),
+      checkedDate: ownWindow ? null : (base?.checkedDate ?? null),
       origin: base && !def.label ? base.origin : 'config',
     });
   }
@@ -262,15 +220,13 @@ export function modelForTool(
   return { model, isDefault: true };
 }
 
-export function modelInfo(model: Model, isDefault: boolean, priceOverride?: number): ModelInfo {
-  const price = priceOverride ?? model.pricePer1MInput;
+export function modelInfo(model: Model, isDefault: boolean): ModelInfo {
   return {
     id: model.id,
     label: model.label,
     contextTokens: model.contextTokens,
     tokenizer: tokenizerLabel(model.tokenizer),
     exactTokenizer: model.exactTokenizer,
-    pricePer1MInput: price ?? null,
     isDefault,
   };
 }

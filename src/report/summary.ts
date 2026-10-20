@@ -25,6 +25,12 @@ export interface Problem {
   tools: string[];
   /** POSIX paths it is about. */
   paths: string[];
+  /**
+   * Tokens that doing the fix takes off every message, for each agent it concerns. Set only when
+   * ctxsize can work it out from real data (duplicated text, a section that could be a skill);
+   * left out otherwise, and then nothing is claimed.
+   */
+  saves?: number;
 }
 
 export interface SummaryAgent {
@@ -33,14 +39,16 @@ export interface SummaryAgent {
   startup: number;
   /** True when startup is an estimate (shown with a ~). */
   est: boolean;
-  /** Startup tokens as a percentage of the context window. */
-  pct: number;
-  /** USD over the messages; null when no price is known. */
+  /** Startup tokens as a percentage of the context window; null when the window is unknown. */
+  pct: number | null;
+  /** In the user's currency over the messages; null when they gave no price. */
   cost: number | null;
 }
 
 export interface SummaryInput {
   messages: number;
+  /** The user's currency symbol or code for the cost sentence; "$" when there is none. */
+  currency?: string;
   /** The agents to talk about (the ones shown). */
   agents: SummaryAgent[];
   /** Every problem of the run; the ones that concern no shown agent are ignored. */
@@ -64,6 +72,19 @@ export interface AgentStatus {
   tips: number;
 }
 
+export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A context health grade. The rules are in docs/GRADE.md. */
+export interface Grade {
+  letter: GradeLetter;
+  /** 0-100: 100 minus 15 per thing cut off and 5 per other thing worth fixing. */
+  score: number;
+  /** Things cut off or left out. */
+  bad: number;
+  /** Other things worth fixing. */
+  warn: number;
+}
+
 export interface Insights {
   /** Agents the numbers are about. */
   agents: SummaryAgent[];
@@ -80,16 +101,23 @@ export interface Insights {
   tips: number;
   /** The worst few things to fix, for the first screen. */
   fixFirst: Problem[];
+  /** The context health grade of the agents shown; null when there are none. */
+  grade: Grade | null;
+  /**
+   * What fixing those saves per message, for the agent that gains most; null when none of them
+   * has a saving ctxsize can work out.
+   */
+  saves: { tokens: number; agent: string } | null;
   verdict: SummaryLine;
   /** The cost sentence, or null when it would say nothing. */
   cost: SummaryLine | null;
 }
 
-/** How many fixes the first screen shows. */
-export const FIX_FIRST = 3;
+/** An agent whose startup load takes this share of its window or more has a problem (docs/GRADE.md). */
+export const HEAVY_STARTUP_PCT = 20;
 
 export function createSummary(f: Fmt) {
-  const { num, pct, usd, plural } = f;
+  const { num, pct, money, plural } = f;
   const tok = (a: SummaryAgent) => `${a.est ? '~' : ''}${num(a.startup)}`;
   const names = (list: SummaryAgent[]) =>
     list.length <= 2
@@ -112,7 +140,36 @@ export function createSummary(f: Fmt) {
     return { level: bad > 0 ? 'bad' : warn > 0 ? 'warn' : 'ok', bad, warn, tips };
   }
 
-  function costLine(agents: SummaryAgent[], messages: number): SummaryLine | null {
+  /**
+   * The grade comes from the same problem list as the fix list (tips do not count), so the two
+   * cannot disagree: an A means there is nothing to fix, and anything cut off caps it at C.
+   * Rules: docs/GRADE.md.
+   */
+  function gradeOf(problems: Problem[], ids: string[]): Grade {
+    const mine = forAgents(problems, ids);
+    const bad = mine.filter((p) => p.level === 'bad').length;
+    const warn = mine.filter((p) => p.level === 'warn').length;
+    const score = Math.max(0, 100 - 15 * bad - 5 * warn);
+    let letter: GradeLetter = 'F';
+    if (bad === 0 && warn === 0) letter = 'A';
+    else if (score >= 80) letter = 'B';
+    else if (score >= 60) letter = 'C';
+    else if (score >= 40) letter = 'D';
+    if (bad > 0 && letter === 'B') letter = 'C';
+    return { letter, score, bad, warn };
+  }
+
+  /** Tokens per message the fixes of one agent take off, from the problems that have a saving. */
+  function savingFor(problems: Problem[], id: string): number {
+    return problems.filter((p) => p.tools.includes(id)).reduce((sum, p) => sum + (p.saves ?? 0), 0);
+  }
+
+  function costLine(
+    agents: SummaryAgent[],
+    messages: number,
+    currency: string,
+  ): SummaryLine | null {
+    const usd = (v: number | null) => money(v, currency);
     const readers = agents.filter((a) => a.startup > 0 && a.cost !== null);
     const cost = (a: SummaryAgent) => a.cost ?? 0;
     if (readers.length >= 2) {
@@ -139,7 +196,7 @@ export function createSummary(f: Fmt) {
       const least = reading.reduce((best, a) => (a.startup < best.startup ? a : best));
       return {
         level: 'info',
-        text: `Reads the least: ${least.label} (${tok(least)} tokens). No price is known, so no cost is shown.`,
+        text: `Reads the least: ${least.label} (${tok(least)} tokens).`,
       };
     }
     const only = readers[0];
@@ -161,6 +218,13 @@ export function createSummary(f: Fmt) {
     const bad = problems.filter((p) => p.level === 'bad');
     const toFix = problems.filter((p) => p.level !== 'info');
     const cutNoun = bad.every((p) => p.code === 'file-truncated') ? 'file' : 'thing';
+    const fixFirst = toFix.slice(0, 3);
+    let saves: Insights['saves'] = null;
+    for (const a of agents) {
+      const tokens = savingFor(fixFirst, a.id);
+      if (tokens > 0 && (saves === null || tokens > saves.tokens))
+        saves = { tokens, agent: a.label };
+    }
     const reading = agents.filter((a) => a.startup > 0);
     const mostReads = reading.length
       ? reading.reduce((best, a) => (a.startup > best.startup ? a : best))
@@ -191,9 +255,17 @@ export function createSummary(f: Fmt) {
       cutNoun,
       toFix: toFix.length,
       tips: problems.length - toFix.length,
-      fixFirst: toFix.slice(0, 3),
+      fixFirst,
+      grade:
+        agents.length > 0
+          ? gradeOf(
+              problems,
+              agents.map((a) => a.id),
+            )
+          : null,
+      saves,
       verdict,
-      cost: agents.length > 0 ? costLine(agents, input.messages) : null,
+      cost: agents.length > 0 ? costLine(agents, input.messages, input.currency ?? '$') : null,
     };
   }
 
@@ -208,10 +280,17 @@ export function createSummary(f: Fmt) {
     lines.push({
       level: 'info',
       text: most
-        ? `${most.label} reads the most before your first message: ${tok(most)} tokens (${pct(most.pct)} of its memory).`
+        ? `${most.label} reads the most before your first message: ${tok(most)} tokens${most.pct === null ? '' : ` (${pct(most.pct)} of its memory)`}.`
         : 'No agent reads anything from this repo before your first message.',
     });
     if (i.cost) lines.push(i.cost);
+    if (i.saves) {
+      const n = i.fixFirst.length;
+      lines.push({
+        level: 'info',
+        text: `Fixing ${n === 1 ? 'the top item' : `the top ${n} items`} saves ~${num(i.saves.tokens)} tokens per message (for ${i.saves.agent}).`,
+      });
+    }
     if (i.tips > 0) {
       lines.push({
         level: 'info',
@@ -221,13 +300,15 @@ export function createSummary(f: Fmt) {
     return lines;
   }
 
-  return { insights, summarize, statusOf, forAgents };
+  return { insights, summarize, statusOf, forAgents, savingFor, gradeOf };
 }
 
 const S = createSummary(createFmt());
 export const insights = S.insights;
 export const statusOf = S.statusOf;
 export const forAgents = S.forAgents;
+export const savingFor = S.savingFor;
+export const gradeOf = S.gradeOf;
 
 export function summarize(input: SummaryInput): SummaryLine[] {
   return S.summarize(input);
@@ -380,6 +461,23 @@ function checkTools(c: Check, report: Report): string[] {
   return report.agents.filter(loading).map((a) => a.agent);
 }
 
+/**
+ * Tokens a check's fix takes off every message, when that is really so: moving a section into a
+ * skill, and removing text that an agent loads twice (a duplicate that no agent loads together is
+ * only untidy, not paid for twice). Everything else has no saving we can work out.
+ */
+function checkSaves(c: Check): number {
+  if (c.tokens === undefined) return 0;
+  if (c.code === 'move-to-skill') return c.tokens;
+  const duplicates = [
+    'duplicate-file',
+    'near-identical-files',
+    'duplicate-paragraphs',
+    'duplicate-skill',
+  ];
+  return duplicates.includes(c.code) && c.tool !== undefined ? c.tokens : 0;
+}
+
 function checkProblem(c: Check, report: Report): Problem {
   const text = CHECK_TEXT[c.code];
   const tools = checkTools(c, report);
@@ -396,6 +494,7 @@ function checkProblem(c: Check, report: Report): Problem {
       'Open the file and tidy it up, or run ctxsize --json for the details of this check.',
     tools,
     paths: c.paths,
+    ...(checkSaves(c) > 0 ? { saves: checkSaves(c) } : {}),
   };
 }
 
@@ -466,6 +565,20 @@ export function buildProblems(report: Report): Problem[] {
       });
     }
   }
+  for (const agent of report.agents) {
+    const share = agent.usage.startupPctOfContext;
+    if (share !== null && share >= HEAVY_STARTUP_PCT) {
+      out.push({
+        level: 'warn',
+        code: 'startup-heavy',
+        title: `${agent.label} loads ${num(agent.startup.total)} tokens before you type, ${Math.round(share)}% of its context window`,
+        short: `${agent.label} starts with ${Math.round(share)}% of its window used`,
+        fix: 'Trim the biggest startup file, or move parts that are only needed sometimes into rules or skills that load on demand.',
+        tools: [agent.agent],
+        paths: agent.topFiles[0] ? [agent.topFiles[0].path] : [],
+      });
+    }
+  }
   for (const c of report.checks) out.push(checkProblem(c, report));
   out.push(...warningProblems(report));
   const rank = { bad: 0, warn: 1, info: 2 } as const;
@@ -478,13 +591,14 @@ export function buildProblems(report: Report): Problem[] {
 export function summaryInput(report: Report): SummaryInput {
   return {
     messages: report.messages,
+    currency: report.price?.currency ?? '$',
     agents: report.agents.map((a) => ({
       id: a.agent,
       label: a.label,
       startup: a.startup.total,
       est: !a.model.exactTokenizer,
       pct: a.usage.startupPctOfContext,
-      cost: a.usage.overheadCostUsd,
+      cost: a.usage.overheadCost,
     })),
     problems: buildProblems(report),
   };
@@ -492,4 +606,20 @@ export function summaryInput(report: Report): SummaryInput {
 
 export function reportSummary(report: Report): SummaryLine[] {
   return summarize(summaryInput(report));
+}
+
+/** The overall grade and one per agent that reads something; the same rules as the Overview. */
+export function reportGrades(report: Report): {
+  overall: Grade | null;
+  agents: Record<string, Grade>;
+} {
+  const problems = buildProblems(report);
+  const agents: Record<string, Grade> = {};
+  for (const a of report.agents) {
+    if (a.startup.total > 0 || problems.some((p) => p.tools.includes(a.agent))) {
+      agents[a.agent] = gradeOf(problems, [a.agent]);
+    }
+  }
+  const ids = report.agents.map((a) => a.agent);
+  return { overall: ids.length > 0 ? gradeOf(problems, ids) : null, agents };
 }
