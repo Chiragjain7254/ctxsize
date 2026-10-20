@@ -158,7 +158,7 @@ export const specProfiles: Record<string, ToolSpec> = {
   },
   windsurf: {
     label: 'Windsurf',
-    instructions: ['AGENTS.md', '.windsurfrules'],
+    instructions: ['AGENTS.md', 'agents.md', '.windsurfrules'],
     search: 'root',
     nested: 'on-demand',
     rules: [
@@ -185,8 +185,8 @@ export const specProfiles: Record<string, ToolSpec> = {
       },
       {
         url: 'https://docs.devin.ai/desktop/cascade/agents-md',
-        checked: CHECKED,
-        note: 'Root AGENTS.md is always on; subdirectory AGENTS.md applies to its directory',
+        checked: '2026-10-16',
+        note: 'Root AGENTS.md or agents.md is always on; a subdirectory one applies to its directory; both spellings are recognized',
       },
       { url: 'https://docs.devin.ai/desktop/cascade/skills', checked: CHECKED },
     ],

@@ -3,6 +3,11 @@
 All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Windsurf: a lowercase `agents.md` is now counted, as its docs recognize both spellings. The exact-case match still keeps one file from being counted twice on case-insensitive file systems.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

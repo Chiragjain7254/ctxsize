@@ -84,6 +84,15 @@ describe('built-in profiles for the newer tools', () => {
     ]);
   });
 
+  test('Windsurf: a lowercase agents.md is read, exactly once', async () => {
+    // One name per folder: a case-insensitive file system cannot hold both spellings.
+    const lower = await run({ 'agents.md': 'lower\n' }, ['windsurf']);
+    expect(paths(lower.pick('windsurf'), 'startup')).toEqual(['agents.md']);
+
+    const upper = await run({ 'AGENTS.md': 'upper\n' }, ['windsurf']);
+    expect(paths(upper.pick('windsurf'), 'startup')).toEqual(['AGENTS.md']);
+  });
+
   test('Aider: CONVENTIONS.md is on-demand because it must be passed in', async () => {
     const { pick } = await run({ 'CONVENTIONS.md': 'style\n' }, ['aider']);
     const a = pick('aider');

@@ -24,7 +24,7 @@ const FILES: Record<string, string> = {
   'packages/日本/CLAUDE.md/': '',
   'packages/日本/CLAUDE.md/inner.md': 'not an instruction file\n',
   // Wrong case: agents match names exactly, even on case-insensitive file systems.
-  'packages/lower/agents.md': 'wrong case\n',
+  'packages/lower/Agents.md': 'wrong case\n',
   'packages/lower/claude.md': 'wrong case\n',
   '.cursor/rules/日本 rule.mdc': '---\nalwaysApply: true\n---\nAlways 日本.\n',
   '.cursor/rules/glob é.mdc': '---\nglobs: "**/*.ts"\n---\nTS é.\n',
